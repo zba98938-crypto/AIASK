@@ -35,7 +35,7 @@ def test_quant_research_desktop_api_blocks_without_database(tmp_path, monkeypatc
     client = TestClient(create_app(runtime=_runtime(tmp_path)))
 
     created = client.post(
-        "/v1/desktop/quant/research-runs",
+        "/v1/finance/quant/research-runs",
         json={
             "universe": ["600519", "000001"],
             "factors": ["momentum"],
@@ -54,11 +54,11 @@ def test_quant_research_desktop_api_blocks_without_database(tmp_path, monkeypatc
     assert "NOT_INVESTMENT_ADVICE" in research["report"]["disclaimer"]
 
     research_id = research["research_id"]
-    fetched = client.get(f"/v1/desktop/quant/research-runs/{research_id}")
+    fetched = client.get(f"/v1/finance/quant/research-runs/{research_id}")
     assert fetched.status_code == 200
     assert fetched.json()["research_id"] == research_id
 
-    report = client.get(f"/v1/desktop/quant/research-runs/{research_id}/report")
+    report = client.get(f"/v1/finance/quant/research-runs/{research_id}/report")
     assert report.status_code == 200
     assert report.json()["research_id"] == research_id
 
@@ -70,11 +70,11 @@ def test_desktop_capabilities_includes_quant_preflight(tmp_path, monkeypatch) ->
     monkeypatch.setenv("AKSHARE_MCP_SQLITE_PATH", str(tmp_path / "akshare_mcp.sqlite3"))
     client = TestClient(create_app(runtime=_runtime(tmp_path)))
 
-    response = client.get("/v1/desktop/capabilities")
+    response = client.get("/v1/capabilities")
 
     assert response.status_code == 200
     payload = response.json()
     assert payload["quant"]["status"] == "ready"
     assert payload["quant"]["data_status"]["database"]["configured"] is True
     assert payload["quant"]["data_status"]["database"]["backend"] == "sqlite"
-    assert payload["raw_refs"]["quant_research_runs"] == "/v1/desktop/quant/research-runs"
+    assert payload["raw_refs"]["quant_research_runs"] == "/v1/finance/quant/research-runs"

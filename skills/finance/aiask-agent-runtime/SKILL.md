@@ -1,6 +1,6 @@
 ---
 name: aiask-agent-runtime
-description: Use this skill when working on the AIASK Agent runtime, FastAPI routes, Desktop-facing HTTP contracts, model-visible `agent_*` tools, toolset policy, ActionIntent and approval flows, run/session storage, financial manager APIs, or Agent safety envelopes.
+description: Use this skill when working on the AIASK Agent runtime, FastAPI routes, HTTP contracts, model-visible `agent_*` tools, toolset policy, ActionIntent and approval flows, run/session storage, financial manager APIs, or Agent safety envelopes.
 version: 1.0.0
 protocol_version: "1.0"
 capabilities:
@@ -14,9 +14,9 @@ side_effect: read_only
 ## Workflow
 
 1. Read [references/toolsets-and-tools.md](references/toolsets-and-tools.md) before changing tool names, schemas, categories, toolset gates, MCP wrappers, or model-visible capabilities.
-2. Read [references/http-api-and-intents.md](references/http-api-and-intents.md) before changing `server.py`, Desktop API contracts, runs/events/sessions, approvals, or ActionIntent behavior.
+2. Read [references/http-api-and-intents.md](references/http-api-and-intents.md) before changing `server.py`, HTTP API contracts, runs/events/sessions, approvals, or ActionIntent behavior.
 3. Keep all model-visible tools behind the `agent_*` facade.
-4. Keep Desktop routes aligned with `desktop/src/services/aiaskApi.ts`, `desktop/src/mock/mockData.ts`, and the current page/view wiring.
+4. Keep FastAPI and fallback route implementations aligned and cover contract changes with backend tests.
 5. Preserve structured failure, side-effect metadata, trace data, and control-token gates.
 
 ## Hard Rules

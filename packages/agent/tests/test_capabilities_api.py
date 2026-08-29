@@ -63,7 +63,7 @@ def test_desktop_capabilities_returns_public_subset_without_control_token(tmp_pa
     runtime = _runtime(tmp_path)
     client = TestClient(create_app(runtime=runtime))
 
-    response = client.get("/v1/desktop/capabilities")
+    response = client.get("/v1/capabilities")
     assert response.status_code == 200
     payload = response.json()
     assert payload["object"] == "aiask.desktop_capabilities"
@@ -108,7 +108,7 @@ def test_desktop_capabilities_reports_mcp_port_without_aggregator_config(tmp_pat
     runtime = _runtime(tmp_path)
     client = TestClient(create_app(runtime=runtime))
 
-    response = client.get("/v1/desktop/capabilities", headers={"Authorization": "Bearer secret"})
+    response = client.get("/v1/capabilities", headers={"Authorization": "Bearer secret"})
     assert response.status_code == 200
     payload = response.json()
     assert payload["summary"]["source"] == "live_backend"
@@ -163,7 +163,7 @@ def test_desktop_capabilities_aggregates_controlled_surfaces(tmp_path, monkeypat
         action="skill.install",
     )
 
-    response = client.get("/v1/desktop/capabilities", headers={"Authorization": "Bearer secret"})
+    response = client.get("/v1/capabilities", headers={"Authorization": "Bearer secret"})
     assert response.status_code == 200
     payload = response.json()
     assert payload["summary"]["control"]["authorized"] is True
@@ -278,7 +278,7 @@ def test_mcp_register_local_writes_non_secret_aggregator_config(tmp_path, monkey
     client = TestClient(create_app(runtime=runtime))
 
     response = client.post("/v1/mcp/register-local", headers={"Authorization": "Bearer secret"}, json={})
-    pending_capabilities = client.get("/v1/desktop/capabilities", headers={"Authorization": "Bearer secret"}).json()
+    pending_capabilities = client.get("/v1/capabilities", headers={"Authorization": "Bearer secret"}).json()
     assert pending_capabilities["mcp"]["registration_status"] == "MCP_SERVICE_RUNNING_BUT_NOT_REGISTERED"
 
     confirmed = _confirm_intent(
@@ -299,7 +299,7 @@ def test_mcp_register_local_writes_non_secret_aggregator_config(tmp_path, monkey
     assert stored_server["headers_from_env"]["Authorization"] == "AIASK_MCP_AKSHARE_LOCAL_AUTHORIZATION"
     assert "token" not in json.dumps(stored_server).lower()
 
-    capabilities = client.get("/v1/desktop/capabilities", headers={"Authorization": "Bearer secret"}).json()
+    capabilities = client.get("/v1/capabilities", headers={"Authorization": "Bearer secret"}).json()
     assert capabilities["mcp"]["registration_status"] == "registered"
     assert capabilities["mcp"]["discovery_status"] == "auth_missing"
     assert capabilities["mcp"]["servers"][0]["name"] == "akshare-local"

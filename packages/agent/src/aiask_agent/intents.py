@@ -598,7 +598,7 @@ class IntentExecutor:
             if inspect.isawaitable(result):
                 result = await result
             return result
-        from .adapters.desktop_ops import execute_confirmed_action
+        from .adapters.confirmed_actions import execute_confirmed_action
 
         return await execute_confirmed_action(target_tool, target_action, params)
 

@@ -79,7 +79,7 @@ def _write_ths_mcp_config(tmp_path) -> None:
 def test_broker_readiness_reports_missing_config_without_secret_values(tmp_path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
 
-    response = client.get("/v1/desktop/broker-readiness")
+    response = client.get("/v1/finance/broker/readiness")
 
     assert response.status_code == 200
     payload = response.json()
@@ -89,7 +89,7 @@ def test_broker_readiness_reports_missing_config_without_secret_values(tmp_path,
     assert qmt["live_trading_enabled"] is False
     assert "QMT_PATH" in qmt["missing_env"]
     assert "QMT_ACCOUNT" in qmt["missing_env"]
-    assert qmt["test_entry"]["path"] == "/v1/desktop/broker/sync"
+    assert qmt["test_entry"]["path"] == "/v1/finance/broker/sync"
     assert qmt["test_entry"]["consent_required"] is True
     assert qmt["test_entry"]["control_token_required"] is True
     assert any("MiniQMT" in item for item in qmt["environment_checks"])
@@ -99,7 +99,7 @@ def test_broker_readiness_reports_missing_config_without_secret_values(tmp_path,
     assert ths["live_trading_enabled"] is False
     assert "THS_CLIENT_PATH" in ths["missing_env"]
     assert any("Tonghuashun" in item for item in ths["environment_checks"])
-    assert ths["test_entry"]["path"] == "/v1/desktop/broker/sync"
+    assert ths["test_entry"]["path"] == "/v1/finance/broker/sync"
     assert ths["test_entry"]["control_token_required"] is True
     assert payload["secrets_redacted"] is True
 
@@ -107,15 +107,15 @@ def test_broker_readiness_reports_missing_config_without_secret_values(tmp_path,
 def test_broker_sync_requires_consent_and_ready_connector(tmp_path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
 
-    control_denied = client.post("/v1/desktop/broker/sync", json={"provider": "qmt", "broker_token": "should-not-leak"})
-    analytics_denied = client.post("/v1/desktop/broker/analytics/run", json={"provider": "qmt"})
+    control_denied = client.post("/v1/finance/broker/sync", json={"provider": "qmt", "broker_token": "should-not-leak"})
+    analytics_denied = client.post("/v1/finance/broker/analytics/run", json={"provider": "qmt"})
     consent_denied = client.post(
-        "/v1/desktop/broker/sync",
+        "/v1/finance/broker/sync",
         headers={"Authorization": "Bearer secret"},
         json={"provider": "qmt", "broker_token": "should-not-leak"},
     )
     not_ready = client.post(
-        "/v1/desktop/broker/sync",
+        "/v1/finance/broker/sync",
         headers={"Authorization": "Bearer secret"},
         json={"provider": "qmt", "consent": True, "broker_token": "should-not-leak"},
     )
@@ -168,12 +168,12 @@ def test_broker_sync_persists_snapshots_and_analytics_with_mocked_qmt(tmp_path, 
     client = TestClient(create_app(runtime=runtime))
 
     sync = client.post(
-        "/v1/desktop/broker/sync",
+        "/v1/finance/broker/sync",
         headers={"Authorization": "Bearer secret"},
         json={"provider": "qmt", "consent": True, "user_id": "local", "session_id": session_id},
     )
-    latest = client.get("/v1/desktop/broker/accounts?user_id=local&provider=qmt")
-    analytics = client.get("/v1/desktop/broker/analytics/latest?user_id=local&provider=qmt")
+    latest = client.get("/v1/finance/broker/snapshot?user_id=local&provider=qmt")
+    analytics = client.get("/v1/finance/broker/analytics/latest?user_id=local&provider=qmt")
 
     assert sync.status_code == 200
     sync_payload = sync.json()
@@ -193,7 +193,7 @@ def test_broker_sync_persists_snapshots_and_analytics_with_mocked_qmt(tmp_path, 
     assert metrics["cash_ratio"] == 0.12
     invocations = runtime.session_store.list_tool_invocations(session_id=session_id)
     assert len(invocations) == 3
-    assert all(item["source_chain"] == ["aiask_agent.server", "desktop.broker_readonly"] for item in invocations)
+    assert all(item["source_chain"] == ["aiask_agent.server", "finance.broker_readonly"] for item in invocations)
 
 
 def test_broker_sync_fails_closed_on_non_read_only_query_result(tmp_path, monkeypatch) -> None:
@@ -235,11 +235,11 @@ def test_broker_sync_fails_closed_on_non_read_only_query_result(tmp_path, monkey
     client = TestClient(create_app(runtime=runtime))
 
     sync = client.post(
-        "/v1/desktop/broker/sync",
+        "/v1/finance/broker/sync",
         headers={"Authorization": "Bearer secret"},
         json={"provider": "qmt", "consent": True, "user_id": "local", "session_id": session_id},
     )
-    latest = client.get("/v1/desktop/broker/accounts?user_id=local&provider=qmt")
+    latest = client.get("/v1/finance/broker/snapshot?user_id=local&provider=qmt")
 
     assert sync.status_code == 200
     payload = sync.json()
@@ -295,12 +295,12 @@ def test_broker_sync_persists_snapshots_and_analytics_with_mocked_tonghuashun(tm
     client = TestClient(create_app(runtime=_runtime(tmp_path)))
 
     sync = client.post(
-        "/v1/desktop/broker/sync",
+        "/v1/finance/broker/sync",
         headers={"Authorization": "Bearer secret"},
         json={"provider": "ths", "consent": True, "user_id": "local"},
     )
-    latest = client.get("/v1/desktop/broker/accounts?user_id=local&provider=tonghuashun")
-    analytics = client.get("/v1/desktop/broker/analytics/latest?user_id=local&provider=tonghuashun")
+    latest = client.get("/v1/finance/broker/snapshot?user_id=local&provider=tonghuashun")
+    analytics = client.get("/v1/finance/broker/analytics/latest?user_id=local&provider=tonghuashun")
 
     assert sync.status_code == 200
     sync_payload = sync.json()

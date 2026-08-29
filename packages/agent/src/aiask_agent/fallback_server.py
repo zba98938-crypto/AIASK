@@ -7,6 +7,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
+from .api_envelope import REMOVED_PREFIX, removed_route_payload
 from .intents import public_intents
 from .plugin_runtime import _safe_slug
 from .route_auth import token_matches
@@ -41,21 +42,9 @@ from .server import (
     _ai_status_payload_for_runtime,
     _artifact_content_payload,
     _audited_runtime_tool_call,
-    _broker_accounts_payload,
-    _broker_analytics_payload,
-    _broker_readiness_payload,
-    _broker_sync_payload,
     _build_runtime_and_executor,
     _chat_completion_payload,
     _cors_origins,
-    _desktop_data_status_payload_for_runtime,
-    _desktop_data_sync_plan_payload_for_runtime,
-    _desktop_runs_payload,
-    _desktop_settings_status_payload_for_runtime,
-    _financial_catalog_payload,
-    _financial_intent_payload,
-    _financial_query_payload,
-    _financial_status_payload,
     _handoff_queue_payload,
     _header_token,
     _hermes_full_enabled,
@@ -81,19 +70,10 @@ from .server import (
     _session_resume_context_payload,
     _session_summary_payload,
     _truthy,
-    _workbench_summary_payload,
     build_tool_catalog_payload,
-    factor_factory_status,
-    list_stock_data_sources,
     load_project_env,
-    local_profile_payload,
-    normalize_provider,
     parity_summary,
-    quant_adapter,
     read_only_desktop_result_guard,
-    save_local_profile,
-    save_stock_data_source,
-    test_stock_data_source,
 )
 
 def build_server(
@@ -121,7 +101,7 @@ def build_server(
         target_action: str,
         params: dict[str, Any],
     ) -> dict[str, Any]:
-        from .adapters.desktop_ops import execute_confirmed_action
+        from .adapters.confirmed_actions import execute_confirmed_action
 
         selected_runtime = (
             _build_native_full_runtime()
@@ -306,6 +286,18 @@ def build_server(
             }
             self._send_json(status, payload)
 
+        def _reject_removed_desktop_route(self, path: str) -> bool:
+            """Answer removed /v1/desktop/* paths centrally.
+
+            The legacy server had ~40 individual desktop branches. Intercepting
+            once here means no path can be missed, and the reply names the
+            neutral route that replaced it instead of a bare 404.
+            """
+            if not str(path or "").startswith(f"{REMOVED_PREFIX}/") and path != REMOVED_PREFIX:
+                return False
+            self._send_json(404, removed_route_payload(path))
+            return True
+
         def _api_authorized(self) -> bool:
             bind_host = str(self.server.server_address[0])
             if _is_loopback(bind_host):
@@ -313,6 +305,8 @@ def build_server(
             expected = str(os.getenv("AIASK_AGENT_API_TOKEN", "")).strip()
             if not expected:
                 return False
+            # header_token already falls back to Authorization: Bearer, which is
+            # what the ASGI server reads, so both header forms work here.
             return token_matches(_header_token(self, "X-AIASK-Agent-Token"), expected)
 
         def _control_authorized(self) -> tuple[bool, str | None]:
@@ -414,6 +408,8 @@ def build_server(
             parsed_url = urlparse(self.path)
             path = parsed_url.path
             query = parse_qs(parsed_url.query)
+            if self._reject_removed_desktop_route(path):
+                return
             # WebSocket 仅 ASGI 模式可用;legacy-http 下优雅降级,避免前端无限重连 404
             if path == "/ws" or self.headers.get("upgrade", "").lower() == "websocket":
                 self._send_json(
@@ -515,6 +511,43 @@ def build_server(
                     return
                 selected = _build_native_full_runtime() if _hermes_full_enabled() else runtime
                 self._send_json(200, parity_summary(selected.tool_registry.names(), env=dict(os.environ), gateway_adapters=ADAPTERS.keys()))
+                return
+            # Neutral user-scoped reads. These moved off /v1/desktop/* with the
+            # rest of the facade; they stay here because the legacy server is a
+            # supported transport and dropping them would remove capability
+            # rather than relocate it.
+            if path == "/v1/users/analytics/summary":
+                if not self._api_authorized():
+                    self._send_error_json(401, "unauthorized", code="unauthorized")
+                    return
+                requested_user_id = (query.get("user_id") or [""])[0].strip() or None
+                if requested_user_id is None:
+                    ok, reason = self._control_authorized()
+                    if not ok:
+                        status = 503 if reason == "control token is not configured" else 401
+                        self._send_error_json(status, reason or "unauthorized", code="control_unauthorized")
+                        return
+                else:
+                    ok, requested_user_id, status, reason = self._require_user_scope(requested_user_id)
+                    if not ok:
+                        self._send_error_json(status, reason or "unauthorized", code="user_scope_forbidden")
+                        return
+                limit = max(1, min(int((query.get("limit") or ["20"])[0] or 20), 100))
+                self._send_json(200, runtime.session_store.analytics_summary(user_id=requested_user_id, limit=limit))
+                return
+            if path.startswith("/v1/users/") and path.endswith("/activity"):
+                if not self._api_authorized():
+                    self._send_error_json(401, "unauthorized", code="unauthorized")
+                    return
+                ok, requested_user_id, status, reason = self._require_user_scope(path.split("/")[3])
+                if not ok:
+                    self._send_error_json(status, reason or "unauthorized", code="user_scope_forbidden")
+                    return
+                limit = max(1, min(int((query.get("limit") or ["20"])[0] or 20), 100))
+                self._send_json(
+                    200,
+                    runtime.session_store.user_activity_summary(user_id=requested_user_id, limit=limit),
+                )
                 return
             if path == "/v1/hermes/toolsets":
                 if not self._api_authorized():
@@ -623,295 +656,6 @@ def build_server(
                     return
                 self._send_json(200, build_tool_catalog_payload(runtime))
                 return
-            if path == "/v1/desktop/settings/status":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                control_ok, control_reason = self._control_authorized()
-                payload = _desktop_settings_status_payload_for_runtime(
-                    runtime,
-                    endpoint=f"http://{self.server.server_address[0]}:{self.server.server_address[1]}",
-                    control_authorized=control_ok,
-                    control_reason=control_reason,
-                )
-                self._send_json(200, payload)
-                return
-            if path == "/v1/desktop/data/status":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                codes = (query.get("codes") or [""])[0]
-                payload = asyncio.run(
-                    _desktop_data_status_payload_for_runtime(
-                        runtime,
-                        {
-                            "codes": [item.strip() for item in str(codes or "").replace("\n", ",").split(",") if item.strip()],
-                            "max_stale_days": int((query.get("max_stale_days") or ["5"])[0]),
-                        }
-                    )
-                )
-                self._send_json(200, payload)
-                return
-            if path == "/v1/desktop/stock-data-sources":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                self._send_json(200, list_stock_data_sources())
-                return
-            if path == "/v1/desktop/users/local-profile":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                self._send_json(200, local_profile_payload())
-                return
-            if path.startswith("/v1/desktop/users/") and path.endswith("/activity"):
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                parts = path.strip("/").split("/")
-                user_id = parts[3] if len(parts) >= 5 else ""
-                ok, scoped_user_id, status, reason = self._require_user_scope(user_id)
-                if not ok:
-                    self._send_error_json(status, reason or "unauthorized", code="user_scope_forbidden")
-                    return
-                self._send_json(
-                    200,
-                    runtime.session_store.user_activity_summary(
-                        user_id=scoped_user_id,
-                        limit=int((query.get("limit") or ["20"])[0]),
-                    ),
-                )
-                return
-            if path == "/v1/desktop/analytics/summary":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                requested_user_id = (query.get("user_id") or [""])[0].strip() or None
-                scoped_user_id = None
-                if requested_user_id:
-                    ok, scoped_user_id, status, reason = self._require_user_scope(requested_user_id)
-                    if not ok:
-                        self._send_error_json(status, reason or "unauthorized", code="user_scope_forbidden")
-                        return
-                else:
-                    ok, reason = self._control_authorized()
-                    if not ok:
-                        status = 503 if reason == "control token is not configured" else 401
-                        self._send_error_json(status, reason or "control token required", code="control_required")
-                        return
-                self._send_json(200, runtime.session_store.analytics_summary(user_id=scoped_user_id, limit=int((query.get("limit") or ["20"])[0])))
-                return
-            if path.startswith("/v1/desktop/users/") and path.endswith("/export"):
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                parts = path.strip("/").split("/")
-                user_id = parts[3] if len(parts) >= 5 else ""
-                ok, scoped_user_id, status, reason = self._require_user_scope(user_id)
-                if not ok:
-                    self._send_error_json(status, reason or "unauthorized", code="user_scope_forbidden")
-                    return
-                self._send_json(200, runtime.session_store.export_user_data(user_id=scoped_user_id, limit=int((query.get("limit") or ["500"])[0])))
-                return
-            if path.startswith("/v1/desktop/users/") and path.endswith("/learning-dataset"):
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                parts = path.strip("/").split("/")
-                user_id = parts[3] if len(parts) >= 5 else ""
-                ok, scoped_user_id, status, reason = self._require_user_scope(user_id)
-                if not ok:
-                    self._send_error_json(status, reason or "unauthorized", code="user_scope_forbidden")
-                    return
-                self._send_json(200, runtime.session_store.learning_dataset(user_id=scoped_user_id, limit=int((query.get("limit") or ["100"])[0])))
-                return
-            if path.startswith("/v1/desktop/users/") and path.endswith("/recommendations"):
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                parts = path.strip("/").split("/")
-                user_id = parts[3] if len(parts) >= 5 else ""
-                ok, scoped_user_id, status, reason = self._require_user_scope(user_id)
-                if not ok:
-                    self._send_error_json(status, reason or "unauthorized", code="user_scope_forbidden")
-                    return
-                self._send_json(200, runtime.session_store.workflow_recommendations(user_id=scoped_user_id, limit=int((query.get("limit") or ["5"])[0])))
-                return
-            if path.startswith("/v1/desktop/users/") and path.endswith("/data-policy"):
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                parts = path.strip("/").split("/")
-                user_id = parts[3] if len(parts) >= 5 else ""
-                ok, scoped_user_id, status, reason = self._require_user_scope(user_id)
-                if not ok:
-                    self._send_error_json(status, reason or "unauthorized", code="user_scope_forbidden")
-                    return
-                self._send_json(200, {"object": "aiask.user_data_policy", "data": runtime.session_store.get_user_data_policy(scoped_user_id)})
-                return
-            if path == "/v1/desktop/factor-factory/status":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                self._send_json(200, asyncio.run(factor_factory_status(limit=int((query.get("limit") or ["50"])[0]))))
-                return
-            if path == "/v1/desktop/trade-predictions/status":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                self._send_json(
-                    200,
-                    asyncio.run(
-                        runtime.tool_registry.call_tool(
-                            "agent_trade_prediction_status",
-                            {
-                                "strategy_id": (query.get("strategy_id") or [None])[0],
-                                "stock_code": (query.get("stock_code") or [None])[0],
-                                "limit": int((query.get("limit") or ["1000"])[0]),
-                            },
-                        )
-                    ),
-                )
-                return
-            if path == "/v1/desktop/trade-predictions/outcomes":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                self._send_json(
-                    200,
-                    asyncio.run(
-                        runtime.tool_registry.call_tool(
-                            "agent_trade_prediction_outcomes",
-                            {
-                                "prediction_id": (query.get("prediction_id") or [None])[0],
-                                "strategy_id": (query.get("strategy_id") or [None])[0],
-                                "stock_code": (query.get("stock_code") or [None])[0],
-                                "score_version": (query.get("score_version") or [None])[0],
-                                "score_status": (query.get("score_status") or [None])[0],
-                                "data_quality_status": (query.get("data_quality_status") or [None])[0],
-                                "actual_trading_date_lte": (query.get("actual_trading_date_lte") or [None])[0],
-                                "actual_trading_date_gte": (query.get("actual_trading_date_gte") or [None])[0],
-                                "limit": int((query.get("limit") or ["100"])[0]),
-                            },
-                        )
-                    ),
-                )
-                return
-            if path == "/v1/desktop/trade-predictions/matrix":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                dimensions = [
-                    item.strip()
-                    for item in str((query.get("dimensions") or [""])[0] or "").split(",")
-                    if item.strip()
-                ]
-                self._send_json(
-                    200,
-                    asyncio.run(
-                        runtime.tool_registry.call_tool(
-                            "agent_trade_prediction_matrix",
-                            {
-                                "strategy_id": (query.get("strategy_id") or [None])[0],
-                                "stock_code": (query.get("stock_code") or [None])[0],
-                                "score_version": (query.get("score_version") or [None])[0],
-                                "dimensions": dimensions,
-                                "limit": int((query.get("limit") or ["1000"])[0]),
-                            },
-                        )
-                    ),
-                )
-                return
-            if path == "/v1/desktop/stock-radar/status":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                self._send_json(
-                    200,
-                    asyncio.run(
-                        runtime.tool_registry.call_tool(
-                            "agent_stock_radar_status",
-                            {
-                                "run_id": (query.get("run_id") or [None])[0],
-                                "limit": int((query.get("limit") or ["20"])[0]),
-                            },
-                        )
-                    ),
-                )
-                return
-            if path == "/v1/desktop/stock-radar/candidates":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                min_score_raw = (query.get("min_score") or [None])[0]
-                self._send_json(
-                    200,
-                    asyncio.run(
-                        runtime.tool_registry.call_tool(
-                            "agent_stock_radar_candidates",
-                            {
-                                "run_id": (query.get("run_id") or [None])[0],
-                                "tier": (query.get("tier") or [None])[0],
-                                "symbol": (query.get("symbol") or [None])[0],
-                                "min_score": float(min_score_raw) if min_score_raw not in {None, ""} else None,
-                                "limit": int((query.get("limit") or ["100"])[0]),
-                            },
-                        )
-                    ),
-                )
-                return
-            if path == "/v1/desktop/stock-radar/digest":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                channels = [
-                    item.strip()
-                    for item in str((query.get("channels") or ["wecom,telegram"])[0]).split(",")
-                    if item.strip()
-                ]
-                self._send_json(
-                    200,
-                    asyncio.run(
-                        runtime.tool_registry.call_tool(
-                            "agent_stock_radar_digest",
-                            {
-                                "run_id": (query.get("run_id") or [None])[0],
-                                "limit": int((query.get("limit") or ["20"])[0]),
-                                "channels": channels,
-                            },
-                        )
-                    ),
-                )
-                return
-            if path == "/v1/desktop/workbench/summary":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                self._send_json(
-                    200,
-                    _workbench_summary_payload(
-                        runtime,
-                        intent_store=intent_executor.store,
-                        user_id=(query.get("user_id") or [None])[0],
-                        session_limit=int((query.get("session_limit") or ["8"])[0]),
-                        run_limit=int((query.get("run_limit") or ["8"])[0]),
-                    ),
-                )
-                return
-            if path == "/v1/desktop/runs":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                self._send_json(
-                    200,
-                    _desktop_runs_payload(
-                        runtime,
-                        session_id=(query.get("session_id") or [None])[0],
-                        status=(query.get("status") or [None])[0],
-                        limit=int((query.get("limit") or ["100"])[0]),
-                    ),
-                )
-                return
             if path == "/v1/ai/status":
                 if not self._api_authorized():
                     self._send_error_json(401, "unauthorized", code="unauthorized")
@@ -929,91 +673,6 @@ def build_server(
                     self._send_error_json(401, "unauthorized", code="unauthorized")
                     return
                 self._send_json(200, asyncio.run(_ai_models_payload_for_runtime(runtime)))
-                return
-            if path == "/v1/desktop/quant/presets":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                self._send_json(200, quant_adapter.quant_presets())
-                return
-            if path == "/v1/desktop/financial-manager/catalog":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                self._send_json(200, _financial_catalog_payload(runtime))
-                return
-            if path == "/v1/desktop/financial-manager/status":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                self._send_json(200, asyncio.run(_financial_status_payload(runtime, intent_store=intent_executor.store)))
-                return
-            if path == "/v1/desktop/broker-readiness":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                self._send_json(200, _broker_readiness_payload(runtime))
-                return
-            if path in {"/v1/desktop/broker/accounts", "/v1/desktop/broker/positions", "/v1/desktop/broker/orders"}:
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                requested_user_id = (query.get("user_id") or [""])[0].strip() or None
-                scoped_user_id = None
-                if requested_user_id:
-                    ok, scoped_user_id, status, reason = self._require_user_scope(requested_user_id)
-                    if not ok:
-                        self._send_error_json(status, reason or "unauthorized", code="user_scope_forbidden")
-                        return
-                self._send_json(200, _broker_accounts_payload(runtime, {"user_id": scoped_user_id, "provider": (query.get("provider") or [""])[0]}))
-                return
-            if path == "/v1/desktop/broker/analytics/latest":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                requested_user_id = (query.get("user_id") or [""])[0].strip() or None
-                scoped_user_id = None
-                if requested_user_id:
-                    ok, scoped_user_id, status, reason = self._require_user_scope(requested_user_id)
-                    if not ok:
-                        self._send_error_json(status, reason or "unauthorized", code="user_scope_forbidden")
-                        return
-                latest = runtime.session_store.latest_broker_analytics(
-                    user_id=scoped_user_id,
-                    provider=normalize_provider((query.get("provider") or [""])[0]) if (query.get("provider") or [""])[0] else None,
-                )
-                self._send_json(
-                    200,
-                    {
-                        "object": "aiask.desktop.broker_readonly.analytics",
-                        "success": True,
-                        "data": {"analytics": latest},
-                        "error": None,
-                        "read_only": True,
-                        "live_trading_enabled": False,
-                        "secrets_redacted": True,
-                        "source_chain": ["aiask_agent.broker_readonly"],
-                    },
-                )
-                return
-            if path.startswith("/v1/desktop/quant/research-runs/"):
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                parts = path.strip("/").split("/")
-                research_id = parts[4] if len(parts) >= 5 else ""
-                if path.endswith("/report"):
-                    report = quant_store.report(research_id)
-                    if report is None:
-                        self._send_error_json(404, f"quant research report not found: {research_id}", code="not_found")
-                        return
-                    self._send_json(200, report)
-                    return
-                item = quant_store.get(research_id)
-                if item is None:
-                    self._send_error_json(404, f"quant research run not found: {research_id}", code="not_found")
-                    return
-                self._send_json(200, {"object": "aiask.quant_research_run", **item})
                 return
             if path == "/v1/toolsets":
                 if not self._api_authorized():
@@ -1326,6 +985,8 @@ def build_server(
 
         def do_DELETE(self) -> None:
             path = urlparse(self.path).path
+            if self._reject_removed_desktop_route(path):
+                return
             if path.startswith("/v1/jobs/"):
                 ok, reason = self._control_authorized()
                 if not ok:
@@ -1353,6 +1014,8 @@ def build_server(
 
         def do_PATCH(self) -> None:
             path = urlparse(self.path).path
+            if self._reject_removed_desktop_route(path):
+                return
             try:
                 payload = _read_json(self)
             except ValueError as exc:
@@ -1382,35 +1045,6 @@ def build_server(
                     return
                 self._send_json(200, {"object": "job", **job})
                 return
-            if path == "/v1/desktop/users/local-profile":
-                ok, reason = self._control_authorized()
-                if not ok:
-                    status = 503 if reason == "control token is not configured" else 401
-                    self._send_error_json(status, reason or "unauthorized", code="control_unauthorized")
-                    return
-                profile = save_local_profile(payload)
-                self._send_json(200, profile)
-                return
-            if path.startswith("/v1/desktop/users/") and path.endswith("/data-policy"):
-                ok, reason = self._control_authorized()
-                if not ok:
-                    status = 503 if reason == "control token is not configured" else 401
-                    self._send_error_json(status, reason or "unauthorized", code="control_unauthorized")
-                    return
-                parts = path.strip("/").split("/")
-                user_id = parts[3] if len(parts) >= 5 else ""
-                ok, scoped_user_id, status, reason = self._require_user_scope(user_id)
-                if not ok:
-                    self._send_error_json(status, reason or "unauthorized", code="user_scope_forbidden")
-                    return
-                self._send_json(
-                    200,
-                    {
-                        "object": "aiask.user_data_policy",
-                        "data": runtime.session_store.update_user_data_policy(scoped_user_id, payload),
-                    },
-                )
-                return
             if not self._api_authorized():
                 self._send_error_json(401, "unauthorized", code="unauthorized")
                 return
@@ -1418,6 +1052,8 @@ def build_server(
 
         def do_POST(self) -> None:
             path = urlparse(self.path).path
+            if self._reject_removed_desktop_route(path):
+                return
             try:
                 payload = _read_json(self)
             except ValueError as exc:
@@ -1527,59 +1163,6 @@ def build_server(
                 self._send_json(200, {"object": "aiask.session_archive", "implementation": "aiask_native", **result})
                 return
 
-            if path == "/v1/desktop/events":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                events = runtime.session_store.record_activity_events(self._event_batch_from_payload(payload))
-                self._send_json(200, {"object": "list", "data": events, "count": len(events), "secrets_redacted": True})
-                return
-
-            if path == "/v1/desktop/feedback":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                context = _request_context_payload(payload, headers=self.headers)
-                feedback = runtime.session_store.record_feedback({**context, **payload})
-                self._send_json(200, {"object": "aiask.feedback", "data": feedback, "secrets_redacted": True})
-                return
-
-            if path.startswith("/v1/desktop/users/") and path.endswith("/delete"):
-                ok, reason = self._control_authorized()
-                if not ok:
-                    status = 503 if reason == "control token is not configured" else 401
-                    self._send_error_json(status, reason or "unauthorized", code="control_unauthorized")
-                    return
-                parts = path.strip("/").split("/")
-                user_id = parts[3] if len(parts) >= 5 else ""
-                ok, scoped_user_id, status, reason = self._require_user_scope(user_id)
-                if not ok:
-                    self._send_error_json(status, reason or "unauthorized", code="user_scope_forbidden")
-                    return
-                self._send_json(
-                    200,
-                    runtime.session_store.delete_user_data(
-                        user_id=scoped_user_id,
-                        include_conversations=payload.get("include_conversations") is not False,
-                        include_audit=payload.get("include_audit") is not False,
-                        hard_delete=_truthy(payload.get("hard_delete")),
-                        dry_run=payload.get("dry_run") is not False,
-                        reason=str(payload.get("reason") or "user_data_delete"),
-                        actor=str(payload.get("actor") or scoped_user_id),
-                    ),
-                )
-                return
-
-            if path == "/v1/desktop/retention/sweep":
-                ok, reason = self._control_authorized()
-                if not ok:
-                    status = 503 if reason == "control token is not configured" else 401
-                    self._send_error_json(status, reason or "control token required", code="control_required")
-                    return
-                user_id = str(payload.get("user_id") or "").strip() or None
-                self._send_json(200, runtime.session_store.apply_retention_policies(user_id=user_id, dry_run=payload.get("dry_run") is not False))
-                return
-
             if path.startswith("/v1/tools/"):
                 if not self._api_authorized():
                     self._send_error_json(401, "unauthorized", code="unauthorized")
@@ -1605,132 +1188,11 @@ def build_server(
                 self._send_json(200, result)
                 return
 
-            if path == "/v1/desktop/quant/research-runs":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                result = self._audited_desktop_tool_call(
-                    "agent_quant_research_run",
-                    payload,
-                    source_chain=["aiask_agent.server", "desktop.quant_research"],
-                )
-                self._send_json(200, result)
-                return
-
-            if path == "/v1/desktop/financial-manager/query":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                async def call_tool(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-                    tool = runtime.tool_registry.get(tool_name)
-                    metadata = dict(getattr(tool, "metadata", {}) or {}) if tool else {}
-                    return await _audited_runtime_tool_call(
-                        runtime,
-                        tool_name,
-                        dict(arguments or {}),
-                        headers=self.headers,
-                        metadata=metadata,
-                        source_chain=["aiask_agent.server", "desktop.financial_manager"],
-                        result_guard=read_only_desktop_result_guard,
-                    )
-
-                self._send_json(200, asyncio.run(_financial_query_payload(runtime, payload, tool_caller=call_tool)))
-                return
-
-            if path == "/v1/desktop/financial-manager/intent":
-                ok, reason = self._control_authorized()
-                if not ok:
-                    status = 503 if reason == "control token is not configured" else 401
-                    self._send_error_json(status, reason or "unauthorized", code="control_unauthorized")
-                    return
-                async def call_tool(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-                    tool = runtime.tool_registry.get(tool_name)
-                    metadata = dict(getattr(tool, "metadata", {}) or {}) if tool else {}
-                    return await _audited_runtime_tool_call(
-                        runtime,
-                        tool_name,
-                        dict(arguments or {}),
-                        headers=self.headers,
-                        metadata=metadata,
-                        source_chain=["aiask_agent.server", "desktop.financial_manager.intent"],
-                    )
-
-                self._send_json(200, asyncio.run(_financial_intent_payload(runtime, payload, tool_caller=call_tool)))
-                return
-
-            if path == "/v1/desktop/broker/sync":
-                ok, reason = self._control_authorized()
-                if not ok:
-                    status = 503 if reason == "control token is not configured" else 401
-                    self._send_error_json(status, reason or "unauthorized", code="control_unauthorized")
-                    return
-                async def call_tool(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
-                    tool = runtime.tool_registry.get(tool_name)
-                    metadata = dict(getattr(tool, "metadata", {}) or {}) if tool else {}
-                    return await _audited_runtime_tool_call(
-                        runtime,
-                        tool_name,
-                        dict(arguments or {}),
-                        headers=self.headers,
-                        metadata=metadata,
-                        source_chain=["aiask_agent.server", "desktop.broker_readonly"],
-                        result_guard=read_only_desktop_result_guard,
-                    )
-
-                self._send_json(200, asyncio.run(_broker_sync_payload(runtime, payload, headers=self.headers, tool_caller=call_tool)))
-                return
-
-            if path == "/v1/desktop/broker/analytics/run":
-                ok, reason = self._control_authorized()
-                if not ok:
-                    status = 503 if reason == "control token is not configured" else 401
-                    self._send_error_json(status, reason or "unauthorized", code="control_unauthorized")
-                    return
-                self._send_json(200, _broker_analytics_payload(runtime, payload))
-                return
-
-            if path == "/v1/desktop/data/sync-plan":
-                if not self._api_authorized():
-                    self._send_error_json(401, "unauthorized", code="unauthorized")
-                    return
-                self._send_json(200, asyncio.run(_desktop_data_sync_plan_payload_for_runtime(runtime, payload)))
-                return
-
-            if path == "/v1/desktop/stock-data-sources":
-                ok, reason = self._control_authorized()
-                if not ok:
-                    status = 503 if reason == "control token is not configured" else 401
-                    self._send_error_json(status, reason or "unauthorized", code="control_unauthorized")
-                    return
-                try:
-                    self._send_json(200, save_stock_data_source(payload))
-                except ValueError as exc:
-                    self._send_error_json(400, str(exc), code="invalid_request")
-                return
-
-            if path == "/v1/desktop/stock-data-sources/test":
-                ok, reason = self._control_authorized()
-                if not ok:
-                    status = 503 if reason == "control token is not configured" else 401
-                    self._send_error_json(status, reason or "unauthorized", code="control_unauthorized")
-                    return
-                self._send_json(200, test_stock_data_source(payload))
-                return
-
             if path == "/v1/ai/smoke":
                 if not self._api_authorized():
                     self._send_error_json(401, "unauthorized", code="unauthorized")
                     return
                 self._send_json(200, asyncio.run(_ai_smoke_payload_for_runtime(runtime, payload)))
-                return
-
-            if path == "/v1/desktop/users/local-profile":
-                ok, reason = self._control_authorized()
-                if not ok:
-                    status = 503 if reason == "control token is not configured" else 401
-                    self._send_error_json(status, reason or "unauthorized", code="control_unauthorized")
-                    return
-                self._send_json(200, save_local_profile(payload))
                 return
 
             if path == "/v1/jobs":

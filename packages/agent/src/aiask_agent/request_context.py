@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from .desktop_payloads import local_profile_payload
+from .settings_payloads import local_profile_payload
 
 
 def request_user_id_from_payload(payload: dict[str, Any] | None, *, headers: Any | None = None) -> str:

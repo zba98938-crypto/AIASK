@@ -24,19 +24,19 @@ LIVE_SMOKE_CHECKS: tuple[dict[str, Any], ...] = (
     {"name": "health", "method": "GET", "path": "/health/detailed"},
     {"name": "tools", "method": "GET", "path": "/v1/tools"},
     {"name": "financial_readiness", "method": "GET", "path": "/v1/financial-system/readiness"},
-    {"name": "workbench_summary", "method": "GET", "path": "/v1/desktop/workbench/summary?session_limit=5&run_limit=5"},
-    {"name": "memory_status", "method": "GET", "path": "/v1/desktop/settings/status"},
+    {"name": "workbench_summary", "method": "GET", "path": "/v1/workbench/summary?session_limit=5&run_limit=5"},
+    {"name": "memory_status", "method": "GET", "path": "/v1/settings/status"},
     {"name": "session_search", "method": "GET", "path": "/v1/search?query=AIASK&limit=5"},
     {"name": "memory_search", "method": "POST", "path": "/v1/tools/agent_memory_search"},
     {"name": "mcp_servers", "method": "GET", "path": "/v1/mcp/servers?all=true"},
     {"name": "mcp_tools", "method": "GET", "path": "/v1/mcp/tools?all=true"},
-    {"name": "financial_manager_catalog", "method": "GET", "path": "/v1/desktop/financial-manager/catalog"},
-    {"name": "financial_manager_query", "method": "POST", "path": "/v1/desktop/financial-manager/query"},
-    {"name": "data_status", "method": "GET", "path": "/v1/desktop/data/status?codes=600519,000001&max_stale_days=5"},
+    {"name": "financial_manager_catalog", "method": "GET", "path": "/v1/finance/manager/catalog"},
+    {"name": "financial_manager_query", "method": "POST", "path": "/v1/finance/manager/query"},
+    {"name": "data_status", "method": "GET", "path": "/v1/data/status?codes=600519,000001&max_stale_days=5"},
     {"name": "factory_status", "method": "POST", "path": "/v1/tools/agent_factory_status", "observes": ["success", "runtime_enabled", "event_runtime_mode", "daily_run_count", "cycle_count"]},
     {"name": "market_temperature_cache", "method": "POST", "path": "/v1/tools/agent_market_temperature_cache_readiness", "observes": ["ready", "status", "blockers", "warnings"]},
     {"name": "market_temperature_forward_validation", "method": "POST", "path": "/v1/tools/agent_market_temperature_forward_validation", "observes": ["benchmark_status", "quality_status", "warnings", "sample_count"]},
-    {"name": "quant_research", "method": "POST", "path": "/v1/desktop/quant/research-runs"},
+    {"name": "quant_research", "method": "POST", "path": "/v1/finance/quant/research-runs"},
 )
 REQUIRED_DESKTOP_WORKBENCH_FILES = (
     "desktop/package.json",
@@ -223,7 +223,7 @@ def _build_next_actions(
                 "Set AIASK_SQLITE_PATH or AKSHARE_MCP_SQLITE_PATH to a writable SQLite file, then rerun data readiness.",
                 priority="critical",
                 target_page="data",
-                endpoint="/v1/desktop/data/status",
+                endpoint="/v1/data/status",
                 env_vars=["AIASK_SQLITE_PATH", "AKSHARE_MCP_SQLITE_PATH"],
                 gate="database",
             )
@@ -238,7 +238,7 @@ def _build_next_actions(
                 "Open the Strategy Factory panel to review status, runs, snapshots, and database/runtime errors before running factory actions.",
                 priority="critical" if strategy_gate.get("status") == "blocked" else "recommended",
                 target_page="strategy-factory",
-                endpoint="/v1/desktop/capabilities",
+                endpoint="/v1/capabilities",
                 gate="strategy_factory",
             )
         )
@@ -308,7 +308,7 @@ def _build_next_actions(
                 "Start with Financial Manager read-only risk/query, then run Quant Research and confirm the report is completed or explicitly blocked by data freshness.",
                 priority="recommended",
                 target_page="financial-manager",
-                endpoint="/v1/desktop/financial-manager/query",
+                endpoint="/v1/finance/manager/query",
             ),
         )
 
@@ -347,7 +347,7 @@ def _financial_action_safety_gate(matrix: dict[str, Any]) -> dict[str, Any]:
     stateful_guarded = all(
         bool(item.get("action_intent_required"))
         and bool(item.get("control_token_required"))
-        and item.get("endpoint") == "/v1/desktop/financial-manager/intent"
+        and item.get("endpoint") == "/v1/finance/manager/intent"
         and not bool(item.get("direct_execution_allowed"))
         for item in stateful_actions
     )

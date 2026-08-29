@@ -122,7 +122,7 @@ def regression_commands(py: str = sys.executable) -> list[CommandSpec]:
                 "pytest",
                 "packages/agent/tests/test_tool_registry.py",
                 "packages/agent/tests/test_strategy_factory_adapter_ownership.py",
-                "packages/agent/tests/test_desktop_ops_api.py",
+                "packages/agent/tests/test_domain_ops_api.py",
                 "-q",
             ),
             timeout_seconds=300,

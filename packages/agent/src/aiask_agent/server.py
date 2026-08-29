@@ -27,16 +27,16 @@ from .ai_payloads import (
 from .audited_tool_calls import audited_runtime_tool_call
 from .broker_readonly import normalize_provider
 from .capabilities import HERMES_BASELINE, HERMES_BASELINE_VERSION, HERMES_RELEASE_TAG, parity_summary
-from .desktop_payloads import (
+from .settings_payloads import (
     agent_endpoint as _agent_endpoint,
-    desktop_data_status_payload_for_runtime as _desktop_data_status_payload_for_runtime,
-    desktop_data_sync_plan_payload_for_runtime as _desktop_data_sync_plan_payload_for_runtime,
-    desktop_settings_status_payload_for_runtime as _desktop_settings_status_payload_builder,
+    data_status_payload_for_runtime as _desktop_data_status_payload_for_runtime,
+    data_sync_plan_payload_for_runtime as _desktop_data_sync_plan_payload_for_runtime,
+    settings_status_payload_for_runtime as _desktop_settings_status_payload_builder,
     local_profile_payload,
     save_local_profile,
 )
-from .desktop_capabilities_payloads import (
-    desktop_capabilities_payload_for_runtime as _desktop_capabilities_payload_for_runtime,
+from .capabilities_payloads import (
+    capabilities_payload_for_runtime as _desktop_capabilities_payload_for_runtime,
 )
 from .env_config import load_project_env
 from .gateway import ADAPTERS
@@ -132,7 +132,7 @@ from .tool_registry import SAFE_TOOL_CATALOG
 from .tool_risk import metadata_is_read_only, read_only_desktop_result_guard
 from .tools.policy import GENERAL_FULL_TOOLSET
 from .adapters import quant as quant_adapter
-from .adapters.desktop_ops import factor_factory_status
+from .adapters.confirmed_actions import factor_factory_status
 
 
 ToolCaller = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]

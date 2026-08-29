@@ -106,10 +106,10 @@ def test_confirm_does_not_execute_without_executing_transition(tmp_path, monkeyp
         execution_calls.append({"target_tool": target_tool, "action": action, "params": dict(params or {})})
         return {"success": True, "data": {"should_not_execute": True}, "error": None}
 
-    from aiask_agent.adapters import desktop_ops
+    from aiask_agent.adapters import confirmed_actions
 
     monkeypatch.setattr(store, "transition", block_executing_transition)
-    monkeypatch.setattr(desktop_ops, "execute_confirmed_action", fake_execute_confirmed_action)
+    monkeypatch.setattr(confirmed_actions, "execute_confirmed_action", fake_execute_confirmed_action)
 
     response = asyncio.run(executor.confirm(intent["intent_id"]))
 
@@ -131,9 +131,9 @@ def test_confirm_resumes_confirmed_intent_without_recreating_approval(tmp_path, 
         calls.append({"target_tool": target_tool, "action": action, "params": dict(params or {})})
         return {"success": True, "data": {"resumed": True}, "error": None}
 
-    from aiask_agent.adapters import desktop_ops
+    from aiask_agent.adapters import confirmed_actions
 
-    monkeypatch.setattr(desktop_ops, "execute_confirmed_action", fake_execute_confirmed_action)
+    monkeypatch.setattr(confirmed_actions, "execute_confirmed_action", fake_execute_confirmed_action)
 
     response = asyncio.run(executor.confirm(intent["intent_id"]))
 
@@ -560,243 +560,31 @@ def test_memory_learning_and_rl_intents_execute_only_after_confirm(tmp_path, mon
         assert store.get(intent["intent_id"])["status"] == "succeeded"
 
 
-def test_desktop_asset_intents_execute_fixed_upstream_paths_after_confirm(tmp_path, monkeypatch) -> None:
-    monkeypatch.setenv("AIASK_DESKTOP_API_BASE_URL", "https://desktop.example.test")
-    captured: list[dict] = []
+def test_desktop_asset_confirmed_action_tool_is_gone() -> None:
+    """The desktop_asset ActionIntent target proxied the removed Desktop service.
 
-    def fake_json_request(method, url, payload=None, *, timeout=20.0):
-        captured.append({"method": method, "url": url, "payload": payload, "timeout": timeout})
-        return {
-            "ok": True,
-            "status_code": 200,
-            "body": {
-                "ok": True,
-                "id": "asset_1",
-                "secret": "asset-secret",
-                "note": "Authorization: Bearer asset-bearer-secret",
-            },
-        }
+    It forwarded confirmed intents to AIASK_DESKTOP_API_BASE_URL (127.0.0.1:8001)
+    to mutate strategies, stock pools and files. That service is not part of a
+    backend-only tree, so the target is removed rather than left pointing at
+    something unreachable.
+    """
+    import asyncio
 
-    monkeypatch.setattr("aiask_agent.adapters.desktop_ops._json_request", fake_json_request)
+    from aiask_agent.adapters import confirmed_actions
 
-    store = ActionIntentStore(tmp_path / "intents.sqlite3")
-    executor = IntentExecutor(store)
-    strategy_update = store.create(
-        action="desktop_asset.strategy_update",
-        params={
-            "user_id": "local/user",
-            "strategy_id": "strat/1",
-            "path": "/v1/forged/write",
-            "payload": {"name": "Momentum"},
-        },
-    )
-    remove_stock = store.create(
-        action="desktop_asset.stock_pool_remove_stock",
-        params={
-            "user_id": "local",
-            "pool_id": "pool/1",
-            "stock_code": "600519/SZ",
-            "path": "/v1/forged/delete",
-        },
-    )
-    file_save = store.create(
-        action="desktop_asset.file_save",
-        params={"path": "/v1/forged/file", "payload": {"filename": "risk.md", "content": "safe"}},
-    )
-    file_delete = store.create(
-        action="desktop_asset.file_delete",
-        params={"file_id": "file/1", "path": "/v1/forged/file-delete"},
-    )
+    assert not hasattr(confirmed_actions, "_execute_desktop_asset")
+    assert not hasattr(confirmed_actions, "_execute_desktop_file_upload")
 
-    responses = [
-        asyncio.run(executor.confirm(strategy_update["intent_id"])),
-        asyncio.run(executor.confirm(remove_stock["intent_id"])),
-        asyncio.run(executor.confirm(file_save["intent_id"])),
-        asyncio.run(executor.confirm(file_delete["intent_id"])),
-    ]
-
-    assert all(response["success"] is True for response in responses)
-    assert captured == [
-        {
-            "method": "PATCH",
-            "url": "https://desktop.example.test/v1/users/local%2Fuser/strategies/strat%2F1",
-            "payload": {"name": "Momentum"},
-            "timeout": 20.0,
-        },
-        {
-            "method": "DELETE",
-            "url": "https://desktop.example.test/v1/users/local/stock-pools/pool%2F1/stocks/600519%2FSZ",
-            "payload": None,
-            "timeout": 20.0,
-        },
-        {
-            "method": "POST",
-            "url": "https://desktop.example.test/v1/files/save",
-            "payload": {"filename": "risk.md", "content": "safe"},
-            "timeout": 20.0,
-        },
-        {
-            "method": "DELETE",
-            "url": "https://desktop.example.test/v1/files/file%2F1",
-            "payload": None,
-            "timeout": 20.0,
-        },
-    ]
-    combined = json.dumps(responses, ensure_ascii=False)
-    assert "asset-secret" not in combined
-    assert "asset-bearer-secret" not in combined
-    assert responses[0]["data"]["execution_result"]["data"]["secret"] == "[redacted]"
-    assert responses[0]["data"]["execution_result"]["meta"]["upstream"]["path"] == (
-        "/v1/users/local%2Fuser/strategies/strat%2F1"
-    )
-    for intent in (strategy_update, remove_stock, file_save, file_delete):
-        assert store.get(intent["intent_id"])["status"] == "succeeded"
-
-
-def test_desktop_asset_intent_missing_required_segment_fails_without_proxy_call(tmp_path, monkeypatch) -> None:
-    captured: list[dict] = []
-
-    def fake_json_request(method, url, payload=None, *, timeout=20.0):
-        captured.append({"method": method, "url": url, "payload": payload, "timeout": timeout})
-        raise AssertionError("invalid Desktop asset intent must not call the upstream Desktop API")
-
-    monkeypatch.setattr("aiask_agent.adapters.desktop_ops._json_request", fake_json_request)
-
-    store = ActionIntentStore(tmp_path / "intents.sqlite3")
-    executor = IntentExecutor(store)
-    forged = store.create(
-        action="desktop_asset.strategy_update",
-        params={"strategy_id": "strat_1", "payload": {"name": "no user"}},
-    )
-
-    response = asyncio.run(executor.confirm(forged["intent_id"]))
-
-    assert response["success"] is False
-    assert response["data"]["execution_result"]["error_code"] == "DESKTOP_ASSET_EXECUTION_FAILED"
-    assert "user_id is required" in response["data"]["execution_result"]["error"]
-    assert captured == []
-    assert store.get(forged["intent_id"])["status"] == "failed"
-
-
-def test_desktop_file_upload_intent_uploads_staged_files_after_confirm(tmp_path, monkeypatch) -> None:
-    home = tmp_path / "home"
-    monkeypatch.setenv("AIASK_AGENT_HOME", str(home))
-    monkeypatch.setenv("AIASK_DESKTOP_API_BASE_URL", "https://desktop.example.test")
-    staging_root = home / "desktop-upload-staging" / "intent_1"
-    staging_root.mkdir(parents=True)
-    staged_file = staging_root / "001_risk.md"
-    staged_file.write_bytes(b"confirmed upload")
-    captured: list[dict] = []
-
-    def fake_multipart_request(method, url, *, fields=None, files=None, timeout=30.0, **kwargs):
-        captured.append(
-            {
-                "method": method,
-                "url": url,
-                "fields": dict(fields or {}),
-                "files": list(files or []),
-                "timeout": timeout,
-            }
+    result = asyncio.run(
+        confirmed_actions.execute_confirmed_action(
+            "desktop_asset", "strategy_create", {"user_id": "local", "payload": {}}
         )
-        return {
-            "ok": True,
-            "status_code": 200,
-            "body": {
-                "uploaded": True,
-                "secret": "upload-secret",
-                "note": "Authorization: Bearer upload-bearer-secret",
-            },
-        }
-
-    monkeypatch.setattr("aiask_agent.adapters.desktop_ops._multipart_request", fake_multipart_request)
-
-    store = ActionIntentStore(tmp_path / "intents.sqlite3")
-    executor = IntentExecutor(store)
-    upload = store.create(
-        action="desktop_asset.file_upload",
-        params={
-            "fields": {"session_id": "sess_1", "thread_id": "thread_1"},
-            "files": [{"filename": "risk.md", "content_type": "text/markdown", "size_bytes": 16}],
-            "_files": [
-                {
-                    "filename": "risk.md",
-                    "content_type": "text/markdown",
-                    "size_bytes": 16,
-                    "path": str(staged_file),
-                }
-            ],
-            "_staging_root": str(staging_root),
-        },
     )
-    assert "_files" not in public_intent(upload)["params"]
-    assert "_staging_root" not in public_intent(upload)["params"]
-
-    response = asyncio.run(executor.confirm(upload["intent_id"]))
-
-    assert response["success"] is True
-    assert captured == [
-        {
-            "method": "POST",
-            "url": "https://desktop.example.test/v1/files/upload",
-            "fields": {"session_id": "sess_1", "thread_id": "thread_1"},
-            "files": [("files", ("risk.md", b"confirmed upload", "text/markdown"))],
-            "timeout": 30.0,
-        }
-    ]
-    combined = json.dumps(response, ensure_ascii=False)
-    assert "upload-secret" not in combined
-    assert "upload-bearer-secret" not in combined
-    assert response["data"]["execution_result"]["object"] == "desktop.file_upload"
-    assert response["data"]["execution_result"]["data"]["secret"] == "[redacted]"
-    assert response["data"]["execution_result"]["meta"]["upstream"]["path"] == "/v1/files/upload"
-    assert response["data"]["execution_result"]["meta"]["files"] == [
-        {"filename": "risk.md", "content_type": "text/markdown", "size_bytes": 16}
-    ]
-    assert not staging_root.exists()
-    assert store.get(upload["intent_id"])["status"] == "succeeded"
-
-
-def test_desktop_file_upload_intent_rejects_untrusted_staged_path(tmp_path, monkeypatch) -> None:
-    home = tmp_path / "home"
-    monkeypatch.setenv("AIASK_AGENT_HOME", str(home))
-    outside = tmp_path / "outside.md"
-    outside.write_text("do not upload", encoding="utf-8")
-    captured: list[dict] = []
-
-    def fake_multipart_request(*args, **kwargs):
-        captured.append({"args": args, "kwargs": kwargs})
-        raise AssertionError("untrusted staged upload must not call upstream Desktop API")
-
-    monkeypatch.setattr("aiask_agent.adapters.desktop_ops._multipart_request", fake_multipart_request)
-
-    store = ActionIntentStore(tmp_path / "intents.sqlite3")
-    executor = IntentExecutor(store)
-    forged = store.create(
-        action="desktop_asset.file_upload",
-        params={
-            "fields": {"session_id": "sess_1"},
-            "files": [{"filename": "outside.md", "content_type": "text/markdown", "size_bytes": 13}],
-            "_files": [
-                {
-                    "filename": "outside.md",
-                    "content_type": "text/markdown",
-                    "size_bytes": 13,
-                    "path": str(outside),
-                }
-            ],
-            "_staging_root": str(tmp_path),
-        },
-    )
-
-    response = asyncio.run(executor.confirm(forged["intent_id"]))
-
-    assert response["success"] is False
-    assert response["data"]["execution_result"]["error_code"] == "DESKTOP_ASSET_EXECUTION_FAILED"
-    assert "outside trusted staging root" in response["data"]["execution_result"]["error"]
-    assert str(tmp_path) not in json.dumps(response, ensure_ascii=False)
-    assert captured == []
-    assert outside.exists()
-    assert store.get(forged["intent_id"])["status"] == "failed"
+    # Falls through to "no executor registered" rather than reaching a proxy. The
+    # reply echoes the requested target, which is what makes the refusal legible.
+    assert result["success"] is False
+    assert result["data"]["target_tool"] == "desktop_asset"
+    assert "No confirmed-action executor is registered" in result["data"]["detail"]
 
 
 def test_job_intents_execute_only_after_confirm(tmp_path) -> None:
@@ -939,7 +727,7 @@ def test_browser_intents_execute_with_runtime_only_after_confirm(tmp_path) -> No
         tool_registry = _FakeBrowserToolRegistry()
 
     async def _execute_confirmed(target_tool: str, target_action: str, params: dict) -> dict:
-        from aiask_agent.adapters.desktop_ops import execute_confirmed_action
+        from aiask_agent.adapters.confirmed_actions import execute_confirmed_action
 
         return await execute_confirmed_action(target_tool, target_action, params, runtime=_FakeRuntime())
 
@@ -1008,7 +796,7 @@ def test_execution_intents_execute_with_runtime_only_after_confirm(tmp_path) -> 
         tool_registry = _FakeExecutionToolRegistry()
 
     async def _execute_confirmed(target_tool: str, target_action: str, params: dict) -> dict:
-        from aiask_agent.adapters.desktop_ops import execute_confirmed_action
+        from aiask_agent.adapters.confirmed_actions import execute_confirmed_action
 
         return await execute_confirmed_action(target_tool, target_action, params, runtime=_FakeRuntime())
 
@@ -1265,9 +1053,9 @@ def test_confirm_revalidates_stored_intent_target_before_executing(tmp_path, mon
         calls.append({"target_tool": target_tool, "action": action, "params": dict(params or {})})
         return {"success": True, "data": {"should_not_execute": True}, "error": None}
 
-    from aiask_agent.adapters import desktop_ops
+    from aiask_agent.adapters import confirmed_actions
 
-    monkeypatch.setattr(desktop_ops, "execute_confirmed_action", fake_execute_confirmed_action)
+    monkeypatch.setattr(confirmed_actions, "execute_confirmed_action", fake_execute_confirmed_action)
 
     response = asyncio.run(executor.confirm(intent["intent_id"]))
 
@@ -1293,9 +1081,9 @@ def test_confirm_revalidates_financial_dry_run_policy_before_executing(tmp_path,
         calls.append({"target_tool": target_tool, "action": action, "params": dict(params or {})})
         return {"success": True, "data": {"should_not_execute": True}, "error": None}
 
-    from aiask_agent.adapters import desktop_ops
+    from aiask_agent.adapters import confirmed_actions
 
-    monkeypatch.setattr(desktop_ops, "execute_confirmed_action", fake_execute_confirmed_action)
+    monkeypatch.setattr(confirmed_actions, "execute_confirmed_action", fake_execute_confirmed_action)
 
     response = asyncio.run(executor.confirm(intent["intent_id"]))
 
@@ -1323,9 +1111,9 @@ def test_stale_executing_intent_becomes_unknown_and_is_not_reexecuted(tmp_path, 
         calls.append({"target_tool": target_tool, "action": action, "params": dict(params or {})})
         return {"success": True, "data": {"should_not_execute": True}, "error": None}
 
-    from aiask_agent.adapters import desktop_ops
+    from aiask_agent.adapters import confirmed_actions
 
-    monkeypatch.setattr(desktop_ops, "execute_confirmed_action", fake_execute_confirmed_action)
+    monkeypatch.setattr(confirmed_actions, "execute_confirmed_action", fake_execute_confirmed_action)
 
     response = asyncio.run(executor.confirm(intent["intent_id"]))
 
@@ -1388,10 +1176,10 @@ def test_financial_manager_intent_creation_enforces_confirmed_scope_and_dry_run(
 
 
 def test_financial_manager_executor_rejects_legacy_non_dry_run_params(tmp_path) -> None:
-    from aiask_agent.adapters import desktop_ops
+    from aiask_agent.adapters import confirmed_actions
 
     result = asyncio.run(
-        desktop_ops.execute_confirmed_action(
+        confirmed_actions.execute_confirmed_action(
             "financial_manager",
             "paper_trading_manager.submit_order",
             {"code": "600519", "quantity": 100, "dry_run": False},
@@ -1403,10 +1191,10 @@ def test_financial_manager_executor_rejects_legacy_non_dry_run_params(tmp_path) 
 
 
 def test_confirmed_action_executor_blocks_direct_unallowlisted_call(tmp_path) -> None:
-    from aiask_agent.adapters import desktop_ops
+    from aiask_agent.adapters import confirmed_actions
 
     result = asyncio.run(
-        desktop_ops.execute_confirmed_action(
+        confirmed_actions.execute_confirmed_action(
             "data_sync",
             "schedule",
             {"codes": ["600519"], "cron": "0 9 * * *"},
@@ -1418,7 +1206,7 @@ def test_confirmed_action_executor_blocks_direct_unallowlisted_call(tmp_path) ->
 
 
 def test_confirmed_action_executor_redacts_downstream_public_result(monkeypatch) -> None:
-    from aiask_agent.adapters import desktop_ops
+    from aiask_agent.adapters import confirmed_actions
 
     calls: list[dict] = []
 
@@ -1440,10 +1228,10 @@ def test_confirmed_action_executor_redacts_downstream_public_result(monkeypatch)
             "meta": {"debug": "password=downstream-meta-secret"},
         }
 
-    monkeypatch.setattr(desktop_ops, "_execute_data_sync", fake_execute_data_sync)
+    monkeypatch.setattr(confirmed_actions, "_execute_data_sync", fake_execute_data_sync)
 
     result = asyncio.run(
-        desktop_ops.execute_confirmed_action(
+        confirmed_actions.execute_confirmed_action(
             "data_sync",
             "sync",
             {"codes": ["600519"], "broker_token": "raw-param-secret"},
@@ -1519,9 +1307,9 @@ def test_executor_public_response_redacts_result_but_executes_raw_params(tmp_pat
             "error": "Authorization: Bearer result-bearer-secret",
         }
 
-    from aiask_agent.adapters import desktop_ops
+    from aiask_agent.adapters import confirmed_actions
 
-    monkeypatch.setattr(desktop_ops, "execute_confirmed_action", fake_execute_confirmed_action)
+    monkeypatch.setattr(confirmed_actions, "execute_confirmed_action", fake_execute_confirmed_action)
 
     response = asyncio.run(executor.confirm(intent["intent_id"]))
 

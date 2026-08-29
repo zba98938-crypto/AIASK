@@ -26,14 +26,14 @@ from .quant_research import QuantResearchStore
 from .rl_atropos import RLAtroposManager
 from .routes.ai import create_ai_router
 from .routes.approvals import create_approvals_router
-from .routes.desktop_assets import create_desktop_assets_router
 from .routes.connectors import create_connectors_router
-from .routes.desktop_data import create_desktop_data_router
-from .routes.desktop_finance import create_desktop_finance_router
-from .routes.desktop_runs import create_desktop_runs_router
-from .routes.desktop_user import create_desktop_user_router
-from .routes.desktop_workbench import create_desktop_workbench_router
+from .routes.data_settings import create_data_settings_router
+from .routes.finance import create_finance_router
 from .routes.full_controls import create_full_controls_router
+from .routes.removed import create_removed_routes_router
+from .routes.research import create_research_router
+from .routes.users import create_users_router
+from .routes.workbench import create_workbench_router
 from .routes.gateway import create_gateway_router
 from .routes.health import create_health_router
 from .routes.hermes import create_hermes_router
@@ -72,35 +72,33 @@ class AgentRouteAssembly:
     control_authorized: Callable[..., tuple[bool, str | None]]
     select_runtime: Callable[..., AgentRuntime]
     tool_catalog_payload: Callable[..., dict[str, Any]]
-    desktop_capabilities_payload: Callable[..., Any]
+    capabilities_payload: Callable[..., Any]
     redact_required_env: Callable[..., Any]
     parity_live_evidence: Callable[..., Any]
-    desktop_settings_status_payload: Callable[..., dict[str, Any]]
-    desktop_data_status_payload: Callable[..., Any]
-    desktop_data_sync_plan_payload: Callable[..., Any]
+    settings_status_payload: Callable[..., dict[str, Any]]
+    data_status_payload: Callable[..., Any]
+    data_sync_plan_payload: Callable[..., Any]
     local_profile_payload: Callable[..., dict[str, Any]]
     save_local_profile: Callable[..., dict[str, Any]]
     event_batch_from_payload: Callable[..., list[dict[str, Any]]]
     request_context_payload: Callable[..., dict[str, Any]]
     factor_factory_status: Callable[..., Any]
-    audited_desktop_tool_call: Callable[..., Any]
+    audited_domain_tool_call: Callable[..., Any]
     financial_catalog_payload: Callable[..., dict[str, Any]]
     financial_status_payload: Callable[..., Any]
     financial_query_payload: Callable[..., Any]
     financial_intent_payload: Callable[..., Any]
     broker_readiness_payload: Callable[..., dict[str, Any]]
     broker_sync_payload: Callable[..., Any]
-    broker_accounts_payload: Callable[..., dict[str, Any]]
+    broker_snapshot_payload: Callable[..., dict[str, Any]]
+    broker_resource_payload: Callable[..., dict[str, Any]]
     broker_analytics_payload: Callable[..., dict[str, Any]]
-    desktop_asset_call: Callable[..., Any]
-    desktop_file_upload: Callable[..., Any]
     workbench_summary_payload: Callable[..., dict[str, Any]]
     ai_status_payload: Callable[..., dict[str, Any]]
     ai_config_payload: Callable[..., dict[str, Any]]
     ai_config_save_payload: Callable[..., Any]
     ai_smoke_payload: Callable[..., Any]
     ai_models_payload: Callable[..., Any]
-    desktop_runs_payload: Callable[..., dict[str, Any]]
     messages_from_responses_payload: Callable[..., Any]
     responses_payload: Callable[..., dict[str, Any]]
     response_sse: Callable[..., Any]
@@ -111,9 +109,10 @@ class AgentRouteAssembly:
     normalize_run_event: Callable[..., dict[str, Any]]
     run_trace_eval_payload: Callable[..., dict[str, Any]]
     artifact_content_payload: Callable[..., Any]
+    runs_payload: Callable[..., dict[str, Any]]
     audited_tool_call: Callable[..., Any]
-    metadata_allows_read_only_desktop_call: Callable[..., bool]
-    is_read_only_desktop_tool: Callable[..., bool]
+    metadata_allows_read_only_call: Callable[..., bool]
+    is_read_only_tool: Callable[..., bool]
     read_only_result_guard: Callable[..., dict[str, Any]]
     hermes_status_payload: Callable[..., dict[str, Any]]
     hermes_readiness_payload: Callable[..., dict[str, Any]]
@@ -154,24 +153,24 @@ def configure_agent_app(app: FastAPI, routes: AgentRouteAssembly) -> None:
             full_runtime_active=routes.full_runtime_active,
             require_api=routes.require_api,
             tool_catalog_payload=routes.tool_catalog_payload,
-            desktop_capabilities_payload=routes.desktop_capabilities_payload,
+            capabilities_payload=routes.capabilities_payload,
             redact_required_env=routes.redact_required_env,
             parity_live_evidence=routes.parity_live_evidence,
         )
     )
 
     app.include_router(
-        create_desktop_data_router(
+        create_data_settings_router(
             require_api=routes.require_api,
             control_authorized=routes.control_authorized,
-            desktop_settings_status_payload=routes.desktop_settings_status_payload,
-            desktop_data_status_payload=routes.desktop_data_status_payload,
-            desktop_data_sync_plan_payload=routes.desktop_data_sync_plan_payload,
+            settings_status_payload=routes.settings_status_payload,
+            data_status_payload=routes.data_status_payload,
+            data_sync_plan_payload=routes.data_sync_plan_payload,
         )
     )
 
     app.include_router(
-        create_desktop_user_router(
+        create_users_router(
             runtime=routes.runtime,
             require_api=routes.require_api,
             require_control=routes.require_control,
@@ -185,24 +184,11 @@ def configure_agent_app(app: FastAPI, routes: AgentRouteAssembly) -> None:
     )
 
     app.include_router(
-        create_desktop_assets_router(
-            require_api=routes.require_api,
-            require_control=routes.require_control,
-            require_full=routes.require_full,
-            intent_store=routes.intent_executor.store,
-            session_store=routes.runtime.session_store,
-            desktop_asset_call=routes.desktop_asset_call,
-            desktop_file_upload=routes.desktop_file_upload,
-        )
-    )
-
-    app.include_router(
-        create_desktop_finance_router(
+        create_finance_router(
             require_api=routes.require_api,
             control_authorized=routes.control_authorized,
             require_user_scope=routes.require_user_scope,
-            factor_factory_status=routes.factor_factory_status,
-            audited_desktop_tool_call=routes.audited_desktop_tool_call,
+            audited_tool_call=routes.audited_domain_tool_call,
             quant_presets=quant_adapter.quant_presets,
             quant_store=routes.quant_store,
             financial_catalog_payload=routes.financial_catalog_payload,
@@ -212,7 +198,8 @@ def configure_agent_app(app: FastAPI, routes: AgentRouteAssembly) -> None:
             read_only_result_guard=routes.read_only_result_guard,
             broker_readiness_payload=routes.broker_readiness_payload,
             broker_sync_payload=routes.broker_sync_payload,
-            broker_accounts_payload=routes.broker_accounts_payload,
+            broker_snapshot_payload=routes.broker_snapshot_payload,
+            broker_resource_payload=routes.broker_resource_payload,
             broker_analytics_payload=routes.broker_analytics_payload,
             session_store=routes.runtime.session_store,
             normalize_provider=normalize_provider,
@@ -220,8 +207,18 @@ def configure_agent_app(app: FastAPI, routes: AgentRouteAssembly) -> None:
     )
 
     app.include_router(
-        create_desktop_workbench_router(
+        create_research_router(
             require_api=routes.require_api,
+            factor_factory_status=routes.factor_factory_status,
+            audited_tool_call=routes.audited_domain_tool_call,
+        )
+    )
+
+    app.include_router(
+        create_workbench_router(
+            require_api=routes.require_api,
+            require_control=routes.require_control,
+            session_store=routes.runtime.session_store,
             workbench_summary_payload=routes.workbench_summary_payload,
         )
     )
@@ -235,13 +232,6 @@ def configure_agent_app(app: FastAPI, routes: AgentRouteAssembly) -> None:
             ai_config_save_payload=routes.ai_config_save_payload,
             ai_smoke_payload=routes.ai_smoke_payload,
             ai_models_payload=routes.ai_models_payload,
-        )
-    )
-
-    app.include_router(
-        create_desktop_runs_router(
-            require_api=routes.require_api,
-            desktop_runs_payload=routes.desktop_runs_payload,
         )
     )
 
@@ -269,6 +259,7 @@ def configure_agent_app(app: FastAPI, routes: AgentRouteAssembly) -> None:
             normalize_run_event=routes.normalize_run_event,
             run_trace_eval_payload=routes.run_trace_eval_payload,
             artifact_content_payload=routes.artifact_content_payload,
+            runs_payload=routes.runs_payload,
         )
     )
 
@@ -294,7 +285,7 @@ def configure_agent_app(app: FastAPI, routes: AgentRouteAssembly) -> None:
             control_authorized=routes.control_authorized,
             intent_store=routes.intent_executor.store,
             intent_executor=routes.intent_executor,
-            audited_desktop_tool_call=routes.audited_desktop_tool_call,
+            audited_domain_tool_call=routes.audited_domain_tool_call,
         )
     )
 
@@ -321,8 +312,8 @@ def configure_agent_app(app: FastAPI, routes: AgentRouteAssembly) -> None:
             require_api=routes.require_api,
             require_full=routes.require_full,
             audited_tool_call=routes.audited_tool_call,
-            metadata_allows_read_only_desktop_call=routes.metadata_allows_read_only_desktop_call,
-            is_read_only_desktop_tool=routes.is_read_only_desktop_tool,
+            metadata_allows_read_only_call=routes.metadata_allows_read_only_call,
+            is_read_only_tool=routes.is_read_only_tool,
             read_only_result_guard=routes.read_only_result_guard,
         )
     )
@@ -447,3 +438,6 @@ def configure_agent_app(app: FastAPI, routes: AgentRouteAssembly) -> None:
             webhook_store_factory=gateway_factories.webhook_store,
         )
     )
+
+    # Registered last so it only ever matches paths no real route claimed.
+    app.include_router(create_removed_routes_router())

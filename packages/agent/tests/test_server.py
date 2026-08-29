@@ -526,7 +526,7 @@ def test_legacy_http_json_success_responses_redact_secret_payloads(tmp_path, mon
     try:
         status, body = _request(
             "GET",
-            f"{base_url}/v1/desktop/analytics/summary?limit=1",
+            f"{base_url}/v1/users/analytics/summary?limit=1",
             headers={"Authorization": "Bearer secret"},
         )
     finally:

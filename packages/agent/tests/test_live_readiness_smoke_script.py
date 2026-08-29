@@ -42,7 +42,7 @@ def test_live_readiness_smoke_contract_accepts_explicitly_blocked_data_state() -
                 "summary": {"required_degraded": 1, "required_blocked": 0},
                 "next_actions": [{"action_id": "configure_model_provider"}],
             }
-        if path.startswith("/v1/desktop/workbench/summary?"):
+        if path.startswith("/v1/workbench/summary?"):
             return 200, {
                 "object": "aiask.desktop.workbench.summary",
                 "recent_sessions": [{"session_id": "sess_test"}],
@@ -59,7 +59,7 @@ def test_live_readiness_smoke_contract_accepts_explicitly_blocked_data_state() -
                     "sessions_admin_available": True,
                 },
             }
-        if path == "/v1/desktop/settings/status":
+        if path == "/v1/settings/status":
             return 200, {
                 "memory": {
                     "object": "aiask.memory_provider_status",
@@ -78,12 +78,12 @@ def test_live_readiness_smoke_contract_accepts_explicitly_blocked_data_state() -
             return 200, {"data": []}
         if path == "/v1/mcp/tools?all=true":
             return 200, {"data": []}
-        if path == "/v1/desktop/financial-manager/catalog":
+        if path == "/v1/finance/manager/catalog":
             return 200, {
                 "actions": [{"status": "ready"}, {"status": "intent_ready"}],
                 "summary": {"ready": 1, "intent_ready": 1},
             }
-        if path == "/v1/desktop/financial-manager/query":
+        if path == "/v1/finance/manager/query":
             assert method == "POST"
             assert body is not None
             assert body["capability_id"] == "portfolio"
@@ -98,7 +98,7 @@ def test_live_readiness_smoke_contract_accepts_explicitly_blocked_data_state() -
                 "error": None,
                 "meta": {"side_effect": {"level": "read_only"}},
             }
-        if path.startswith("/v1/desktop/data/status?"):
+        if path.startswith("/v1/data/status?"):
             return 200, {"status": "blocked", "database": {"writable": True}, "quality_gate": {"status": "blocked"}}
         if path == "/v1/tools/agent_factory_status":
             assert method == "POST"
@@ -158,7 +158,7 @@ def test_live_readiness_smoke_contract_accepts_explicitly_blocked_data_state() -
                     "side_effect": {"level": "read_only"},
                 },
             }
-        if path == "/v1/desktop/quant/research-runs":
+        if path == "/v1/finance/quant/research-runs":
             assert method == "POST"
             assert body is not None and body["universe"] == ["600519", "000001"]
             return 200, {
@@ -200,11 +200,11 @@ def test_live_readiness_smoke_contract_accepts_explicitly_blocked_data_state() -
     assert market_forward["data"]["quality_status"] == "empty"
     assert market_forward["data"]["warnings"] == ["benchmark_kline_unavailable"]
     assert {item["name"]: item["status"] for item in payload["results"]}["quant_research"] == "blocked"
-    assert any(call[0] == "GET" and call[1].startswith("/v1/desktop/workbench/summary?") for call in calls)
-    assert ("GET", "/v1/desktop/settings/status", "control-token", None) in calls
+    assert any(call[0] == "GET" and call[1].startswith("/v1/workbench/summary?") for call in calls)
+    assert ("GET", "/v1/settings/status", "control-token", None) in calls
     assert any(call[0] == "GET" and call[1].startswith("/v1/search?") for call in calls)
     assert ("POST", "/v1/tools/agent_memory_search", "api-token", {"query": "AIASK", "limit": 5}) in calls
-    assert any(call[0] == "POST" and call[1] == "/v1/desktop/financial-manager/query" for call in calls)
+    assert any(call[0] == "POST" and call[1] == "/v1/finance/manager/query" for call in calls)
     assert ("POST", "/v1/tools/agent_factory_status", "api-token", {"recent_run_limit": 5, "_timeout_seconds": 5}) in calls
     assert ("POST", "/v1/tools/agent_market_temperature_cache_readiness", "api-token", {"max_stale_days": 1}) in calls
     assert any(call[0] == "POST" and call[1] == "/v1/tools/agent_market_temperature_forward_validation" for call in calls)
@@ -228,7 +228,7 @@ def test_live_readiness_smoke_plan_is_offline_and_matches_checklist() -> None:
     assert "FastAPI/pandas" in payload["environment_note"]
     assert payload["summary"] == {"total": 16}
     checks = {item["name"]: item for item in payload["checks"]}
-    assert checks["workbench_summary"]["path"] == "/v1/desktop/workbench/summary?session_limit=5&run_limit=5"
+    assert checks["workbench_summary"]["path"] == "/v1/workbench/summary?session_limit=5&run_limit=5"
     assert checks["mcp_servers"]["path"] == "/v1/mcp/servers?all=true"
     assert checks["mcp_tools"]["path"] == "/v1/mcp/tools?all=true"
     assert "runtime_enabled" in checks["factory_status"]["observes"]

@@ -42,7 +42,7 @@ BROKER_CONNECTORS: dict[str, dict[str, Any]] = {
         ],
         "test_entry": {
             "method": "POST",
-            "path": "/v1/desktop/broker/sync",
+            "path": "/v1/finance/broker/sync",
             "consent_required": True,
             "control_token_required": True,
         },
@@ -72,7 +72,7 @@ BROKER_CONNECTORS: dict[str, dict[str, Any]] = {
         ],
         "test_entry": {
             "method": "POST",
-            "path": "/v1/desktop/broker/sync",
+            "path": "/v1/finance/broker/sync",
             "consent_required": True,
             "control_token_required": True,
         },
@@ -419,7 +419,7 @@ async def sync_broker_readonly(
     errors: list[dict[str, Any]] = []
     for key, capability_id, action_id in list(config.get("actions") or []):
         result = await tool_caller(
-            "/v1/desktop/financial-manager/query",
+            "/v1/finance/manager/query",
             {
                 "capability_id": capability_id,
                 "action_id": action_id,
@@ -528,6 +528,12 @@ async def sync_broker_readonly(
 
 
 def latest_broker_payload(store: AgentSessionStore, *, user_id: str | None = None, provider: str | None = None) -> dict[str, Any]:
+    """Full read-only broker snapshot across every resource.
+
+    Prefer the per-resource helpers below for resource-scoped endpoints: routing
+    /positions and /orders through this function made three differently-named
+    URLs return byte-identical bodies.
+    """
     normalized_provider = normalize_provider(provider) if provider else None
     return _broker_payload(
         True,
@@ -541,6 +547,58 @@ def latest_broker_payload(store: AgentSessionStore, *, user_id: str | None = Non
         },
         error=None,
     )
+
+
+# Per-resource read-only views. Each returns only its own resource so that
+# /accounts, /positions and /orders are actually distinguishable.
+_BROKER_RESOURCE_READERS: dict[str, tuple[str, int]] = {
+    "accounts": ("list_broker_account_snapshots", 20),
+    "positions": ("list_broker_position_snapshots", 200),
+    "orders": ("list_broker_order_snapshots", 200),
+    "deals": ("list_broker_deal_snapshots", 200),
+}
+
+
+def broker_resource_payload(
+    store: AgentSessionStore,
+    resource: str,
+    *,
+    user_id: str | None = None,
+    provider: str | None = None,
+    limit: int | None = None,
+) -> dict[str, Any]:
+    """Return a single broker resource collection.
+
+    ``resource`` is one of accounts / positions / orders / deals. An unknown
+    resource is an error rather than a silent fallback to the full snapshot.
+    """
+    key = str(resource or "").strip().lower()
+    reader = _BROKER_RESOURCE_READERS.get(key)
+    if reader is None:
+        return _broker_payload(
+            False,
+            error=f"unsupported broker resource: {resource}",
+            error_code="BROKER_RESOURCE_UNSUPPORTED",
+        )
+    method_name, default_limit = reader
+    normalized_provider = normalize_provider(provider) if provider else None
+    effective_limit = default_limit if limit is None else max(1, min(int(limit), 1000))
+    items = getattr(store, method_name)(
+        user_id=user_id,
+        provider=normalized_provider,
+        limit=effective_limit,
+    )
+    payload = _broker_payload(True, data={key: items}, error=None)
+    payload["object"] = f"aiask.broker_readonly.{key}"
+    payload["meta"] = {
+        "resource": key,
+        "count": len(items),
+        "limit": effective_limit,
+        "user_id": user_id,
+        "provider": normalized_provider,
+        "degraded": False,
+    }
+    return payload
 
 
 def run_behavior_analytics(

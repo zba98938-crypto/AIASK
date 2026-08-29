@@ -68,7 +68,7 @@ def test_desktop_workbench_summary_contract_includes_session_run_flags(tmp_path,
         result={"status": "execution_unknown", "reconciliation_required": True},
     )
 
-    response = client.get("/v1/desktop/workbench/summary")
+    response = client.get("/v1/workbench/summary")
 
     assert response.status_code == 200
     payload = response.json()
@@ -135,24 +135,31 @@ def test_financial_readiness_blocks_unknown_action_intent_execution(tmp_path, mo
     assert "readiness-unknown-secret" not in json.dumps(payload, ensure_ascii=False)
 
 
-def test_desktop_personal_assets_gets_degrade_to_empty_lists(tmp_path, monkeypatch) -> None:
+def test_personal_asset_proxy_routes_are_gone(tmp_path, monkeypatch) -> None:
+    """Strategies / stock-pools were a proxy to the removed Desktop asset service.
+
+    They forwarded to AIASK_DESKTOP_API_BASE_URL (127.0.0.1:8001), a service that
+    no longer exists in a backend-only tree, and degraded to empty lists so the
+    workbench had something to render. With no frontend there is nothing to
+    degrade for, so the routes are gone rather than silently returning [].
+    """
     client, _store, _intent_store = _client_with_state(tmp_path, monkeypatch)
 
-    def fake_json_request(method: str, url: str, payload: dict | None = None, *, timeout: float = 20.0) -> dict:
-        assert method == "GET"
-        return {"ok": False, "status_code": 404, "body": {"detail": "not initialized"}}
+    def unexpected_request(*args: object, **kwargs: object) -> dict:
+        raise AssertionError("no route may still call the removed Desktop asset service")
 
-    monkeypatch.setattr("aiask_agent.app_route_callbacks._json_request", fake_json_request)
+    monkeypatch.setattr("aiask_agent.app_route_callbacks._json_request", unexpected_request)
 
-    strategies = client.get("/v1/desktop/users/local-user/strategies")
-    stock_pools = client.get("/v1/desktop/users/local-user/stock-pools")
+    for path in (
+        "/v1/users/local-user/strategies",
+        "/v1/users/local-user/stock-pools",
+        "/v1/files?user_id=local",
+    ):
+        assert client.get(path).status_code == 404, path
 
-    assert strategies.status_code == 200
-    assert stock_pools.status_code == 200
-    assert strategies.json()["data"] == []
-    assert stock_pools.json()["data"] == []
-    assert strategies.json()["meta"]["degraded"] is True
-    assert stock_pools.json()["meta"]["resource"] == "stock_pools"
+    removed = client.get("/v1/desktop/users/local-user/strategies")
+    assert removed.status_code == 404
+    assert removed.json()["error_code"] == "ROUTE_REMOVED"
 
 
 def test_responses_contract_accepts_model_and_attachment_context(tmp_path, monkeypatch) -> None:
@@ -209,7 +216,7 @@ def test_desktop_runs_and_hermes_sessions_contracts_are_backward_compatible(tmp_
     client, store, intent_store = _client_with_state(tmp_path, monkeypatch)
     run_id = _seed_main_chain(store, intent_store)
 
-    runs_response = client.get("/v1/desktop/runs?limit=5")
+    runs_response = client.get("/v1/runs?limit=5")
     sessions_response = client.get("/v1/hermes/sessions")
 
     assert runs_response.status_code == 200
@@ -592,7 +599,7 @@ def test_quant_research_route_records_tool_invocation(tmp_path, monkeypatch) -> 
     session_id = store.create_session(session_id="sess_quant_audit", user_id="local", title="Quant audit")
 
     response = client.post(
-        "/v1/desktop/quant/research-runs",
+        "/v1/finance/quant/research-runs",
         json={
             "user_id": "local",
             "session_id": session_id,
@@ -605,7 +612,7 @@ def test_quant_research_route_records_tool_invocation(tmp_path, monkeypatch) -> 
     assert response.status_code == 200
     invocations = store.list_tool_invocations(session_id=session_id)
     assert invocations[0]["tool_name"] == "agent_quant_research_run"
-    assert invocations[0]["source_chain"] == ["aiask_agent.server", "desktop.quant_research"]
+    assert invocations[0]["source_chain"] == ["aiask_agent.server", "finance.quant_research"]
 
 
 def test_user_activity_feedback_policy_and_tool_audit_routes(tmp_path, monkeypatch) -> None:
@@ -613,7 +620,7 @@ def test_user_activity_feedback_policy_and_tool_audit_routes(tmp_path, monkeypat
     session_id = store.create_session(session_id="sess_user_data", user_id="local", title="User data")
 
     events_response = client.post(
-        "/v1/desktop/events",
+        "/v1/users/events",
         json={
             "user_id": "local",
             "session_id": session_id,
@@ -633,7 +640,7 @@ def test_user_activity_feedback_policy_and_tool_audit_routes(tmp_path, monkeypat
     assert event["payload"]["api_key"] == "[redacted]"
 
     feedback_response = client.post(
-        "/v1/desktop/feedback",
+        "/v1/users/feedback",
         json={
             "user_id": "local",
             "session_id": session_id,
@@ -648,13 +655,13 @@ def test_user_activity_feedback_policy_and_tool_audit_routes(tmp_path, monkeypat
     assert feedback_response.json()["data"]["allow_learning"] is True
 
     policy_denied = client.patch(
-        "/v1/desktop/users/local/data-policy",
+        "/v1/users/local/data-policy",
         json={"event_ttl_days": 45, "allow_learning": True},
     )
     assert policy_denied.status_code == 401
 
     policy_response = client.patch(
-        "/v1/desktop/users/local/data-policy",
+        "/v1/users/local/data-policy",
         headers={"Authorization": "Bearer secret"},
         json={"event_ttl_days": 45, "allow_learning": True},
     )
@@ -671,58 +678,58 @@ def test_user_activity_feedback_policy_and_tool_audit_routes(tmp_path, monkeypat
     assert invocations[0]["input_summary"]["token"] == "[redacted]"
     assert invocations[0]["status"] == "succeeded"
 
-    activity_response = client.get("/v1/desktop/users/local/activity?limit=10")
+    activity_response = client.get("/v1/users/local/activity?limit=10")
     assert activity_response.status_code == 200
     activity = activity_response.json()
     assert activity["events"][0]["event_type"] == "page_view"
     assert activity["feedback"][0]["feedback_type"] == "thumbs_up"
     assert activity["tool_invocations"][0]["tool_name"] == "agent_tool_catalog"
 
-    analytics_response = client.get("/v1/desktop/analytics/summary?user_id=local&limit=10")
+    analytics_response = client.get("/v1/users/analytics/summary?user_id=local&limit=10")
     assert analytics_response.status_code == 200
     analytics = analytics_response.json()
     assert analytics["totals"]["events"] == 1
     assert analytics["totals"]["tool_invocations"] == 1
 
-    aggregate_denied = client.get("/v1/desktop/analytics/summary")
+    aggregate_denied = client.get("/v1/users/analytics/summary")
     assert aggregate_denied.status_code == 401
 
-    aggregate_allowed = client.get("/v1/desktop/analytics/summary", headers={"Authorization": "Bearer secret"})
+    aggregate_allowed = client.get("/v1/users/analytics/summary", headers={"Authorization": "Bearer secret"})
     assert aggregate_allowed.status_code == 200
     assert aggregate_allowed.json()["scope"] == "aggregate"
 
-    export_response = client.get("/v1/desktop/users/local/export?limit=20")
+    export_response = client.get("/v1/users/local/export?limit=20")
     assert export_response.status_code == 200
     export_payload = export_response.json()
     assert export_payload["user_id"] == "local"
     assert export_payload["sessions"][0]["session_id"] == session_id
     assert export_payload["analytics"]["totals"]["feedback"] == 1
 
-    learning_response = client.get("/v1/desktop/users/local/learning-dataset?limit=10")
+    learning_response = client.get("/v1/users/local/learning-dataset?limit=10")
     assert learning_response.status_code == 200
     assert learning_response.json()["allowed"] is True
     assert learning_response.json()["items"][0]["feedback_type"] == "thumbs_up"
 
-    recommendation_response = client.get("/v1/desktop/users/local/recommendations?limit=5")
+    recommendation_response = client.get("/v1/users/local/recommendations?limit=5")
     assert recommendation_response.status_code == 200
     assert recommendation_response.json()["object"] == "aiask.workflow_recommendations"
 
-    retention_denied = client.post("/v1/desktop/retention/sweep", json={"user_id": "local", "dry_run": True})
+    retention_denied = client.post("/v1/users/retention/sweep", json={"user_id": "local", "dry_run": True})
     assert retention_denied.status_code == 401
 
     retention_response = client.post(
-        "/v1/desktop/retention/sweep",
+        "/v1/users/retention/sweep",
         json={"user_id": "local", "dry_run": True},
         headers={"Authorization": "Bearer secret"},
     )
     assert retention_response.status_code == 200
     assert retention_response.json()["market_data_affected"] is False
 
-    delete_denied = client.post("/v1/desktop/users/local/delete", json={"dry_run": True})
+    delete_denied = client.post("/v1/users/local/delete", json={"dry_run": True})
     assert delete_denied.status_code == 401
 
     delete_preview = client.post(
-        "/v1/desktop/users/local/delete",
+        "/v1/users/local/delete",
         headers={"Authorization": "Bearer secret"},
         json={"dry_run": True},
     )
@@ -730,5 +737,5 @@ def test_user_activity_feedback_policy_and_tool_audit_routes(tmp_path, monkeypat
     assert delete_preview.json()["counts"]["sessions"] == 1
     assert store.list_activity_events(user_id="local")
 
-    denied = client.get("/v1/desktop/users/other/activity?limit=10")
+    denied = client.get("/v1/users/other/activity?limit=10")
     assert denied.status_code == 401

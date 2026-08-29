@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[3]
 def test_agent_strategy_factory_adapters_use_canonical_bootstrap() -> None:
     adapter_paths = [
         ROOT / "packages" / "agent" / "src" / "aiask_agent" / "adapters" / "strategy_factory.py",
-        ROOT / "packages" / "agent" / "src" / "aiask_agent" / "adapters" / "desktop_ops.py",
+        ROOT / "packages" / "agent" / "src" / "aiask_agent" / "adapters" / "confirmed_actions.py",
     ]
 
     for path in adapter_paths:

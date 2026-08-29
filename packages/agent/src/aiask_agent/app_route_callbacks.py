@@ -17,19 +17,20 @@ from .ai_payloads import (
 from .app_route_assembly import AgentRouteAssembly
 from .audited_tool_calls import audited_runtime_tool_call
 from .control_context import internal_control_context
-from .desktop_payloads import (
+from .settings_payloads import (
     agent_endpoint as _agent_endpoint,
-    desktop_data_status_payload_for_runtime as _desktop_data_status_payload_for_runtime,
-    desktop_data_sync_plan_payload_for_runtime as _desktop_data_sync_plan_payload_for_runtime,
-    desktop_settings_status_payload_for_runtime as _desktop_settings_status_payload_builder,
+    data_status_payload_for_runtime as _desktop_data_status_payload_for_runtime,
+    data_sync_plan_payload_for_runtime as _desktop_data_sync_plan_payload_for_runtime,
+    settings_status_payload_for_runtime as _desktop_settings_status_payload_builder,
     local_profile_payload,
     save_local_profile,
 )
-from .desktop_capabilities_payloads import (
-    desktop_capabilities_payload_for_runtime as _desktop_capabilities_payload_for_runtime,
+from .capabilities_payloads import (
+    capabilities_payload_for_runtime as _desktop_capabilities_payload_for_runtime,
 )
 from .financial_payloads import (
     broker_accounts_payload_for_runtime as _broker_accounts_payload_for_runtime,
+    broker_resource_payload_for_runtime as _broker_resource_payload_for_runtime,
     broker_analytics_payload_for_runtime as _broker_analytics_payload_for_runtime,
     broker_readiness_payload_for_runtime as _broker_readiness_payload_for_runtime,
     broker_sync_payload_for_runtime as _broker_sync_payload_for_runtime,
@@ -195,7 +196,7 @@ class AppRouteCallbackFactory:
         target_action: str,
         params: dict[str, Any],
     ) -> dict[str, Any]:
-        from .adapters.desktop_ops import execute_confirmed_action
+        from .adapters.confirmed_actions import execute_confirmed_action
 
         runtime = (
             self.build_full_runtime()
@@ -246,7 +247,7 @@ class AppRouteCallbackFactory:
             result_guard=result_guard,
         )
 
-    async def audited_desktop_tool_call(
+    async def audited_domain_tool_call(
         self,
         tool_name: str,
         payload: dict[str, Any],
@@ -324,7 +325,7 @@ class AppRouteCallbackFactory:
             run_limit=run_limit,
         )
 
-    def desktop_runs_payload(
+    def runs_payload(
         self,
         *,
         session_id: str | None = None,
@@ -501,7 +502,7 @@ class AppRouteCallbackFactory:
             intent_store=self.intent_executor.store,
         )
 
-    def desktop_settings_status_payload(self, request: Request | None = None) -> dict[str, Any]:
+    def settings_status_payload(self, request: Request | None = None) -> dict[str, Any]:
         control_ok = False
         control_reason = None
         if request is not None:
@@ -514,13 +515,13 @@ class AppRouteCallbackFactory:
             control_reason=control_reason,
         )
 
-    async def desktop_data_status_payload(self, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def data_status_payload(self, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
         return await _desktop_data_status_payload_for_runtime(self.runtime, arguments)
 
-    async def desktop_data_sync_plan_payload(self, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def data_sync_plan_payload(self, arguments: dict[str, Any] | None = None) -> dict[str, Any]:
         return await _desktop_data_sync_plan_payload_for_runtime(self.runtime, arguments)
 
-    async def desktop_capabilities_payload(self, request: Request) -> dict[str, Any]:
+    async def capabilities_payload(self, request: Request) -> dict[str, Any]:
         return await _desktop_capabilities_payload_for_runtime(
             self.runtime,
             request,
@@ -568,91 +569,14 @@ class AppRouteCallbackFactory:
     async def broker_sync_payload(self, payload: dict[str, Any], **kwargs: Any) -> dict[str, Any]:
         return await _broker_sync_payload_for_runtime(self.runtime, payload, **kwargs)
 
-    def broker_accounts_payload(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    def broker_snapshot_payload(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         return _broker_accounts_payload_for_runtime(self.runtime, payload)
+
+    def broker_resource_payload(self, resource: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+        return _broker_resource_payload_for_runtime(self.runtime, resource, payload)
 
     def broker_analytics_payload(self, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         return _broker_analytics_payload_for_runtime(self.runtime, payload)
-
-    async def desktop_asset_call(self, method: str, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-        base_url = str(os.getenv("AIASK_DESKTOP_API_BASE_URL", "http://127.0.0.1:8001")).rstrip("/")
-        url = f"{base_url}{path}"
-        response = await asyncio.to_thread(_json_request, method, url, payload, timeout=20.0)
-        if not response.get("ok"):
-            body = response.get("body")
-            detail = body.get("detail") if isinstance(body, dict) else response.get("error") or "desktop asset service request failed"
-            status_code = int(response.get("status_code") or 0)
-            error_code = "DESKTOP_API_REQUEST_FAILED"
-            if status_code == 404:
-                error_code = "DESKTOP_API_NOT_FOUND"
-            elif status_code == 401:
-                error_code = "DESKTOP_API_UNAUTHORIZED"
-            elif status_code == 0:
-                error_code = "DESKTOP_API_UPSTREAM_UNAVAILABLE"
-            return {
-                "object": "desktop.asset",
-                "success": False,
-                "data": None,
-                "error": redact_audit_text(detail),
-                "error_code": error_code,
-                "secrets_redacted": True,
-            }
-        return {
-            "object": "desktop.asset",
-            "success": True,
-            "data": _public_desktop_proxy_payload(response.get("body")),
-            "error": None,
-            "error_code": None,
-            "secrets_redacted": True,
-        }
-
-    async def desktop_file_upload(self, files: list[Any], context: dict[str, Any] | None = None) -> dict[str, Any]:
-        base_url = str(os.getenv("AIASK_DESKTOP_API_BASE_URL", "http://127.0.0.1:8001")).rstrip("/")
-        fields = {key: value for key, value in dict(context or {}).items() if value not in {None, ""}}
-        multipart_files: list[tuple[str, tuple[str, bytes, str]]] = []
-        previews: list[dict[str, Any]] = []
-        for index, file in enumerate(files):
-            filename = str(getattr(file, "filename", f"upload_{index}"))
-            content_type = str(getattr(file, "content_type", "application/octet-stream") or "application/octet-stream")
-            content = await file.read()
-            previews.append(_upload_text_preview(filename, content_type, content))
-            multipart_files.append(
-                (
-                    "files",
-                    (
-                        filename,
-                        content,
-                        content_type,
-                    ),
-                )
-            )
-        response = await asyncio.to_thread(
-            _multipart_request,
-            "POST",
-            f"{base_url}/v1/files/upload",
-            fields=fields,
-            files=multipart_files,
-            timeout=30.0,
-        )
-        if not response.get("ok"):
-            body = response.get("body")
-            detail = body.get("detail") if isinstance(body, dict) else response.get("error") or "desktop asset service upload failed"
-            return {
-                "object": "desktop.file_upload",
-                "success": False,
-                "data": None,
-                "error": redact_audit_text(detail),
-                "error_code": "DESKTOP_API_UPLOAD_FAILED",
-                "secrets_redacted": True,
-            }
-        return {
-            "object": "desktop.file_upload",
-            "success": True,
-            "data": _public_desktop_proxy_payload(_merge_upload_previews(response.get("body"), previews)),
-            "error": None,
-            "error_code": None,
-            "secrets_redacted": True,
-        }
 
     def route_assembly(self, *, daemon_getter: Callable[[], Any]) -> AgentRouteAssembly:
         return AgentRouteAssembly(
@@ -671,35 +595,33 @@ class AppRouteCallbackFactory:
             control_authorized=self.authorizer.control_authorized,
             select_runtime=self.authorizer.select_runtime,
             tool_catalog_payload=self.tool_catalog_payload,
-            desktop_capabilities_payload=self.desktop_capabilities_payload,
+            capabilities_payload=self.capabilities_payload,
             redact_required_env=_redact_required_env,
             parity_live_evidence=_parity_live_evidence,
-            desktop_settings_status_payload=self.desktop_settings_status_payload,
-            desktop_data_status_payload=self.desktop_data_status_payload,
-            desktop_data_sync_plan_payload=self.desktop_data_sync_plan_payload,
+            settings_status_payload=self.settings_status_payload,
+            data_status_payload=self.data_status_payload,
+            data_sync_plan_payload=self.data_sync_plan_payload,
             local_profile_payload=local_profile_payload,
             save_local_profile=save_local_profile,
             event_batch_from_payload=self.event_batch_from_payload,
             request_context_payload=_request_context_payload,
             factor_factory_status=self.factor_factory_status,
-            audited_desktop_tool_call=self.audited_desktop_tool_call,
+            audited_domain_tool_call=self.audited_domain_tool_call,
             financial_catalog_payload=self.financial_catalog_payload,
             financial_status_payload=self.financial_status_payload,
             financial_query_payload=self.financial_query_payload,
             financial_intent_payload=self.financial_intent_payload,
             broker_readiness_payload=self.broker_readiness_payload,
             broker_sync_payload=self.broker_sync_payload,
-            broker_accounts_payload=self.broker_accounts_payload,
+            broker_snapshot_payload=self.broker_snapshot_payload,
+            broker_resource_payload=self.broker_resource_payload,
             broker_analytics_payload=self.broker_analytics_payload,
-            desktop_asset_call=self.desktop_asset_call,
-            desktop_file_upload=self.desktop_file_upload,
             workbench_summary_payload=self.workbench_summary_payload,
             ai_status_payload=self.ai_status_payload,
             ai_config_payload=self.ai_config_payload,
             ai_config_save_payload=self.ai_config_save_payload,
             ai_smoke_payload=self.ai_smoke_payload,
             ai_models_payload=self.ai_models_payload,
-            desktop_runs_payload=self.desktop_runs_payload,
             messages_from_responses_payload=_messages_from_responses_payload,
             responses_payload=_responses_payload,
             response_sse=self.response_sse,
@@ -710,9 +632,10 @@ class AppRouteCallbackFactory:
             normalize_run_event=_normalize_run_event,
             run_trace_eval_payload=self.run_trace_eval_payload,
             artifact_content_payload=self.artifact_content_payload,
+            runs_payload=self.runs_payload,
             audited_tool_call=self.audited_tool_call,
-            metadata_allows_read_only_desktop_call=_metadata_allows_read_only_desktop_call,
-            is_read_only_desktop_tool=_is_read_only_desktop_tool,
+            metadata_allows_read_only_call=_metadata_allows_read_only_desktop_call,
+            is_read_only_tool=_is_read_only_desktop_tool,
             read_only_result_guard=read_only_desktop_result_guard,
             hermes_status_payload=self.hermes_status_payload,
             hermes_readiness_payload=self.hermes_readiness_payload,

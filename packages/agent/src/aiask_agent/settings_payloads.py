@@ -102,7 +102,7 @@ def save_local_profile(payload: dict[str, Any] | None = None) -> dict[str, Any]:
     return saved
 
 
-def desktop_settings_status_payload_for_runtime(
+def settings_status_payload_for_runtime(
     runtime: Any,
     *,
     ai_status_payload: Callable[[Any], dict[str, Any]],
@@ -153,7 +153,7 @@ def desktop_settings_status_payload_for_runtime(
     }
 
 
-async def desktop_data_status_payload_for_runtime(
+async def data_status_payload_for_runtime(
     runtime: Any,
     arguments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
@@ -191,12 +191,12 @@ async def desktop_data_status_payload_for_runtime(
     }
 
 
-async def desktop_data_sync_plan_payload_for_runtime(
+async def data_sync_plan_payload_for_runtime(
     runtime: Any,
     arguments: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload = dict(arguments or {})
-    data_status = await desktop_data_status_payload_for_runtime(runtime, payload)
+    data_status = await data_status_payload_for_runtime(runtime, payload)
     codes = data_status.get("codes") or []
     task_type = str(payload.get("task_type") or payload.get("type") or "kline").strip() or "kline"
     period = str(payload.get("period") or "daily").strip() or "daily"

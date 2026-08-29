@@ -2,16 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import inspect
-import os
-import shutil
 import time
 import sys
-import urllib.parse
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
 
-from ..gateway.http_client import _json_request, _multipart_request
 from ..financial_safety import (
     FINANCIAL_MANAGER_CONFIRMED_ACTIONS,
     FINANCIAL_MANAGER_DRY_RUN_REQUIRED_ERROR,
@@ -26,7 +22,6 @@ from ..native_skill_store import SkillStore
 from ..native_utils import _safe_slug
 from ..numeric import bounded_float, bounded_int
 from ..plugin_runtime import NativePluginManager
-from ..paths import aiask_agent_home
 from ..session_store_utils import redact_audit_text, sanitize_public_response
 from ..skill_packs import SkillPackManager
 
@@ -1457,247 +1452,6 @@ async def _execute_rl(action: str, params: dict[str, Any]) -> dict[str, Any]:
         return _execution_failed(exc, action=action, dependency="rl")
 
 
-def _desktop_asset_segment(payload: dict[str, Any], key: str) -> str:
-    token = str(payload.get(key) or "").strip()
-    if not token:
-        raise ValueError(f"{key} is required")
-    return urllib.parse.quote(token, safe="")
-
-
-def _desktop_asset_body(payload: dict[str, Any]) -> dict[str, Any]:
-    body = payload.get("payload")
-    if body is None:
-        return {}
-    if not isinstance(body, dict):
-        raise ValueError("payload must be an object")
-    return dict(body)
-
-
-def _safe_desktop_upload_filename(value: Any, *, fallback: str) -> str:
-    raw = str(value or fallback).replace("\\", "/").split("/")[-1]
-    raw = raw.replace("\r", " ").replace("\n", " ").strip()
-    cleaned = "".join(ch if ch.isalnum() or ch in "._- ()[]" else "_" for ch in raw)
-    cleaned = cleaned.strip().strip(".")[:180].strip()
-    return cleaned or fallback
-
-
-def _safe_desktop_upload_content_type(value: Any) -> str:
-    token = str(value or "application/octet-stream").replace("\r", "").replace("\n", "").strip()
-    if not token or "/" not in token:
-        return "application/octet-stream"
-    return token[:120]
-
-
-def _desktop_upload_staging_root() -> Path:
-    return (aiask_agent_home().expanduser() / "desktop-upload-staging").resolve()
-
-
-def _trusted_desktop_upload_path(path: Any, *, expected_parent: Path | None = None) -> Path:
-    if not str(path or "").strip():
-        raise ValueError("staged upload path is required")
-    root = _desktop_upload_staging_root()
-    resolved = Path(str(path)).expanduser().resolve()
-    try:
-        resolved.relative_to(root)
-    except ValueError as exc:
-        raise ValueError("staged upload path is outside trusted staging root") from exc
-    if expected_parent is not None:
-        try:
-            resolved.relative_to(expected_parent)
-        except ValueError as exc:
-            raise ValueError("staged upload file is outside its intent staging directory") from exc
-    return resolved
-
-
-def _cleanup_desktop_upload_staging(path: Any) -> None:
-    if not str(path or "").strip():
-        return
-    try:
-        target = _trusted_desktop_upload_path(path)
-    except Exception:
-        return
-    if target.parent != _desktop_upload_staging_root():
-        return
-    if target.exists():
-        shutil.rmtree(target, ignore_errors=True)
-
-
-def _desktop_file_upload_parts(
-    payload: dict[str, Any],
-) -> tuple[dict[str, Any], list[tuple[str, tuple[str, bytes, str]]], list[dict[str, Any]], Path]:
-    staged_root = _trusted_desktop_upload_path(payload.get("_staging_root"))
-    if staged_root.parent != _desktop_upload_staging_root():
-        raise ValueError("staged upload directory is not an intent staging directory")
-    if not staged_root.is_dir():
-        raise FileNotFoundError("staged upload directory is missing")
-    fields = {
-        str(key): value
-        for key, value in dict(payload.get("fields") or {}).items()
-        if value not in {None, ""}
-    }
-    staged_files = payload.get("_files")
-    if not isinstance(staged_files, list) or not staged_files:
-        raise ValueError("_files is required")
-
-    multipart_files: list[tuple[str, tuple[str, bytes, str]]] = []
-    public_files: list[dict[str, Any]] = []
-    for index, item in enumerate(staged_files):
-        if not isinstance(item, dict):
-            raise ValueError("staged file metadata must be an object")
-        path = _trusted_desktop_upload_path(item.get("path"), expected_parent=staged_root)
-        if not path.is_file():
-            raise FileNotFoundError("staged upload file is missing")
-        content = path.read_bytes()
-        expected_size = item.get("size_bytes")
-        if expected_size is not None and int(expected_size) != len(content):
-            raise ValueError("staged upload file size changed")
-        filename = _safe_desktop_upload_filename(item.get("filename"), fallback=f"upload_{index}")
-        content_type = _safe_desktop_upload_content_type(item.get("content_type"))
-        public_files.append(
-            {
-                "filename": filename,
-                "content_type": content_type,
-                "size_bytes": len(content),
-            }
-        )
-        multipart_files.append(("files", (filename, content, content_type)))
-    return fields, multipart_files, public_files, staged_root
-
-
-async def _execute_desktop_file_upload(payload: dict[str, Any]) -> dict[str, Any]:
-    staged_root: Path | None = None
-    try:
-        fields, multipart_files, public_files, staged_root = _desktop_file_upload_parts(payload)
-        base_url = str(os.getenv("AIASK_DESKTOP_API_BASE_URL", "http://127.0.0.1:8001")).rstrip("/")
-        response = await asyncio.to_thread(
-            _multipart_request,
-            "POST",
-            f"{base_url}/v1/files/upload",
-            fields=fields,
-            files=multipart_files,
-            timeout=30.0,
-        )
-        if not response.get("ok"):
-            response_body = response.get("body")
-            detail = (
-                response_body.get("detail")
-                if isinstance(response_body, dict)
-                else response.get("error") or "desktop asset service upload failed"
-            )
-            return {
-                "object": "desktop.file_upload",
-                "success": False,
-                "data": {"files": public_files},
-                "error": redact_audit_text(detail),
-                "error_code": "DESKTOP_ASSET_UPLOAD_FAILED",
-                "secrets_redacted": True,
-            }
-        return {
-            "object": "desktop.file_upload",
-            "success": True,
-            "data": sanitize_public_response(response.get("body"), max_depth=10, max_items=500, max_text=4000),
-            "error": None,
-            "error_code": None,
-            "meta": {
-                "side_effect": {
-                    "level": "stateful",
-                    "target": "desktop_asset.file_upload",
-                    "confirmation_required": True,
-                    "idempotent": False,
-                },
-                "upstream": {"method": "POST", "path": "/v1/files/upload"},
-                "files": public_files,
-            },
-            "secrets_redacted": True,
-        }
-    finally:
-        _cleanup_desktop_upload_staging(staged_root or payload.get("_staging_root"))
-
-
-def _desktop_asset_request_spec(action: str, payload: dict[str, Any]) -> tuple[str, str, dict[str, Any] | None]:
-    user_id = lambda: _desktop_asset_segment(payload, "user_id")
-    strategy_id = lambda: _desktop_asset_segment(payload, "strategy_id")
-    pool_id = lambda: _desktop_asset_segment(payload, "pool_id")
-    stock_code = lambda: _desktop_asset_segment(payload, "stock_code")
-    file_id = lambda: _desktop_asset_segment(payload, "file_id")
-
-    if action == "strategy_create":
-        return "POST", f"/v1/users/{user_id()}/strategies", _desktop_asset_body(payload)
-    if action == "strategy_update":
-        return "PATCH", f"/v1/users/{user_id()}/strategies/{strategy_id()}", _desktop_asset_body(payload)
-    if action == "strategy_delete":
-        return "DELETE", f"/v1/users/{user_id()}/strategies/{strategy_id()}", None
-    if action == "strategy_reorder":
-        return "POST", f"/v1/users/{user_id()}/strategies/reorder", _desktop_asset_body(payload)
-    if action == "stock_pool_create":
-        return "POST", f"/v1/users/{user_id()}/stock-pools", _desktop_asset_body(payload)
-    if action == "stock_pool_update":
-        return "PATCH", f"/v1/users/{user_id()}/stock-pools/{pool_id()}", _desktop_asset_body(payload)
-    if action == "stock_pool_delete":
-        return "DELETE", f"/v1/users/{user_id()}/stock-pools/{pool_id()}", None
-    if action == "stock_pool_reorder":
-        return "POST", f"/v1/users/{user_id()}/stock-pools/reorder", _desktop_asset_body(payload)
-    if action == "stock_pool_add_stock":
-        return "POST", f"/v1/users/{user_id()}/stock-pools/{pool_id()}/stocks", _desktop_asset_body(payload)
-    if action == "stock_pool_remove_stock":
-        return "DELETE", f"/v1/users/{user_id()}/stock-pools/{pool_id()}/stocks/{stock_code()}", None
-    if action == "stock_pool_batch_remove":
-        return "POST", f"/v1/users/{user_id()}/stock-pools/{pool_id()}/stocks/batch-remove", _desktop_asset_body(payload)
-    if action == "file_save":
-        return "POST", "/v1/files/save", _desktop_asset_body(payload)
-    if action == "file_delete":
-        return "DELETE", f"/v1/files/{file_id()}", None
-    raise ValueError(f"unsupported desktop asset action: {action}")
-
-
-async def _execute_desktop_asset(action: str, params: dict[str, Any]) -> dict[str, Any]:
-    try:
-        payload = dict(params or {})
-        if action == "file_upload":
-            return await _execute_desktop_file_upload(payload)
-        method, path, body = _desktop_asset_request_spec(action, payload)
-        base_url = str(os.getenv("AIASK_DESKTOP_API_BASE_URL", "http://127.0.0.1:8001")).rstrip("/")
-        response = await asyncio.to_thread(_json_request, method, f"{base_url}{path}", body, timeout=20.0)
-        if not response.get("ok"):
-            response_body = response.get("body")
-            detail = response_body.get("detail") if isinstance(response_body, dict) else response.get("error") or "desktop asset service request failed"
-            status_code = int(response.get("status_code") or 0)
-            error_code = "DESKTOP_ASSET_REQUEST_FAILED"
-            if status_code == 404:
-                error_code = "DESKTOP_ASSET_NOT_FOUND"
-            elif status_code == 401:
-                error_code = "DESKTOP_ASSET_UNAUTHORIZED"
-            elif status_code == 0:
-                error_code = "DESKTOP_ASSET_UPSTREAM_UNAVAILABLE"
-            return {
-                "object": "desktop.asset",
-                "success": False,
-                "data": {"method": method, "path": path},
-                "error": redact_audit_text(detail),
-                "error_code": error_code,
-                "secrets_redacted": True,
-            }
-        return {
-            "object": "desktop.asset",
-            "success": True,
-            "data": sanitize_public_response(response.get("body"), max_depth=10, max_items=500, max_text=4000),
-            "error": None,
-            "error_code": None,
-            "meta": {
-                "side_effect": {
-                    "level": "stateful",
-                    "target": f"desktop_asset.{action}",
-                    "confirmation_required": True,
-                    "idempotent": False,
-                },
-                "upstream": {"method": method, "path": path},
-            },
-            "secrets_redacted": True,
-        }
-    except Exception as exc:
-        return _execution_failed(exc, action=action, dependency="desktop_asset")
-
-
 async def _execute_job(action: str, params: dict[str, Any]) -> dict[str, Any]:
     try:
         payload = dict(params or {})
@@ -2012,8 +1766,6 @@ async def execute_confirmed_action(
         return _public_confirmed_action_result(await _execute_rl(normalized_action, payload))
     if normalized_tool == "job":
         return _public_confirmed_action_result(await _execute_job(normalized_action, payload))
-    if normalized_tool == "desktop_asset":
-        return _public_confirmed_action_result(await _execute_desktop_asset(normalized_action, payload))
     if normalized_tool == "file":
         return _public_confirmed_action_result(await _execute_file(normalized_action, payload))
     if normalized_tool == "browser":

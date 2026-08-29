@@ -40,8 +40,8 @@ def test_financial_manager_catalog_and_status_redact_secrets(tmp_path, monkeypat
     monkeypatch.setenv("AIASK_FINANCE_QMT_BROKER_TOKEN", "qmt-broker-secret")
     client = _client(tmp_path, monkeypatch)
 
-    catalog = client.get("/v1/desktop/financial-manager/catalog")
-    status = client.get("/v1/desktop/financial-manager/status")
+    catalog = client.get("/v1/finance/manager/catalog")
+    status = client.get("/v1/finance/manager/status")
 
     assert catalog.status_code == 200
     assert status.status_code == 200
@@ -88,7 +88,7 @@ def test_financial_manager_catalog_and_status_redact_secrets(tmp_path, monkeypat
     assert matrix_actions["portfolio.risk"]["action_intent_required"] is False
     assert matrix_actions["portfolio.create"]["action_intent_required"] is True
     assert matrix_actions["portfolio.create"]["control_token_required"] is True
-    assert matrix_actions["portfolio.create"]["endpoint"] == "/v1/desktop/financial-manager/intent"
+    assert matrix_actions["portfolio.create"]["endpoint"] == "/v1/finance/manager/intent"
     assert matrix_actions["paper.submit_order"]["dry_run_required"] is True
     assert matrix_actions["paper.submit_order"]["execution_mode"] == "confirmed_execute_dry_run_only"
     assert matrix_actions["broker-live.place_order"]["live_trading_blocked"] is True
@@ -105,7 +105,7 @@ def test_financial_manager_read_only_query_dispatches_agent_tool(tmp_path, monke
     client = _client(tmp_path, monkeypatch)
 
     response = client.post(
-        "/v1/desktop/financial-manager/query",
+        "/v1/finance/manager/query",
         json={
             "capability_id": "portfolio",
             "action_id": "risk",
@@ -161,7 +161,7 @@ def test_financial_manager_read_only_query_blocks_non_read_only_tool_result(tmp_
     session_id = session_store.create_session(session_id="sess_fin_query_guard", user_id="local")
 
     response = client.post(
-        "/v1/desktop/financial-manager/query",
+        "/v1/finance/manager/query",
         json={
             "user_id": "local",
             "session_id": session_id,
@@ -200,7 +200,7 @@ def test_financial_manager_query_and_intent_are_audited(tmp_path, monkeypatch) -
     session_id = store.create_session(session_id="sess_financial_audit", user_id="local")
 
     query = client.post(
-        "/v1/desktop/financial-manager/query",
+        "/v1/finance/manager/query",
         json={
             "user_id": "local",
             "session_id": session_id,
@@ -210,7 +210,7 @@ def test_financial_manager_query_and_intent_are_audited(tmp_path, monkeypatch) -
         },
     )
     intent = client.post(
-        "/v1/desktop/financial-manager/intent",
+        "/v1/finance/manager/intent",
         headers={"Authorization": "Bearer secret"},
         json={
             "user_id": "local",
@@ -227,8 +227,8 @@ def test_financial_manager_query_and_intent_are_audited(tmp_path, monkeypatch) -
     invocations = store.list_tool_invocations(session_id=session_id)
     assert [item["tool_name"] for item in invocations] == ["agent_action_intent_create", "agent_portfolio_risk"]
     assert invocations[0]["action_intent_id"] == intent.json()["data"]["intent"]["intent_id"]
-    assert invocations[0]["source_chain"] == ["aiask_agent.server", "desktop.financial_manager.intent"]
-    assert invocations[1]["source_chain"] == ["aiask_agent.server", "desktop.financial_manager"]
+    assert invocations[0]["source_chain"] == ["aiask_agent.server", "finance.manager.intent"]
+    assert invocations[1]["source_chain"] == ["aiask_agent.server", "finance.manager"]
 
 
 def test_financial_manager_payloads_redact_free_text_secrets(tmp_path, monkeypatch) -> None:
@@ -310,7 +310,7 @@ def test_financial_manager_missing_mcp_tool_returns_availability_reason(tmp_path
     client = _client(tmp_path, monkeypatch)
 
     response = client.post(
-        "/v1/desktop/financial-manager/query",
+        "/v1/finance/manager/query",
         json={
             "capability_id": "research",
             "action_id": "reports",
@@ -498,9 +498,9 @@ def test_financial_manager_stateful_query_requires_intent_and_intent_is_control_
         "rationale": "create from test",
     }
 
-    query = client.post("/v1/desktop/financial-manager/query", json=body)
-    denied = client.post("/v1/desktop/financial-manager/intent", json=body)
-    created = client.post("/v1/desktop/financial-manager/intent", headers={"Authorization": "Bearer secret"}, json=body)
+    query = client.post("/v1/finance/manager/query", json=body)
+    denied = client.post("/v1/finance/manager/intent", json=body)
+    created = client.post("/v1/finance/manager/intent", headers={"Authorization": "Bearer secret"}, json=body)
 
     assert query.status_code == 200
     assert query.json()["error_code"] == "FINANCIAL_ACTION_REQUIRES_INTENT"
@@ -516,7 +516,7 @@ def test_financial_manager_dry_run_only_intent_rejects_explicit_false(tmp_path, 
     client = _client(tmp_path, monkeypatch)
 
     blocked = client.post(
-        "/v1/desktop/financial-manager/intent",
+        "/v1/finance/manager/intent",
         headers={"Authorization": "Bearer secret"},
         json={
             "capability_id": "paper",
@@ -526,7 +526,7 @@ def test_financial_manager_dry_run_only_intent_rejects_explicit_false(tmp_path, 
         },
     )
     created = client.post(
-        "/v1/desktop/financial-manager/intent",
+        "/v1/finance/manager/intent",
         headers={"Authorization": "Bearer secret"},
         json={
             "capability_id": "paper",
@@ -553,11 +553,11 @@ def test_financial_manager_live_trade_actions_are_blocked(tmp_path, monkeypatch)
     client = _client(tmp_path, monkeypatch)
 
     query = client.post(
-        "/v1/desktop/financial-manager/query",
+        "/v1/finance/manager/query",
         json={"capability_id": "broker-live", "action_id": "place_order", "params": {"broker_token": "should-not-leak"}},
     )
     intent = client.post(
-        "/v1/desktop/financial-manager/intent",
+        "/v1/finance/manager/intent",
         headers={"Authorization": "Bearer secret"},
         json={"capability_id": "broker-live", "action_id": "cancel_order", "params": {"broker_token": "should-not-leak"}},
     )

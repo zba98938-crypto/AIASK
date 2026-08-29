@@ -5,7 +5,7 @@ description = "Isolated backend-only copy of AIASK financial agent packages insi
 requires-python = ">=3.12,<3.14"
 
 [tool.hermes-aiask]
-# This root pyproject is intentionally not an install target for desktop/frontend code.
+# This root pyproject is an orchestration manifest, not an install target for the packages.
 # Install backend packages individually from packages/ in dependency order.
 package_order = [
   "packages/aiask-quant-core",

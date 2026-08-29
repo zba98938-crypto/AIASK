@@ -2,7 +2,7 @@
 event-driven manager actions.
 
 Drives the full chain ``ActionIntent.create → IntentExecutor.confirm →
-desktop_ops.execute_confirmed_action → strategy_factory.execute_confirmed_action
+confirmed_actions.execute_confirmed_action → strategy_factory.execute_confirmed_action
 → strategy_manager.ACTION_HANDLERS["factory_event_*"]``.
 
 Coverage maps to plan §6 Phase 4 acceptance:

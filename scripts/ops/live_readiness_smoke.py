@@ -28,19 +28,19 @@ SMOKE_CHECKS: tuple[dict[str, Any], ...] = (
     {"name": "health", "method": "GET", "path": "/health/detailed"},
     {"name": "tools", "method": "GET", "path": "/v1/tools"},
     {"name": "financial_readiness", "method": "GET", "path": "/v1/financial-system/readiness"},
-    {"name": "workbench_summary", "method": "GET", "path": "/v1/desktop/workbench/summary?session_limit=5&run_limit=5"},
-    {"name": "memory_status", "method": "GET", "path": "/v1/desktop/settings/status"},
+    {"name": "workbench_summary", "method": "GET", "path": "/v1/workbench/summary?session_limit=5&run_limit=5"},
+    {"name": "memory_status", "method": "GET", "path": "/v1/settings/status"},
     {"name": "session_search", "method": "GET", "path": "/v1/search?query=AIASK&limit=5"},
     {"name": "memory_search", "method": "POST", "path": "/v1/tools/agent_memory_search"},
     {"name": "mcp_servers", "method": "GET", "path": "/v1/mcp/servers?all=true"},
     {"name": "mcp_tools", "method": "GET", "path": "/v1/mcp/tools?all=true"},
-    {"name": "financial_manager_catalog", "method": "GET", "path": "/v1/desktop/financial-manager/catalog"},
-    {"name": "financial_manager_query", "method": "POST", "path": "/v1/desktop/financial-manager/query"},
-    {"name": "data_status", "method": "GET", "path": "/v1/desktop/data/status?codes=600519,000001&max_stale_days=5"},
+    {"name": "financial_manager_catalog", "method": "GET", "path": "/v1/finance/manager/catalog"},
+    {"name": "financial_manager_query", "method": "POST", "path": "/v1/finance/manager/query"},
+    {"name": "data_status", "method": "GET", "path": "/v1/data/status?codes=600519,000001&max_stale_days=5"},
     {"name": "factory_status", "method": "POST", "path": "/v1/tools/agent_factory_status", "observes": ["success", "runtime_enabled", "event_runtime_mode", "daily_run_count", "cycle_count"]},
     {"name": "market_temperature_cache", "method": "POST", "path": "/v1/tools/agent_market_temperature_cache_readiness", "observes": ["ready", "status", "blockers", "warnings"]},
     {"name": "market_temperature_forward_validation", "method": "POST", "path": "/v1/tools/agent_market_temperature_forward_validation", "observes": ["benchmark_status", "quality_status", "warnings", "sample_count"]},
-    {"name": "quant_research", "method": "POST", "path": "/v1/desktop/quant/research-runs"},
+    {"name": "quant_research", "method": "POST", "path": "/v1/finance/quant/research-runs"},
 )
 JsonRequester = Callable[[str, str, str, dict[str, Any] | None, float], tuple[int, dict[str, Any]]]
 
@@ -181,7 +181,7 @@ def run_smoke(
         )
 
     def workbench_summary() -> CheckResult:
-        path = f"/v1/desktop/workbench/summary?{urllib.parse.urlencode({'session_limit': '5', 'run_limit': '5'})}"
+        path = f"/v1/workbench/summary?{urllib.parse.urlencode({'session_limit': '5', 'run_limit': '5'})}"
         _, payload = request_json("GET", path, api_token, None, timeout)
         queues = payload.get("queues") if isinstance(payload.get("queues"), dict) else {}
         access = payload.get("access") if isinstance(payload.get("access"), dict) else {}
@@ -204,7 +204,7 @@ def run_smoke(
         )
 
     def memory_status() -> CheckResult:
-        _, payload = request_json("GET", "/v1/desktop/settings/status", control_token or api_token, None, timeout)
+        _, payload = request_json("GET", "/v1/settings/status", control_token or api_token, None, timeout)
         memory = payload.get("memory") if isinstance(payload.get("memory"), dict) else {}
         providers = list(memory.get("providers") or [])
         active_provider = str(memory.get("active_provider") or memory.get("provider") or memory.get("default_provider") or "unknown")
@@ -263,7 +263,7 @@ def run_smoke(
         return CheckResult("mcp_tools", True, status, f"tools={len(data)}", {"count": len(data)})
 
     def financial_manager_catalog() -> CheckResult:
-        _, payload = request_json("GET", "/v1/desktop/financial-manager/catalog", api_token, None, timeout)
+        _, payload = request_json("GET", "/v1/finance/manager/catalog", api_token, None, timeout)
         actions = list(payload.get("actions") or [])
         ready_count = sum(1 for item in actions if isinstance(item, dict) and item.get("status") in {"ready", "intent_ready"})
         return CheckResult("financial_manager_catalog", bool(actions), "ready" if ready_count else "degraded", f"actions={len(actions)} ready_or_intent={ready_count}", {"summary": payload.get("summary")})
@@ -274,7 +274,7 @@ def run_smoke(
             "action_id": "risk",
             "params": {"codes": list(DEFAULT_CODES), "weights": [0.5, 0.5]},
         }
-        _, payload = request_json("POST", "/v1/desktop/financial-manager/query", api_token, body, timeout)
+        _, payload = request_json("POST", "/v1/finance/manager/query", api_token, body, timeout)
         data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
         success = payload.get("success") is not False
         status = str(data.get("status") or payload.get("error_code") or "ready")
@@ -295,7 +295,7 @@ def run_smoke(
 
     def data_status() -> CheckResult:
         codes = ",".join(DEFAULT_CODES)
-        path = f"/v1/desktop/data/status?{urllib.parse.urlencode({'codes': codes, 'max_stale_days': '5'})}"
+        path = f"/v1/data/status?{urllib.parse.urlencode({'codes': codes, 'max_stale_days': '5'})}"
         _, payload = request_json("GET", path, api_token, None, timeout)
         status = str(payload.get("status") or _safe_get(payload, ("data_gate", "data", "status"), "unknown"))
         return CheckResult("data_status", status not in {"failed", "error"}, status, f"codes={codes}", {"database": payload.get("database"), "quality_gate": payload.get("quality_gate")})
@@ -437,7 +437,7 @@ def run_smoke(
             "slippage_bps": 1,
             "include_strategy_review": False,
         }
-        _, payload = request_json("POST", "/v1/desktop/quant/research-runs", api_token, body, max(timeout, 30.0))
+        _, payload = request_json("POST", "/v1/finance/quant/research-runs", api_token, body, max(timeout, 30.0))
         data = payload.get("data") if isinstance(payload.get("data"), dict) else {}
         research = data.get("research") if isinstance(data, dict) else None
         if not isinstance(research, dict):

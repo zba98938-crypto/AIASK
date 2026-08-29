@@ -32,21 +32,17 @@ Use ActionIntent for:
 - Webhook trigger actions.
 - Plugin/skill/job operations that cross control boundaries.
 
-Do not perform a stateful operation immediately just because a Desktop button exists. Desktop should create or confirm the intent through Agent routes, and the Agent should enforce control-token and side-effect policy.
+Do not perform a stateful operation immediately from an untrusted client. Clients should create or confirm the intent through Agent routes, and the Agent should enforce control-token and side-effect policy.
 
-## Desktop Contract Expectations
+## Client Contract Expectations
 
-Desktop expects structured JSON, not stringly typed hidden state. Keep:
+Clients expect structured JSON, not stringly typed hidden state. Keep:
 
 - `object` or `aiask_envelope` style fields where already used.
 - `success`, `data`, `error`, `error_code`, `meta`, `side_effect`, and `secrets_redacted` semantics where present.
 - Gated responses explicit: control token missing, full mode disabled, unavailable backend, unsupported connector, or degraded data should be visible.
 
-When route fields change, update:
-
-- `desktop/src/services/aiaskApi.ts`
-- `desktop/src/mock/mockData.ts`
-- Relevant Desktop tests and Agent contract tests.
+When route fields change, update the relevant Agent contract tests and API documentation.
 
 ## Tests To Consider
 
@@ -56,4 +52,3 @@ When route fields change, update:
 - `packages/agent/tests/test_intents.py`
 - `packages/agent/tests/test_gateway_daemon*.py`
 - `packages/agent/tests/test_endpoint_drift_gate.py`
-- `desktop/src/services/aiaskApi.test.ts`

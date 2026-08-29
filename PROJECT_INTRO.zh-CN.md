@@ -28,7 +28,6 @@ Hermes 核心不直接导入金融包。该边界保护核心的提示缓存和�
 | `packages/aiask-quant-core` | 因子计算、回测、策略 DSL、信号/风险/滑点、交易审计和量化存储原语 |
 | `packages/strategy-factory` | 策略工厂领域模型、生命周期、调度、候选路由、准入、质量门和提交 |
 | `packages/finance-mcp-servers` | 通达信、同花顺、东方财富、MiniQMT 的可选 MCP 服务器 |
-| `desktop` | 仅面向金融运维的五视图工作台，不是 Hermes Desktop 的聊天重写 |
 
 AIASK 使用 Python 3.12–3.13 独立虚拟环境；不要把它的依赖安装到 Hermes 核心环境。
 
@@ -112,13 +111,12 @@ Skills 的作用是让 Hermes 知道“何时调用哪个 facade/MCP、哪些数
 - 运行四工厂的一次 cycle，查看 status、runs、readiness 和 evidence；
 - 运行/监控 paper 孵化、信号追踪、forward returns 和执行审计；
 - 通过可选 MCP 连接本地金融软件读取行情/账户，或在满足 token/确认条件后执行受保护的交易动作；
-- 使用 Hermes 的 CLI、Desktop、TUI、消息平台和 cron 分发研究结果。
+- 使用 Hermes CLI、消息平台和 cron 分发研究结果；本项目自身不包含 Web/桌面前端。
 
 ## 当前不能据此宣称的事情
 
 - 不是保证收益的荐股系统，也不是自动盈利机器人；
-- 不是已完成的全量 AIASK V1 前端，`packages/desktop-api` 在此副本不存在；
-- Hermes Desktop 不是完整 AIASK 金融工作台；金融 workbench 是独立的 focused 五视图；
+- 不包含 AIASK V1 前端或 `packages/desktop-api`；客户端需通过 Agent HTTP/MCP 接入；
 - 不是默认开启的实盘交易系统，不代表券商生产认证；
 - `factory once/cycle` 不等于 24 小时 supervisor 或长期健康，`ops-start` 也不等于多日 soak；
 - 当前本地 evidence 表可能为空，`hard_gate_passed=0` 在没有真实 paper round-trip 时是正确且诚实的结果。
@@ -176,7 +174,7 @@ Agent 层把研究能力变成可使用的产品：
 - 自然语言股票分析和研究问答；
 - 策略工厂状态、运行记录、事件 lineage 和 evidence 查询；
 - 工厂单次运行、研究 cycle、readiness 和诊断；
-- Desktop finance focused workbench 的状态展示；
+- Agent HTTP/MCP 状态、运行记录和诊断信息展示；
 - Hermes 的对话记忆、skills、定时任务和跨平台投递；
 - 对交易、插件变更、文件/终端写入等动作进行确认和授权。
 

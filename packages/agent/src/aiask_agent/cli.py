@@ -153,7 +153,7 @@ def _cmd_tools(args: argparse.Namespace) -> None:
 
 
 def _cmd_data_sources(args: argparse.Namespace) -> None:
-    _print_json(_request("GET", "/v1/desktop/stock-data-sources"))
+    _print_json(_request("GET", "/v1/data/stock-data-sources"))
 
 
 def _cmd_export_run(args: argparse.Namespace) -> None:

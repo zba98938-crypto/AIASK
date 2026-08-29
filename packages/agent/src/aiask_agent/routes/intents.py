@@ -15,7 +15,7 @@ def create_intents_router(
     control_authorized: Callable[[Request], tuple[bool, str | None]],
     intent_store: Any,
     intent_executor: Any,
-    audited_desktop_tool_call: Callable[..., Awaitable[dict[str, Any]]],
+    audited_domain_tool_call: Callable[..., Awaitable[dict[str, Any]]],
 ) -> APIRouter:
     router = APIRouter()
 
@@ -36,7 +36,7 @@ def create_intents_router(
     @router.get("/intents/{intent_id}")
     async def intent_get(request: Request, intent_id: str) -> dict[str, Any]:
         require_api(request)
-        result = await audited_desktop_tool_call(
+        result = await audited_domain_tool_call(
             "agent_action_intent_get",
             {"intent_id": intent_id},
             request=request,
@@ -50,7 +50,7 @@ def create_intents_router(
     async def intent_create(request: Request) -> dict[str, Any]:
         require_control_token(request)
         payload = dict(await request.json() or {})
-        result = await audited_desktop_tool_call(
+        result = await audited_domain_tool_call(
             "agent_action_intent_create",
             payload,
             request=request,

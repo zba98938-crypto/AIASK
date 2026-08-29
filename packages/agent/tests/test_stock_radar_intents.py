@@ -49,7 +49,7 @@ def test_stock_radar_intent_create_does_not_execute_without_confirm(tmp_path, mo
         calls.append((tool, action, params))
         return {"success": True, "data": {"ok": True}, "error": None}
 
-    monkeypatch.setattr("aiask_agent.adapters.desktop_ops.execute_confirmed_action", fake_execute)
+    monkeypatch.setattr("aiask_agent.adapters.confirmed_actions.execute_confirmed_action", fake_execute)
     store = ActionIntentStore(tmp_path / "intents.sqlite3")
     intent = store.create(
         action="stock_radar.run_once",
@@ -70,7 +70,7 @@ def test_stock_radar_intent_confirm_dispatches_executor(tmp_path, monkeypatch) -
         calls.append((tool, action, params))
         return {"success": True, "data": {"status": "completed"}, "error": None}
 
-    monkeypatch.setattr("aiask_agent.adapters.desktop_ops.execute_confirmed_action", fake_execute)
+    monkeypatch.setattr("aiask_agent.adapters.confirmed_actions.execute_confirmed_action", fake_execute)
     store = ActionIntentStore(tmp_path / "intents.sqlite3")
     intent = store.create(
         action="stock_radar.push_digest",
@@ -86,12 +86,12 @@ def test_stock_radar_intent_confirm_dispatches_executor(tmp_path, monkeypatch) -
 
 
 def test_stock_radar_schedule_update_persists_agent_job(tmp_path, monkeypatch) -> None:
-    import aiask_agent.adapters.desktop_ops as desktop_ops
+    import aiask_agent.adapters.confirmed_actions as confirmed_actions
 
     monkeypatch.setenv("AIASK_AGENT_HOME", str(tmp_path / "home"))
 
     first = asyncio.run(
-        desktop_ops.execute_confirmed_action(
+        confirmed_actions.execute_confirmed_action(
             "stock_radar",
             "schedule_update",
             {"interval_seconds": 3600, "enabled": True, "days": 2, "limit": 12, "allow_network": False, "allow_llm": False},
@@ -114,7 +114,7 @@ def test_stock_radar_schedule_update_persists_agent_job(tmp_path, monkeypatch) -
     assert stored["payload"]["run_params"]["limit"] == 12
 
     second = asyncio.run(
-        desktop_ops.execute_confirmed_action(
+        confirmed_actions.execute_confirmed_action(
             "stock_radar",
             "schedule_update",
             {"interval_seconds": 7200, "enabled": True, "days": 4, "limit": 24},
@@ -132,7 +132,7 @@ def test_stock_radar_schedule_update_persists_agent_job(tmp_path, monkeypatch) -
 
 
 def test_stock_radar_scheduled_job_executes_adapter(tmp_path, monkeypatch) -> None:
-    import aiask_agent.adapters.desktop_ops as desktop_ops
+    import aiask_agent.adapters.confirmed_actions as confirmed_actions
 
     script = tmp_path / "should_not_run.py"
     script.write_text("print('should not run')\n", encoding="utf-8")
@@ -165,7 +165,7 @@ def test_stock_radar_scheduled_job_executes_adapter(tmp_path, monkeypatch) -> No
         async def run(self, *args, **kwargs):
             raise AssertionError("stock radar jobs should execute the adapter directly")
 
-    monkeypatch.setattr(desktop_ops, "_execute_stock_radar", fake_execute)
+    monkeypatch.setattr(confirmed_actions, "_execute_stock_radar", fake_execute)
     monkeypatch.setattr(
         "aiask_agent.scheduler.subprocess.run",
         lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("stock radar job must not execute script payload")),
@@ -254,9 +254,9 @@ def test_scheduled_job_blocks_script_outside_workspace(tmp_path, monkeypatch) ->
 
 
 def test_stock_radar_push_digest_dry_run_does_not_send_gateway(tmp_path, monkeypatch) -> None:
-    import aiask_agent.adapters.desktop_ops as desktop_ops
+    import aiask_agent.adapters.confirmed_actions as confirmed_actions
 
-    desktop_ops._ensure_monorepo_paths()
+    confirmed_actions._ensure_monorepo_paths()
     calls: list[dict] = []
 
     class FakeDb:
@@ -294,7 +294,7 @@ def test_stock_radar_push_digest_dry_run_does_not_send_gateway(tmp_path, monkeyp
     monkeypatch.setattr("aiask_agent.gateway.DeliveryRouter", FakeRouter)
 
     result = asyncio.run(
-        desktop_ops.execute_confirmed_action(
+        confirmed_actions.execute_confirmed_action(
             "stock_radar",
             "push_digest",
             {"channels": ["local"], "dry_run": True, "target": "radar"},
@@ -307,9 +307,9 @@ def test_stock_radar_push_digest_dry_run_does_not_send_gateway(tmp_path, monkeyp
 
 
 def test_stock_radar_push_digest_blocked_does_not_send_gateway(tmp_path, monkeypatch) -> None:
-    import aiask_agent.adapters.desktop_ops as desktop_ops
+    import aiask_agent.adapters.confirmed_actions as confirmed_actions
 
-    desktop_ops._ensure_monorepo_paths()
+    confirmed_actions._ensure_monorepo_paths()
     calls: list[dict] = []
 
     class FakeDb:
@@ -343,7 +343,7 @@ def test_stock_radar_push_digest_blocked_does_not_send_gateway(tmp_path, monkeyp
     monkeypatch.setattr("aiask_agent.gateway.DeliveryRouter", FakeRouter)
 
     result = asyncio.run(
-        desktop_ops.execute_confirmed_action(
+        confirmed_actions.execute_confirmed_action(
             "stock_radar",
             "push_digest",
             {"channels": ["local"], "dry_run": False, "target": "radar"},
@@ -356,9 +356,9 @@ def test_stock_radar_push_digest_blocked_does_not_send_gateway(tmp_path, monkeyp
 
 
 def test_stock_radar_push_digest_non_dry_run_sends_gateway(tmp_path, monkeypatch) -> None:
-    import aiask_agent.adapters.desktop_ops as desktop_ops
+    import aiask_agent.adapters.confirmed_actions as confirmed_actions
 
-    desktop_ops._ensure_monorepo_paths()
+    confirmed_actions._ensure_monorepo_paths()
     monkeypatch.setenv("AIASK_AGENT_HOME", str(tmp_path / "home"))
     calls: list[dict] = []
 
@@ -403,7 +403,7 @@ def test_stock_radar_push_digest_non_dry_run_sends_gateway(tmp_path, monkeypatch
     monkeypatch.setattr("aiask_agent.gateway.DeliveryRouter", FakeRouter)
 
     result = asyncio.run(
-        desktop_ops.execute_confirmed_action(
+        confirmed_actions.execute_confirmed_action(
             "stock_radar",
             "push_digest",
             {"channels": ["wecom", "telegram"], "dry_run": False, "target": "radar"},

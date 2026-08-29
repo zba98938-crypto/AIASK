@@ -11,8 +11,8 @@ def create_tools_router(
     require_api: Callable[[Request], None],
     require_full: Callable[[Request], Any],
     audited_tool_call: Callable[..., Awaitable[dict[str, Any]]],
-    metadata_allows_read_only_desktop_call: Callable[[dict[str, Any], str], bool],
-    is_read_only_desktop_tool: Callable[[str], bool],
+    metadata_allows_read_only_call: Callable[[dict[str, Any], str], bool],
+    is_read_only_tool: Callable[[str], bool],
     read_only_result_guard: Callable[[str, dict[str, Any]], dict[str, Any]],
 ) -> APIRouter:
     router = APIRouter()
@@ -23,7 +23,7 @@ def create_tools_router(
         payload = await request.json()
         tool = runtime.tool_registry.get(tool_name)
         metadata = dict(getattr(tool, "metadata", {}) or {}) if tool else {}
-        if not metadata_allows_read_only_desktop_call(metadata, tool_name) and not is_read_only_desktop_tool(tool_name):
+        if not metadata_allows_read_only_call(metadata, tool_name) and not is_read_only_tool(tool_name):
             raise HTTPException(403, detail=f"tool is not available through the read-only desktop API: {tool_name}")
         return await audited_tool_call(
             runtime,

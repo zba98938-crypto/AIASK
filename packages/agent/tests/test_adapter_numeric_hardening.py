@@ -5,7 +5,7 @@ import sys
 import types
 from typing import Any
 
-from aiask_agent.adapters import desktop_ops, quant, stock_radar, strategy_factory
+from aiask_agent.adapters import confirmed_actions, quant, stock_radar, strategy_factory
 from aiask_agent.plugin_runtime import NativePluginManager
 
 
@@ -45,7 +45,7 @@ def test_desktop_factor_factory_status_bounds_limit(monkeypatch) -> None:
     )
     monkeypatch.setitem(sys.modules, "akshare_mcp.services.factor_mining_factory.api", api_module)
 
-    result = asyncio.run(desktop_ops.factor_factory_status(limit="nan"))
+    result = asyncio.run(confirmed_actions.factor_factory_status(limit="nan"))
 
     assert result["status"] == "ready"
     assert calls == [50]
@@ -75,7 +75,7 @@ def test_desktop_factor_factory_status_redacts_public_payload(monkeypatch) -> No
     )
     monkeypatch.setitem(sys.modules, "akshare_mcp.services.factor_mining_factory.api", api_module)
 
-    result = asyncio.run(desktop_ops.factor_factory_status(limit=1))
+    result = asyncio.run(confirmed_actions.factor_factory_status(limit=1))
     raw = str(result)
 
     assert result["status"] == "ready"

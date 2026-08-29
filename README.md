@@ -8,7 +8,6 @@ It was copied into Hermes Agent without moving the original project.
 
 ## What is included
 
-- `desktop/` - focused AIASK Desktop workbench source for Agent HTTP readiness, Financial Manager guardrails, MCP visibility, and mock/live validation.
 - `packages/agent/` - AIASK FastAPI Agent runtime and safe tool facades.
 - `packages/akshare-mcp/` - AKShare MCP server, stock/finance tools, data source routing, data sync, readiness/freshness checks, research/quant/strategy services.
 - `packages/aiask-quant-core/` - quant primitives, backtest engines, factor calculators, storage, signal/risk helpers.
@@ -18,7 +17,7 @@ It was copied into Hermes Agent without moving the original project.
 - `.codex/skills/aiask-*` - original AIASK project skills.
 - `.claude/mcp-servers-recommended.json` - AIASK MCP reference config.
 
-The original full frontend was intentionally not copied after user direction. This integration now includes a focused Desktop workbench that satisfies product readiness gates without importing backend packages or bypassing Agent HTTP.
+This integration is backend-only. It does not ship a web or desktop frontend; clients should use the Agent HTTP/MCP interfaces directly.
 
 ## What was intentionally excluded
 
@@ -105,7 +104,7 @@ AKSHARE_MCP_SQLITE_PATH=$HOME/.aiask/data/db/akshare_mcp.sqlite3
 
 Preserve AIASK's original boundaries:
 
-- Desktop talks to Agent HTTP only.
+- External clients talk to Agent HTTP/MCP only.
 - Model-visible Agent tools should stay behind `agent_*` facades.
 - AKShare managers are internal/provider-facing; do not expose raw manager names directly to model tools.
 - Strategy, factor, incubation, execution, gateway delivery, plugin mutation, file/terminal/browser writes, and live trading paths require explicit guardrails.

@@ -222,9 +222,9 @@ def financial_safety_matrix(*, control_token_ready: bool | None = None) -> dict[
                 "live_trading_blocked": broker_live or mode == "blocked",
                 "stateful_confirmation_required": mode != "read_only",
                 "endpoint": (
-                    "/v1/desktop/financial-manager/query"
+                    "/v1/finance/manager/query"
                     if mode == "read_only"
-                    else "/v1/desktop/financial-manager/intent"
+                    else "/v1/finance/manager/intent"
                     if mode == "stateful_intent"
                     else None
                 ),

@@ -82,7 +82,7 @@ def test_desktop_settings_status_redacts_secret_state_and_reports_profile(tmp_pa
     monkeypatch.setenv("OPENAI_BASE_URL", "https://models.example.test/v1")
     client = _client(tmp_path, monkeypatch)
 
-    response = client.get("/v1/desktop/settings/status", headers={"Authorization": "Bearer secret"})
+    response = client.get("/v1/settings/status", headers={"Authorization": "Bearer secret"})
 
     assert response.status_code == 200
     payload = response.json()
@@ -115,7 +115,7 @@ def test_desktop_settings_status_uses_project_env_llm_config(tmp_path, monkeypat
         monkeypatch.delenv(key, raising=False)
     client = _client(tmp_path, monkeypatch)
 
-    response = client.get("/v1/desktop/settings/status", headers={"Authorization": "Bearer secret"})
+    response = client.get("/v1/settings/status", headers={"Authorization": "Bearer secret"})
 
     assert response.status_code == 200
     payload = response.json()
@@ -162,7 +162,7 @@ def test_desktop_settings_status_project_env_llm_overrides_process_env(tmp_path,
     monkeypatch.setenv("OPENAI_API_KEY", "sk-process-secret")
 
     client = _client(tmp_path, monkeypatch)
-    response = client.get("/v1/desktop/settings/status", headers={"Authorization": "Bearer secret"})
+    response = client.get("/v1/settings/status", headers={"Authorization": "Bearer secret"})
 
     assert response.status_code == 200
     payload = response.json()
@@ -234,15 +234,15 @@ def test_desktop_local_profile_can_be_saved_and_reloaded(tmp_path, monkeypatch) 
     client = _client(tmp_path, monkeypatch)
 
     denied = client.patch(
-        "/v1/desktop/users/local-profile",
+        "/v1/users/local-profile",
         json={"user_id": "desk-user", "profile_name": "Desktop Operator"},
     )
     saved = client.patch(
-        "/v1/desktop/users/local-profile",
+        "/v1/users/local-profile",
         headers={"Authorization": "Bearer secret"},
         json={"user_id": "desk-user", "profile_name": "Desktop Operator"},
     )
-    fetched = client.get("/v1/desktop/users/local-profile")
+    fetched = client.get("/v1/users/local-profile")
 
     assert denied.status_code == 401
     assert saved.status_code == 200
@@ -257,7 +257,7 @@ def test_desktop_data_sync_plan_creates_intent_request_without_executing(tmp_pat
     client = _client(tmp_path, monkeypatch)
 
     response = client.post(
-        "/v1/desktop/data/sync-plan",
+        "/v1/data/sync-plan",
         json={"codes": ["600519", "000001"], "task_type": "kline", "period": "daily"},
     )
 
@@ -275,7 +275,7 @@ def test_desktop_data_sync_plan_supports_market_temperature_cache_without_codes(
     client = _client(tmp_path, monkeypatch)
 
     response = client.post(
-        "/v1/desktop/data/sync-plan",
+        "/v1/data/sync-plan",
         json={"codes": [], "task_type": "market_temperature_snapshot_cache"},
     )
 
@@ -294,13 +294,13 @@ def test_desktop_data_sync_plan_supports_market_temperature_cache_without_codes(
 def test_desktop_stock_data_sources_can_save_test_and_redact_search_keys(tmp_path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
 
-    status = client.get("/v1/desktop/stock-data-sources", headers={"Authorization": "Bearer secret"})
+    status = client.get("/v1/data/stock-data-sources", headers={"Authorization": "Bearer secret"})
     assert status.status_code == 200
     providers = {item["provider"] for item in status.json()["presets"]}
     assert {"duckduckgo", "tavily", "brave_search", "serpapi", "exa", "akshare"} <= providers
 
     saved = client.post(
-        "/v1/desktop/stock-data-sources",
+        "/v1/data/stock-data-sources",
         headers={"Authorization": "Bearer secret"},
         json={
             "provider": "tavily",
@@ -331,7 +331,7 @@ def test_desktop_stock_data_sources_can_save_test_and_redact_search_keys(tmp_pat
     monkeypatch.setattr("aiask_agent.stock_data_sources._http_json", fake_tavily_test)
 
     smoke = client.post(
-        "/v1/desktop/stock-data-sources/test",
+        "/v1/data/stock-data-sources/test",
         headers={"Authorization": "Bearer secret"},
         json={"provider": "tavily", "mode": "connectivity"},
     )
@@ -340,7 +340,7 @@ def test_desktop_stock_data_sources_can_save_test_and_redact_search_keys(tmp_pat
     assert "tvly-desktop-secret" not in json.dumps(smoke.json())
 
     draft_smoke = client.post(
-        "/v1/desktop/stock-data-sources/test",
+        "/v1/data/stock-data-sources/test",
         headers={"Authorization": "Bearer secret"},
         json={
             "id": saved_payload["source"]["id"],
@@ -364,7 +364,7 @@ def test_desktop_stock_data_sources_can_save_test_and_redact_search_keys(tmp_pat
 def test_agent_web_search_uses_configured_search_source(tmp_path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
     client.post(
-        "/v1/desktop/stock-data-sources",
+        "/v1/data/stock-data-sources",
         headers={"Authorization": "Bearer secret"},
         json={
             "provider": "tavily",
@@ -660,7 +660,7 @@ def test_desktop_factor_factory_status_endpoint_uses_safe_facade(tmp_path, monke
     monkeypatch.setattr("aiask_agent.server.factor_factory_status", fake_factor_status)
     client = _client(tmp_path, monkeypatch)
 
-    response = client.get("/v1/desktop/factor-factory/status?limit=1")
+    response = client.get("/v1/research/factor-factory/status?limit=1")
 
     assert response.status_code == 200
     payload = response.json()
@@ -706,9 +706,9 @@ def test_desktop_trade_prediction_routes_use_agent_read_facades(tmp_path, monkey
     monkeypatch.setattr("aiask_agent.adapters.strategy_factory._call_db_facade", fake_call_db_facade)
     client = _client(tmp_path, monkeypatch)
 
-    status = client.get("/v1/desktop/trade-predictions/status?strategy_id=s1")
-    outcomes = client.get("/v1/desktop/trade-predictions/outcomes?score_version=trade_prediction_score_v2")
-    matrix = client.get("/v1/desktop/trade-predictions/matrix?dimensions=family")
+    status = client.get("/v1/research/trade-predictions/status?strategy_id=s1")
+    outcomes = client.get("/v1/research/trade-predictions/outcomes?score_version=trade_prediction_score_v2")
+    matrix = client.get("/v1/research/trade-predictions/matrix?dimensions=family")
 
     assert status.status_code == 200
     assert status.json()["success"] is True
@@ -756,9 +756,9 @@ def test_desktop_stock_radar_routes_use_agent_read_facades(tmp_path, monkeypatch
     monkeypatch.setattr("aiask_agent.adapters.stock_radar._call_db_handler", fake_stock_radar_facade)
     client = _client(tmp_path, monkeypatch)
 
-    status = client.get("/v1/desktop/stock-radar/status?run_id=radar_1&limit=5")
-    candidates = client.get("/v1/desktop/stock-radar/candidates?run_id=radar_1&tier=alert&symbol=600000&min_score=80&limit=3")
-    digest = client.get("/v1/desktop/stock-radar/digest?run_id=radar_1&channels=wecom,telegram")
+    status = client.get("/v1/research/stock-radar/status?run_id=radar_1&limit=5")
+    candidates = client.get("/v1/research/stock-radar/candidates?run_id=radar_1&tier=alert&symbol=600000&min_score=80&limit=3")
+    digest = client.get("/v1/research/stock-radar/digest?run_id=radar_1&channels=wecom,telegram")
 
     assert status.status_code == 200
     assert status.json()["success"] is True
@@ -1146,221 +1146,6 @@ def test_learning_rl_http_routes_create_intents_without_mutation(tmp_path, monke
     runtime.close()
 
 
-def test_desktop_asset_mutation_routes_create_intents_without_proxy_write(tmp_path, monkeypatch) -> None:
-    async def blocked_desktop_asset_call(self, method, path, payload=None):
-        raise AssertionError("Desktop asset writes must wait for ActionIntent confirmation")
-
-    monkeypatch.setattr(
-        "aiask_agent.app_route_callbacks.AppRouteCallbackFactory.desktop_asset_call",
-        blocked_desktop_asset_call,
-    )
-    monkeypatch.setenv("AIASK_AGENT_HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("AIASK_AGENT_ENABLE_HERMES_FULL", "1")
-    monkeypatch.setenv("AIASK_AGENT_ENABLE_GENERAL_TOOLS", "1")
-    monkeypatch.setenv("AIASK_AGENT_TOOLSET", "general_full")
-    monkeypatch.setenv("AIASK_AGENT_CONTROL_TOKEN", "secret")
-    monkeypatch.setenv("AIASK_AGENT_LOAD_PROJECT_ENV", "0")
-
-    session_store = AgentSessionStore(tmp_path / "state.sqlite3")
-    intent_store = ActionIntentStore(tmp_path / "intents.sqlite3")
-    runtime = AgentRuntime(
-        model_client=MockModelClient(),
-        session_store=session_store,
-        max_iterations=2,
-    )
-    client = TestClient(create_app(runtime=runtime, intent_executor=IntentExecutor(intent_store)))
-
-    calls = [
-        (
-            client.post(
-                "/v1/desktop/users/local/strategies",
-                headers={"Authorization": "Bearer secret"},
-                json={"name": "Momentum", "rationale": "review before write", "upstream_path": "/forged"},
-            ),
-            "desktop_asset.strategy_create_intent",
-            "desktop_asset.strategy_create",
-        ),
-        (
-            client.patch(
-                "/v1/desktop/users/local/strategies/strat_1",
-                headers={"Authorization": "Bearer secret"},
-                json={"name": "Momentum v2"},
-            ),
-            "desktop_asset.strategy_update_intent",
-            "desktop_asset.strategy_update",
-        ),
-        (
-            client.delete(
-                "/v1/desktop/users/local/strategies/strat_1",
-                headers={"Authorization": "Bearer secret"},
-            ),
-            "desktop_asset.strategy_delete_intent",
-            "desktop_asset.strategy_delete",
-        ),
-        (
-            client.post(
-                "/v1/desktop/users/local/stock-pools",
-                headers={"Authorization": "Bearer secret"},
-                json={"name": "Core"},
-            ),
-            "desktop_asset.stock_pool_create_intent",
-            "desktop_asset.stock_pool_create",
-        ),
-        (
-            client.patch(
-                "/v1/desktop/users/local/stock-pools/pool_1",
-                headers={"Authorization": "Bearer secret"},
-                json={"name": "Core v2"},
-            ),
-            "desktop_asset.stock_pool_update_intent",
-            "desktop_asset.stock_pool_update",
-        ),
-        (
-            client.delete(
-                "/v1/desktop/users/local/stock-pools/pool_1",
-                headers={"Authorization": "Bearer secret"},
-            ),
-            "desktop_asset.stock_pool_delete_intent",
-            "desktop_asset.stock_pool_delete",
-        ),
-        (
-            client.post(
-                "/v1/desktop/users/local/stock-pools/pool_1/stocks",
-                headers={"Authorization": "Bearer secret"},
-                json={"stock_code": "600519"},
-            ),
-            "desktop_asset.stock_pool_add_stock_intent",
-            "desktop_asset.stock_pool_add_stock",
-        ),
-        (
-            client.delete(
-                "/v1/desktop/users/local/stock-pools/pool_1/stocks/600519",
-                headers={"Authorization": "Bearer secret"},
-            ),
-            "desktop_asset.stock_pool_remove_stock_intent",
-            "desktop_asset.stock_pool_remove_stock",
-        ),
-        (
-            client.post(
-                "/v1/desktop/users/local/stock-pools/pool_1/stocks/batch-remove",
-                headers={"Authorization": "Bearer secret"},
-                json={"stock_codes": ["600519"]},
-            ),
-            "desktop_asset.stock_pool_batch_remove_intent",
-            "desktop_asset.stock_pool_batch_remove",
-        ),
-        (
-            client.post(
-                "/v1/desktop/files/save",
-                headers={"Authorization": "Bearer secret"},
-                json={"filename": "risk.md", "content": "reviewed"},
-            ),
-            "desktop_asset.file_save_intent",
-            "desktop_asset.file_save",
-        ),
-        (
-            client.delete(
-                "/v1/desktop/files/file_1",
-                headers={"Authorization": "Bearer secret"},
-            ),
-            "desktop_asset.file_delete_intent",
-            "desktop_asset.file_delete",
-        ),
-    ]
-
-    for response, object_name, action in calls:
-        assert response.status_code == 200
-        payload = response.json()
-        raw = json.dumps(payload, ensure_ascii=False)
-        assert payload["object"] == object_name
-        assert payload["success"] is True
-        assert payload["data"]["intent"]["action"] == action
-        assert payload["data"]["intent"]["status"] == "awaiting_confirmation"
-        assert "_state_path" not in payload["data"]["intent"]["params"]
-        assert str(session_store.path) not in raw
-        assert payload["meta"]["action_intent_required"] is True
-        assert payload["secrets_redacted"] is True
-
-    stored_by_action = {item["action"]: item for item in intent_store.list(status="awaiting_confirmation", limit=20)}
-    assert set(stored_by_action) == {action for _, _, action in calls}
-    assert stored_by_action["desktop_asset.strategy_create"]["params"]["user_id"] == "local"
-    assert stored_by_action["desktop_asset.strategy_create"]["params"]["payload"]["name"] == "Momentum"
-    assert stored_by_action["desktop_asset.strategy_create"]["params"]["payload"]["upstream_path"] == "/forged"
-    assert stored_by_action["desktop_asset.strategy_update"]["params"]["strategy_id"] == "strat_1"
-    assert stored_by_action["desktop_asset.stock_pool_update"]["params"]["pool_id"] == "pool_1"
-    assert stored_by_action["desktop_asset.stock_pool_remove_stock"]["params"]["stock_code"] == "600519"
-    assert stored_by_action["desktop_asset.file_delete"]["params"]["file_id"] == "file_1"
-    for stored in stored_by_action.values():
-        assert "_state_path" not in stored["params"]
-        assert "path" not in stored["params"]
-    runtime.close()
-
-
-def test_desktop_file_upload_route_creates_intent_without_proxy_upload(tmp_path, monkeypatch) -> None:
-    async def blocked_desktop_file_upload(self, files, context=None):
-        raise AssertionError("Desktop file upload must wait for ActionIntent confirmation")
-
-    monkeypatch.setattr(
-        "aiask_agent.app_route_callbacks.AppRouteCallbackFactory.desktop_file_upload",
-        blocked_desktop_file_upload,
-    )
-    monkeypatch.setenv("AIASK_AGENT_HOME", str(tmp_path / "home"))
-    monkeypatch.setenv("AIASK_AGENT_ENABLE_HERMES_FULL", "1")
-    monkeypatch.setenv("AIASK_AGENT_ENABLE_GENERAL_TOOLS", "1")
-    monkeypatch.setenv("AIASK_AGENT_TOOLSET", "general_full")
-    monkeypatch.setenv("AIASK_AGENT_CONTROL_TOKEN", "secret")
-    monkeypatch.setenv("AIASK_AGENT_LOAD_PROJECT_ENV", "0")
-
-    session_store = AgentSessionStore(tmp_path / "state.sqlite3")
-    intent_store = ActionIntentStore(tmp_path / "intents.sqlite3")
-    runtime = AgentRuntime(
-        model_client=MockModelClient(),
-        session_store=session_store,
-        max_iterations=2,
-    )
-    client = TestClient(create_app(runtime=runtime, intent_executor=IntentExecutor(intent_store)))
-
-    response = client.post(
-        "/v1/desktop/files/upload",
-        headers={"Authorization": "Bearer secret"},
-        files={"files": ("risk.md", b"secret-ish content", "text/markdown")},
-        data={"session_id": "sess_1", "thread_id": "thread_1"},
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    raw = json.dumps(payload, ensure_ascii=False)
-    assert payload["object"] == "desktop_asset.file_upload_intent"
-    assert payload["success"] is True
-    intent = payload["data"]["intent"]
-    assert intent["action"] == "desktop_asset.file_upload"
-    assert intent["status"] == "awaiting_confirmation"
-    assert intent["params"]["fields"] == {"session_id": "sess_1", "thread_id": "thread_1"}
-    assert intent["params"]["files"] == [
-        {"filename": "risk.md", "content_type": "text/markdown", "size_bytes": 18}
-    ]
-    assert "_files" not in intent["params"]
-    assert "_staging_root" not in intent["params"]
-    assert "desktop-upload-staging" not in raw
-    assert str(tmp_path) not in raw
-    assert payload["meta"]["action_intent_required"] is True
-    assert payload["secrets_redacted"] is True
-
-    stored = intent_store.get(intent["intent_id"])
-    assert stored["params"]["fields"] == {"session_id": "sess_1", "thread_id": "thread_1"}
-    assert stored["params"]["files"] == [
-        {"filename": "risk.md", "content_type": "text/markdown", "size_bytes": 18}
-    ]
-    assert stored["params"]["_files"][0]["filename"] == "risk.md"
-    assert stored["params"]["_files"][0]["content_type"] == "text/markdown"
-    staged_path = stored["params"]["_files"][0]["path"]
-    assert "desktop-upload-staging" in staged_path
-    assert (tmp_path / "home" / "desktop-upload-staging").exists()
-    assert os.path.exists(staged_path)
-    assert open(staged_path, "rb").read() == b"secret-ish content"
-    runtime.close()
-
-
 def test_control_plane_error_responses_redact_secret_text(tmp_path, monkeypatch) -> None:
     client = _client(tmp_path, monkeypatch)
 
@@ -1370,7 +1155,7 @@ def test_control_plane_error_responses_redact_secret_text(tmp_path, monkeypatch)
         json={"provider": "bad broker_token=ai-config-secret"},
     )
     source_error = client.post(
-        "/v1/desktop/stock-data-sources",
+        "/v1/data/stock-data-sources",
         headers={"Authorization": "Bearer secret"},
         json={"provider": "bad password=source-save-secret"},
     )
@@ -1416,7 +1201,7 @@ def test_stock_data_source_test_redacts_provider_error_and_preview(tmp_path, mon
 
     monkeypatch.setattr("aiask_agent.stock_data_sources._http_json", fake_http_json)
     response = client.post(
-        "/v1/desktop/stock-data-sources/test",
+        "/v1/data/stock-data-sources/test",
         headers={"Authorization": "Bearer secret"},
         json={
             "provider": "tavily",
@@ -1439,66 +1224,6 @@ def test_stock_data_source_test_redacts_provider_error_and_preview(tmp_path, mon
     assert "stock-source-preview-secret" not in raw
     assert "stock-source-api-secret" not in raw
     assert payload["error"] == "failed Authorization: Bearer [redacted] broker_token=[redacted]"
-
-
-def test_desktop_asset_proxy_errors_redact_secret_detail(tmp_path, monkeypatch) -> None:
-    client = _client(tmp_path, monkeypatch)
-
-    def fake_json_request(method, url, payload=None, *, timeout=20.0):
-        return {
-            "ok": False,
-            "status_code": 400,
-            "body": {
-                "detail": "asset failed password=asset-detail-secret Authorization: Bearer asset-bearer-secret",
-            },
-        }
-
-    monkeypatch.setattr("aiask_agent.app_route_callbacks._json_request", fake_json_request)
-    response = client.get("/v1/desktop/files?user_id=local")
-
-    assert response.status_code == 400
-    raw = json.dumps(response.json(), ensure_ascii=False)
-    assert "asset-detail-secret" not in raw
-    assert "asset-bearer-secret" not in raw
-    assert response.json()["secrets_redacted"] is True
-    assert response.json()["detail"] == "asset failed password=[redacted] Authorization: Bearer [redacted]"
-
-
-def test_desktop_asset_proxy_success_redacts_secret_body(tmp_path, monkeypatch) -> None:
-    client = _client(tmp_path, monkeypatch)
-
-    def fake_json_request(method, url, payload=None, *, timeout=20.0):
-        return {
-            "ok": True,
-            "status_code": 200,
-            "body": {
-                "api_key": "asset-api-secret",
-                "nested": {
-                    "clientSecret": "asset-client-secret",
-                    "note": "Authorization: Bearer asset-body-bearer",
-                    "url": "https://desktop.test/file?access_token=asset-query-secret",
-                },
-                "usage": {"total_tokens": 7},
-            },
-        }
-
-    monkeypatch.setattr("aiask_agent.app_route_callbacks._json_request", fake_json_request)
-    response = client.get("/v1/desktop/files?user_id=local")
-
-    assert response.status_code == 200
-    payload = response.json()
-    raw = json.dumps(payload, ensure_ascii=False)
-    assert payload["success"] is True
-    assert payload["secrets_redacted"] is True
-    assert payload["data"]["api_key"] == "[redacted]"
-    assert payload["data"]["nested"]["clientSecret"] == "[redacted]"
-    assert payload["data"]["nested"]["note"] == "Authorization: Bearer [redacted]"
-    assert payload["data"]["nested"]["url"] == "https://desktop.test/file?access_token=[redacted]"
-    assert payload["data"]["usage"]["total_tokens"] == 7
-    assert "asset-api-secret" not in raw
-    assert "asset-client-secret" not in raw
-    assert "asset-body-bearer" not in raw
-    assert "asset-query-secret" not in raw
 
 
 def test_gateway_pairing_redacts_tool_result_error_data_and_meta(tmp_path, monkeypatch) -> None:

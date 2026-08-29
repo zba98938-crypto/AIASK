@@ -1097,7 +1097,7 @@ def test_financial_system_readiness_gate_reports_required_blockers(tmp_path, mon
     } <= smoke_checks
     assert len(payload["live_smoke"]["checks"]) == 16
     smoke_check_details = {item["name"]: item for item in payload["live_smoke"]["checks"]}
-    assert smoke_check_details["workbench_summary"]["path"] == "/v1/desktop/workbench/summary?session_limit=5&run_limit=5"
+    assert smoke_check_details["workbench_summary"]["path"] == "/v1/workbench/summary?session_limit=5&run_limit=5"
     assert "runtime_enabled" in smoke_check_details["factory_status"]["observes"]
     assert "daily_run_count" in smoke_check_details["factory_status"]["observes"]
     assert "warnings" in smoke_check_details["market_temperature_cache"]["observes"]

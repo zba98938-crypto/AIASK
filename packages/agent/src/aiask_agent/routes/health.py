@@ -19,7 +19,7 @@ def create_health_router(
     full_runtime_active: Callable[[], bool],
     require_api: Callable[[Request], None],
     tool_catalog_payload: Callable[[AgentRuntime], dict[str, Any]],
-    desktop_capabilities_payload: Callable[[Request], Awaitable[dict[str, Any]]],
+    capabilities_payload: Callable[[Request], Awaitable[dict[str, Any]]],
     redact_required_env: Callable[..., Any],
     parity_live_evidence: Callable[[dict[str, Any]], dict[str, Any]],
 ) -> APIRouter:
@@ -78,9 +78,9 @@ def create_health_router(
         require_api(request)
         return tool_catalog_payload(runtime)
 
-    @router.get("/v1/desktop/capabilities")
-    async def desktop_capabilities(request: Request) -> dict[str, Any]:
+    @router.get("/v1/capabilities")
+    async def capabilities(request: Request) -> dict[str, Any]:
         require_api(request)
-        return await desktop_capabilities_payload(request)
+        return await capabilities_payload(request)
 
     return router

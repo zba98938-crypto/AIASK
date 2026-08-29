@@ -44,7 +44,7 @@ def _capability_counts(*groups: Any) -> dict[str, int]:
     return counts
 
 
-async def desktop_capabilities_payload_for_runtime(
+async def capabilities_payload_for_runtime(
     runtime: AgentRuntime,
     request: Request,
     *,
@@ -245,8 +245,8 @@ async def desktop_capabilities_payload_for_runtime(
             "mcp_servers": "/v1/mcp/servers",
             "skills": "/v1/skills",
             "ai_status": "/v1/ai/status",
-            "quant_presets": "/v1/desktop/quant/presets",
-            "quant_research_runs": "/v1/desktop/quant/research-runs",
+            "quant_presets": "/v1/finance/quant/presets",
+            "quant_research_runs": "/v1/finance/quant/research-runs",
             "financial_system_readiness": "/v1/financial-system/readiness",
         },
     }

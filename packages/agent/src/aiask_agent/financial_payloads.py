@@ -8,6 +8,7 @@ from .audited_tool_calls import audited_runtime_tool_call
 from .broker_readonly import (
     BrokerSyncContext,
     broker_readiness,
+    broker_resource_payload,
     latest_broker_payload,
     normalize_provider,
     run_behavior_analytics,
@@ -401,7 +402,7 @@ async def financial_query_payload_for_runtime(
     if action.get("mode") == "blocked":
         return {"object": "aiask.desktop.financial_manager.query", "success": False, "data": {"action": action, "reason": action.get("blocked_reason")}, "error": str(action.get("blocked_reason") or "action is blocked"), "error_code": "FINANCIAL_ACTION_BLOCKED", "secrets_redacted": True}
     if action.get("mode") != "read_only":
-        return {"object": "aiask.desktop.financial_manager.query", "success": False, "data": {"action": action, "required_endpoint": "/v1/desktop/financial-manager/intent"}, "error": "stateful financial actions must be created as ActionIntent", "error_code": "FINANCIAL_ACTION_REQUIRES_INTENT", "secrets_redacted": True}
+        return {"object": "aiask.desktop.financial_manager.query", "success": False, "data": {"action": action, "required_endpoint": "/v1/finance/manager/intent"}, "error": "stateful financial actions must be created as ActionIntent", "error_code": "FINANCIAL_ACTION_REQUIRES_INTENT", "secrets_redacted": True}
     params = dict(action.get("default_params") or {})
     params.update(dict(payload.get("params") or {}))
     tool_name = str(action.get("tool") or "")
@@ -474,11 +475,29 @@ def broker_readiness_payload_for_runtime(runtime: AgentRuntime) -> dict[str, Any
 
 
 def broker_accounts_payload_for_runtime(runtime: AgentRuntime, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    """Full broker snapshot (profiles, accounts, positions, orders, deals)."""
     body = dict(payload or {})
     return latest_broker_payload(
         runtime.session_store,
         user_id=str(body.get("user_id") or "").strip() or None,
         provider=str(body.get("provider") or "").strip() or None,
+    )
+
+
+def broker_resource_payload_for_runtime(
+    runtime: AgentRuntime,
+    resource: str,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Single broker resource collection, so each endpoint returns its own data."""
+    body = dict(payload or {})
+    raw_limit = body.get("limit")
+    return broker_resource_payload(
+        runtime.session_store,
+        resource,
+        user_id=str(body.get("user_id") or "").strip() or None,
+        provider=str(body.get("provider") or "").strip() or None,
+        limit=int(raw_limit) if raw_limit not in {None, ""} else None,
     )
 
 
@@ -509,7 +528,7 @@ async def broker_sync_payload_for_runtime(
             "run_id": context.run_id,
             "trace_id": context.trace_id,
             "page_key": "broker-readonly",
-            "route": "/v1/desktop/broker/sync",
+            "route": "/v1/finance/broker/sync",
             "event_type": "broker_readonly_sync",
             "target_type": "broker",
             "target_id": provider,
@@ -579,7 +598,7 @@ async def financial_intent_payload_for_runtime(
             "data": {
                 "action": action,
                 "params": _redact_secrets(params),
-                "required_endpoint": "/v1/desktop/financial-manager/intent",
+                "required_endpoint": "/v1/finance/manager/intent",
             },
             "error": error,
             "error_code": error_code,

@@ -3,32 +3,32 @@
   "allowed_classifications": [
     "runtime_model_selected",
     "audited_internal_facade",
-    "desktop_read_only_facade",
-    "desktop_controlled_probe",
+    "domain_read_only_facade",
+    "domain_controlled_probe",
     "confirmed_action_intent_facade",
-    "desktop_settings_snapshot",
+    "settings_snapshot",
     "legacy_fallback_http_facade",
     "financial_readiness_probe",
     "route_facade"
   ],
   "entries": [
     {
-      "key": "packages/agent/src/aiask_agent/adapters/desktop_ops.py::_execute_browser::$expected_tool",
+      "key": "packages/agent/src/aiask_agent/adapters/confirmed_actions.py::_execute_browser::$expected_tool",
       "classification": "confirmed_action_intent_facade",
       "reason": "Executes only after the stored browser ActionIntent matches the originating agent_browser_* tool and enters an internal control context."
     },
     {
-      "key": "packages/agent/src/aiask_agent/adapters/desktop_ops.py::_execute_code::agent_execute_python",
+      "key": "packages/agent/src/aiask_agent/adapters/confirmed_actions.py::_execute_code::agent_execute_python",
       "classification": "confirmed_action_intent_facade",
       "reason": "Replays a confirmed code.execute_python intent only when its creator marker matches agent_execute_python, then delegates through the registry under internal control context."
     },
     {
-      "key": "packages/agent/src/aiask_agent/adapters/desktop_ops.py::_execute_process::$expected_tool",
+      "key": "packages/agent/src/aiask_agent/adapters/confirmed_actions.py::_execute_process::$expected_tool",
       "classification": "confirmed_action_intent_facade",
       "reason": "Replays only allowlisted process actions whose stored creator marker matches agent_process and whose ActionIntent has already been confirmed."
     },
     {
-      "key": "packages/agent/src/aiask_agent/adapters/desktop_ops.py::_execute_terminal::agent_terminal",
+      "key": "packages/agent/src/aiask_agent/adapters/confirmed_actions.py::_execute_terminal::agent_terminal",
       "classification": "confirmed_action_intent_facade",
       "reason": "Replays terminal.run only after creator, action, runtime, and ActionIntent state checks, while preserving registry policy and internal control context."
     },
@@ -48,54 +48,24 @@
       "reason": "Central audited helper for internal runtime calls; it wraps tool execution with caller, purpose, side-effect, and trace metadata instead of bypassing the registry."
     },
     {
-      "key": "packages/agent/src/aiask_agent/desktop_capabilities_payloads.py::desktop_capabilities_payload_for_runtime.read_only_tool::$name",
-      "classification": "desktop_read_only_facade",
+      "key": "packages/agent/src/aiask_agent/capabilities_payloads.py::capabilities_payload_for_runtime.read_only_tool::$name",
+      "classification": "domain_read_only_facade",
       "reason": "Builds Desktop capability evidence by probing named read-only agent_* tools and redacting failures into capability state rather than executing mutations."
     },
     {
-      "key": "packages/agent/src/aiask_agent/desktop_capabilities_payloads.py::desktop_capabilities_payload_for_runtime::agent_skill_manage",
-      "classification": "desktop_settings_snapshot",
+      "key": "packages/agent/src/aiask_agent/capabilities_payloads.py::capabilities_payload_for_runtime::agent_skill_manage",
+      "classification": "settings_snapshot",
       "reason": "Uses agent_skill_manage with action=snapshot to populate Desktop capability and settings evidence; this is a read-oriented snapshot path."
     },
     {
-      "key": "packages/agent/src/aiask_agent/desktop_payloads.py::desktop_data_status_payload_for_runtime::agent_quant_data_gate",
-      "classification": "desktop_controlled_probe",
+      "key": "packages/agent/src/aiask_agent/settings_payloads.py::data_status_payload_for_runtime::agent_quant_data_gate",
+      "classification": "domain_controlled_probe",
       "reason": "Checks local quant data readiness for the Desktop data status page; the tool is used as a read-only gate probe and does not schedule sync."
     },
     {
       "key": "packages/agent/src/aiask_agent/fallback_server.py::build_server.AIASKAgentHandler.do_GET::agent_action_intent_get",
       "classification": "legacy_fallback_http_facade",
       "reason": "Legacy non-FastAPI HTTP fallback resolves an existing ActionIntent by ID; mutation still requires the dedicated confirm or deny routes."
-    },
-    {
-      "key": "packages/agent/src/aiask_agent/fallback_server.py::build_server.AIASKAgentHandler.do_GET::agent_stock_radar_candidates",
-      "classification": "legacy_fallback_http_facade",
-      "reason": "Legacy fallback read endpoint for stock radar candidates; the exposed operation is read-only product data retrieval."
-    },
-    {
-      "key": "packages/agent/src/aiask_agent/fallback_server.py::build_server.AIASKAgentHandler.do_GET::agent_stock_radar_digest",
-      "classification": "legacy_fallback_http_facade",
-      "reason": "Legacy fallback read endpoint for stock radar digest; delivery and scheduling remain separate controlled intent paths."
-    },
-    {
-      "key": "packages/agent/src/aiask_agent/fallback_server.py::build_server.AIASKAgentHandler.do_GET::agent_stock_radar_status",
-      "classification": "legacy_fallback_http_facade",
-      "reason": "Legacy fallback read endpoint for stock radar status and readiness metadata."
-    },
-    {
-      "key": "packages/agent/src/aiask_agent/fallback_server.py::build_server.AIASKAgentHandler.do_GET::agent_trade_prediction_matrix",
-      "classification": "legacy_fallback_http_facade",
-      "reason": "Legacy fallback read endpoint for broker/finance analytics matrix evidence; no live trading action is performed."
-    },
-    {
-      "key": "packages/agent/src/aiask_agent/fallback_server.py::build_server.AIASKAgentHandler.do_GET::agent_trade_prediction_outcomes",
-      "classification": "legacy_fallback_http_facade",
-      "reason": "Legacy fallback read endpoint for historical trade prediction outcomes; it only returns stored analytics evidence."
-    },
-    {
-      "key": "packages/agent/src/aiask_agent/fallback_server.py::build_server.AIASKAgentHandler.do_GET::agent_trade_prediction_status",
-      "classification": "legacy_fallback_http_facade",
-      "reason": "Legacy fallback read endpoint for trade prediction readiness/status; it does not expose order placement."
     },
     {
       "key": "packages/agent/src/aiask_agent/financial_readiness.py::financial_system_readiness::agent_factory_runs",

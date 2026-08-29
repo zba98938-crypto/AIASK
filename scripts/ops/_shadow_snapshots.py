@@ -289,9 +289,9 @@ def collect_agent_snapshot(
             "routes": {},
         }
     routes = {
-        "status": "/v1/desktop/trade-predictions/status",
-        "outcomes": "/v1/desktop/trade-predictions/outcomes",
-        "matrix": "/v1/desktop/trade-predictions/matrix",
+        "status": "/v1/research/trade-predictions/status",
+        "outcomes": "/v1/research/trade-predictions/outcomes",
+        "matrix": "/v1/research/trade-predictions/matrix",
     }
     headers = {"Accept": "application/json"}
     if token:

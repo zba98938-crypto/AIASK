@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 
 from ..session_store_utils import redact_audit_text
@@ -17,8 +17,22 @@ def create_run_history_router(
     normalize_run_event: Callable[[dict[str, Any]], dict[str, Any]],
     run_trace_eval_payload: Callable[[str], dict[str, Any]],
     artifact_content_payload: Callable[..., dict[str, Any]],
+    runs_payload: Callable[..., dict[str, Any]],
 ) -> APIRouter:
     router = APIRouter()
+
+    # Run *listing* previously existed only at /v1/desktop/runs, so removing the
+    # Desktop facade would have dropped the capability rather than relocating it.
+    # It belongs with the rest of the /v1/runs family.
+    @router.get("/v1/runs")
+    async def runs_list(
+        request: Request,
+        session_id: str | None = None,
+        status: str | None = None,
+        limit: int = Query(100, ge=1, le=1000),
+    ) -> dict[str, Any]:
+        require_api(request)
+        return runs_payload(session_id=session_id, status=status, limit=limit)
 
     @router.get("/v1/runs/{run_id}/events")
     async def run_events(request: Request, run_id: str, after: int = 0) -> StreamingResponse:

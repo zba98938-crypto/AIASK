@@ -353,7 +353,7 @@ class BackgroundScheduler:
         payload = dict(job.get("payload") or {})
         try:
             if payload.get("stock_radar") is True and payload.get("action") == "run_once":
-                from .adapters.desktop_ops import _execute_stock_radar
+                from .adapters.confirmed_actions import _execute_stock_radar
 
                 result = await _execute_stock_radar("run_once", dict(payload.get("run_params") or {}))
                 result_dict = result if isinstance(result, dict) else {"success": True, "data": result, "error": None}
