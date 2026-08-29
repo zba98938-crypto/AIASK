@@ -14,11 +14,9 @@ Prefer these local facts:
   - `packages/strategy-factory/pyproject.toml`
   - `packages/aiask-quant-core/pyproject.toml`
   - `packages/finance-mcp-servers/pyproject.toml`
-  - `desktop/package.json`
-
+  
 ## Key Implementation Areas
 
-- Desktop API surface: `desktop/src/services/aiaskApi.ts`
 - Agent HTTP runtime: `packages/agent/src/aiask_agent/server.py`
 - Agent tool registry and safety: `packages/agent/src/aiask_agent/tool_registry.py`, `packages/agent/src/aiask_agent/tools/policy.py`
 - AKShare MCP server and tools: `packages/akshare-mcp/src/akshare_mcp/server.py`, `tools/`, `services/`

@@ -29,4 +29,3 @@ side_effect: read_only
 - `packages/strategy-factory/src/strategy_factory/runtime/factor_mining.py`
 - `packages/agent/src/aiask_agent/adapters/desktop_ops.py`
 - `packages/agent/src/aiask_agent/routes/desktop_finance.py`
-- `desktop/src/pages/EnhancedFinancePages.tsx`

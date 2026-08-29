@@ -28,4 +28,3 @@ side_effect: read_only
 - `packages/strategy-factory/src/strategy_factory/runtime/incubation.py`
 - `packages/agent/src/aiask_agent/adapters/strategy_factory.py`
 - `packages/agent/src/aiask_agent/adapters/desktop_ops.py`
-- `desktop/src/pages/EnhancedFinancePages.tsx`

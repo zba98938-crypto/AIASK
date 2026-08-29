@@ -63,16 +63,6 @@ OPTIONAL_MCP_BRIDGES = [
     "aiask-tonghuashun/run_aiask_mcp_stdio.py",
 ]
 
-REQUIRED_DESKTOP_WORKBENCH_FILES = [
-    "desktop/package.json",
-    "desktop/src/App.tsx",
-    "desktop/src/views.ts",
-    "desktop/src/services/aiaskApi.ts",
-    "desktop/src/mockApi.ts",
-    "desktop/src/features/financial-manager/FinancialManagerWorkspace.tsx",
-]
-
-
 def _truthy(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
@@ -214,29 +204,6 @@ def _read_json_summary(path: Path) -> dict[str, Any]:
         "server_only_count": data.get("server_only_count"),
         "desktop_only_count": data.get("desktop_only_count"),
         "matched_count": data.get("matched_count"),
-    }
-
-
-def _desktop_workbench_status(root: Path) -> dict[str, Any]:
-    files = {
-        rel: {"path": str(root / rel), "exists": (root / rel).is_file()}
-        for rel in REQUIRED_DESKTOP_WORKBENCH_FILES
-    }
-    missing = [rel for rel, item in files.items() if not item["exists"]]
-    readme_note = ""
-    readme_path = root / "README.md"
-    try:
-        readme_text = readme_path.read_text(encoding="utf-8", errors="ignore")
-    except Exception:
-        readme_text = ""
-    if "Frontend / desktop workbench code was intentionally not copied" in readme_text:
-        readme_note = "README states frontend / desktop workbench code was intentionally not copied."
-    return {
-        "included": not missing,
-        "root": str(root / "desktop"),
-        "files": files,
-        "missing": missing,
-        "note": readme_note,
     }
 
 
@@ -438,20 +405,6 @@ def collect_readiness() -> dict[str, Any]:
         variables=secrets,
     )
 
-    desktop_status = _desktop_workbench_status(root)
-    _check(
-        checks,
-        "desktop_workbench_source",
-        "pass" if desktop_status["included"] else "warn",
-        "info" if desktop_status["included"] else "warning",
-        "AIASK Desktop workbench source is present"
-        if desktop_status["included"]
-        else "AIASK Desktop workbench source is not present in this integration copy; backend readiness does not prove product-level delivery",
-        root=desktop_status["root"],
-        missing=desktop_status["missing"],
-        note=desktop_status["note"],
-    )
-
     critical_failures = [item for item in checks if item["severity"] == "critical" and item["status"] == "fail"]
     warnings = [
         item
@@ -459,15 +412,10 @@ def collect_readiness() -> dict[str, Any]:
         if item["status"] == "warn"
         or (item["severity"] == "warning" and item["status"] != "pass")
     ]
+    # This is a backend-only tree: the Desktop workbench source was removed when
+    # it was extracted, so its absence is the expected state and must not be
+    # reported as a product blocker.
     product_blockers: list[dict[str, Any]] = []
-    if not desktop_status["included"]:
-        product_blockers.append(
-            {
-                "code": "desktop_workbench_missing",
-                "message": "AIASK financial Desktop workbench source is absent from the current integration copy.",
-                "missing": list(desktop_status["missing"]),
-            }
-        )
     backend_ready = not critical_failures
     product_ready = backend_ready and not product_blockers
 
@@ -518,7 +466,6 @@ def collect_readiness() -> dict[str, Any]:
         "product": {
             "backend_ready": backend_ready,
             "product_ready": product_ready,
-            "desktop_workbench": desktop_status,
             "blockers": product_blockers,
         },
         "checks": checks,

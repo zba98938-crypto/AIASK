@@ -8,11 +8,11 @@ The server exposes FastAPI routes and a fallback/simple ASGI path in the same fi
 
 Important route groups:
 
-- Health and capability inventory: `/health`, `/health/detailed`, `/v1/tools`, `/v1/desktop/capabilities`, `/v1/capabilities/parity`, `/v1/hermes/status`, `/v1/hermes/readiness`, `/v1/financial-system/readiness`.
-- Desktop settings/data/profile: `/v1/desktop/settings/status`, `/v1/desktop/data/status`, `/v1/desktop/data/sync-plan`, `/v1/desktop/users/local-profile`.
-- Workbench history and run control: `/v1/desktop/workbench/summary`, `/v1/desktop/runs`, `/v1/hermes/sessions`, `/v1/sessions/{session_id}/messages`, `/v1/runs/{run_id}`, `/v1/runs/{run_id}/events`, `/v1/runs/{run_id}/events/stream`, `/v1/runs/{run_id}/cancel`, `/v1/runs/{run_id}/stop`, `/v1/runs/{run_id}/steer`.
+- Health and capability inventory: `/health`, `/health/detailed`, `/v1/tools`, `/v1/capabilities`, `/v1/capabilities/parity`, `/v1/hermes/status`, `/v1/hermes/readiness`, `/v1/financial-system/readiness`.
+- Desktop settings/data/profile: `/v1/settings/status`, `/v1/data/status`, `/v1/data/sync-plan`, `/v1/users/local-profile`.
+- Workbench history and run control: `/v1/workbench/summary`, `/v1/runs`, `/v1/hermes/sessions`, `/v1/sessions/{session_id}/messages`, `/v1/runs/{run_id}`, `/v1/runs/{run_id}/events`, `/v1/runs/{run_id}/events/stream`, `/v1/runs/{run_id}/cancel`, `/v1/runs/{run_id}/stop`, `/v1/runs/{run_id}/steer`.
 - Model and response APIs: `/v1/ai/status`, `/v1/ai/smoke`, `/v1/ai/models`, `/v1/responses`, `/v1/responses/{response_id}`, `/v1/chat/completions`, `/v1/search`.
-- Desktop quant and financial manager: `/v1/desktop/quant/presets`, `/v1/desktop/quant/research-runs`, `/v1/desktop/quant/research-runs/{id}/report`, `/v1/desktop/financial-manager/catalog`, `/v1/desktop/financial-manager/status`, `/v1/desktop/financial-manager/query`, `/v1/desktop/financial-manager/intent`.
+- Desktop quant and financial manager: `/v1/finance/quant/presets`, `/v1/finance/quant/research-runs`, `/v1/finance/quant/research-runs/{id}/report`, `/v1/finance/manager/catalog`, `/v1/finance/manager/status`, `/v1/finance/manager/query`, `/v1/finance/manager/intent`.
 - Tool invocation: `/v1/tools/{tool_name}`, `/v1/hermes/admin/tools/{tool_name}`, `/v1/hermes/toolsets`, `/v1/hermes/tools`, `/v1/hermes/config`.
 - ActionIntent and approvals: `/intents`, `/intents/{intent_id}`, `/intents/{intent_id}/confirm`, `/intents/{intent_id}/deny`, `/v1/approvals`, `/v1/approvals/{approval_id}/{decision}`.
 - Full/native controls: `/v1/processes`, `/v1/terminal/backends`, `/v1/terminal/sessions`, `/v1/browser/sessions`.

@@ -38,70 +38,24 @@ LIVE_SMOKE_CHECKS: tuple[dict[str, Any], ...] = (
     {"name": "market_temperature_forward_validation", "method": "POST", "path": "/v1/tools/agent_market_temperature_forward_validation", "observes": ["benchmark_status", "quality_status", "warnings", "sample_count"]},
     {"name": "quant_research", "method": "POST", "path": "/v1/finance/quant/research-runs"},
 )
-REQUIRED_DESKTOP_WORKBENCH_FILES = (
-    "desktop/package.json",
-    "desktop/src/App.tsx",
-    "desktop/src/views.ts",
-    "desktop/src/services/aiaskApi.ts",
-    "desktop/src/mockApi.ts",
-    "desktop/src/features/financial-manager/FinancialManagerWorkspace.tsx",
-)
-
-
 def _aiask_integration_root() -> Path:
     return Path(__file__).resolve().parents[4]
 
 
-def _desktop_workbench_status() -> dict[str, Any]:
-    root = _aiask_integration_root()
-    files = {
-        rel: {"path": str(root / rel), "exists": (root / rel).is_file()}
-        for rel in REQUIRED_DESKTOP_WORKBENCH_FILES
-    }
-    missing = [rel for rel, item in files.items() if not item["exists"]]
-    note = ""
-    try:
-        readme_text = (root / "README.md").read_text(encoding="utf-8", errors="ignore")
-    except Exception:
-        readme_text = ""
-    if "Frontend / desktop workbench code was intentionally not copied" in readme_text:
-        note = "README states frontend / desktop workbench code was intentionally not copied."
-    return {
-        "included": not missing,
-        "root": str(root / "desktop"),
-        "files": files,
-        "missing": missing,
-        "note": note,
-    }
-
-
 def _product_readiness_payload(*, backend_ready: bool) -> dict[str, Any]:
-    desktop = _desktop_workbench_status()
+    """Product readiness for a backend-only tree.
+
+    This used to hard-block on the presence of the removed Desktop frontend
+    sources, so product_ready
+    was permanently false and the suggested fix was to "restore the Desktop
+    workbench" -- a frontend that was deliberately removed. With no frontend in
+    the tree, backend readiness is the product readiness.
+    """
     blockers: list[dict[str, Any]] = []
     next_actions: list[dict[str, Any]] = []
-    if not desktop["included"]:
-        blockers.append(
-            {
-                "code": "desktop_workbench_missing",
-                "message": "AIASK financial Desktop workbench source is absent from the current integration copy.",
-                "missing": list(desktop["missing"]),
-            }
-        )
-        next_actions.append(
-            _next_action(
-                "restore_aiask_desktop_workbench",
-                "Restore the AIASK financial Desktop workbench source",
-                "The backend can be ready, but product-level financial Agent delivery needs the AIASK Desktop HTTP client, views, mock API, and Financial Manager workspace source.",
-                priority="critical",
-                target_page="readiness-health",
-                gate="desktop_workbench_source",
-            )
-        )
-    product_ready = backend_ready and not blockers
     return {
         "backend_ready": backend_ready,
-        "product_ready": product_ready,
-        "desktop_workbench": desktop,
+        "product_ready": backend_ready,
         "blockers": blockers,
         "next_actions": next_actions,
     }

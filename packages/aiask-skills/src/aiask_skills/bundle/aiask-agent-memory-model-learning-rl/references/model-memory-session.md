@@ -41,8 +41,8 @@ Implementation:
 
 HTTP routes:
 
-- `/v1/desktop/workbench/summary`
-- `/v1/desktop/runs`
+- `/v1/workbench/summary`
+- `/v1/runs`
 - `/v1/hermes/sessions`
 - `/v1/sessions/{session_id}/messages`
 - `/v1/runs/{run_id}`
@@ -50,12 +50,11 @@ HTTP routes:
 - `/v1/runs/{run_id}/events/stream`
 - `/v1/search`
 
-Desktop expects recent sessions, recent runs, normalized run events, approval markers, local profile/data-policy state, and resume-session behavior. Keep run event payloads stable enough for the current workbench and sessions/runs surfaces in `desktop/src/App.tsx` and `desktop/src/pages/AgentPages.tsx`.
+API consumers expect recent sessions, recent runs, normalized run events, approval markers, local profile/data-policy state, and resume-session behavior. Keep run event payloads stable and self-describing: this tree is backend-only, so consumers are API clients rather than an in-repo frontend.
 
 ## Tests
 
 - `packages/agent/tests/test_ai_status_and_smoke.py`
 - `packages/agent/tests/test_desktop_workbench_contracts.py`
 - `packages/agent/tests/test_session_memory_todo.py`
-- `desktop/src/services/aiaskApi.test.ts`
 - `desktop/e2e/aiask-v1.spec.ts`

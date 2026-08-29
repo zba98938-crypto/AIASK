@@ -7,7 +7,7 @@ Use the smallest set that proves the claim:
 - Graph summary: node/edge counts, package subgraphs, top nodes.
 - Endpoint map: matched, server-only, desktop-only endpoints.
 - Cross-package edges: dependencies and blast radius.
-- Manifests: package `pyproject.toml`, `desktop/package.json`.
+- Manifests: package `pyproject.toml`.
 - Entrypoints: Agent server/tool registry, Desktop API/view registry, AKShare MCP server, Strategy Factory facade, Quant Core storage/backtest, Finance MCP guards.
 - Tests that enforce the boundary or behavior.
 

@@ -34,5 +34,4 @@ Webhook APIs include list/create/delete/trigger. Triggering can become an extern
 - `packages/agent/tests/test_gateway_daemon_phase2.py`
 - `packages/agent/tests/test_gateway_daemon_phase4.py`
 - `packages/agent/tests/test_hermes_native_live_adapters.py`
-- `desktop/src/services/aiaskApi.test.ts`
 - `desktop/e2e/aiask-v1.spec.ts`

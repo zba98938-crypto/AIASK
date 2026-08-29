@@ -71,7 +71,7 @@ would be `warning`.
 Edge plugin surfaces for residuals **7–9** (still default-off / honesty-first):
 
 - `hermes aiask live status|plan` — live arming inventory + opt-in checklist; never mutates env; place/cancel still need broker_token (`trade_risk`)
-- `hermes aiask workbench` — focused 5-view surface map; explicitly reports `packages/desktop-api` missing
+- `hermes aiask workbench` — surface map only; there is no frontend in this tree
 - `hermes aiask factory ops-status|ops-start|ops-stop` — productized supervisor around `run_three_factories.py` (confirm required; not auto-started by setup)
 - Dashboard: `GET /live/status`, `GET /live/plan`, `GET /workbench`, `GET/POST /factories/ops/*` (mutations token-gated)
 - Desktop `/finance` setup lists Phase 3 CLI
@@ -80,7 +80,7 @@ Edge plugin surfaces for residuals **7–9** (still default-off / honesty-first)
 |------|--------|-------|
 | P3-G1 Live status | **pass** | default `live_armed=false` |
 | P3-G2 Live plan | **pass** | mutates=false checklist |
-| P3-G3 Workbench | **pass (honest focused)** | not full V1; desktop-api absent |
+| P3-G3 Workbench | **n/a (backend-only)** | frontend removed; `/v1/workbench/summary` serves API clients |
 | P3-G4 Ops status | **pass** | not auto-started |
 | P3-G5 Ops start/stop | **pass (code)** | confirm + token; dry-run unit-tested |
 | P3-G6 Surfaces | **pass (code)** | dist + Desktop hints |
@@ -102,13 +102,20 @@ is retained as a compatibility entrypoint; product-facing commands and status
 use the term **four-runtime supervisor**. `factory cycle` and `ops-start` must
 never be described as the 24h quality-session path.
 
-## Dual desktop (do not conflate)
+## No frontend in this tree
 
-| Surface | Path | Role |
-|---|---|---|
-| **Hermes Desktop** | `apps/desktop/` | General Hermes agent shell (chat, profiles, tools). **Not** the AIASK finance workbench. |
-| **AIASK focused workbench** | `integrations/aiask/desktop/` | Five views only: workbench, financial-manager, readiness-health, mcp-connectors, settings. HTTP-only client to AIASK Agent. |
-| **Legacy V1 frontend docs** | `integrations/aiask/docs/frontend-v1/`, `docs/P0-completion-report.md` | Historical / upstream AIASK productization notes. They describe pages and a `packages/desktop-api` package **not present** in this integration copy. Treat as non-authoritative for Hermes readiness claims. |
+This tree is backend-only. The AIASK focused workbench (`desktop/`) was removed
+when the tree was extracted, and with it the `/v1/desktop/*` HTTP facade that
+existed to serve it.
+
+| Surface | Status |
+|---|---|
+| **AIASK focused workbench** | **Removed.** No `desktop/` directory. Clients use the Agent HTTP/MCP interfaces directly. |
+| **`/v1/desktop/*` facade** | **Removed.** Answers a structured 404 whose `meta.replacement` names the neutral path. Capabilities live under `/v1/settings`, `/v1/data`, `/v1/users`, `/v1/finance`, `/v1/research`, `/v1/workbench`, `/v1/capabilities`. |
+| **Desktop asset proxy** | **Removed with no replacement.** `/v1/desktop/files` and the strategies / stock-pools routes proxied a separate service (`AIASK_DESKTOP_API_BASE_URL`, `127.0.0.1:8001`) that is not part of a backend-only tree. |
+| **Legacy V1 frontend docs** | Archived under `docs/archive/frontend/` — historical only, not executable, and not a readiness claim. |
+
+Readiness no longer treats a missing frontend as a product blocker.
 
 ## Authoritative gates
 

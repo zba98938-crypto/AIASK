@@ -32,8 +32,6 @@ These artifacts predate several June changes, so verify against current worktree
 ## Useful Current Entrypoints
 
 - `packages/agent/src/aiask_agent/server.py`
-- `desktop/src/services/aiaskApi.ts`
-- `desktop/src/views.ts`
 - `packages/akshare-mcp/src/akshare_mcp/server.py`
 - `packages/strategy-factory/src/strategy_factory/api/facade.py`
 - `packages/aiask-quant-core/src/aiask_quant_core/`

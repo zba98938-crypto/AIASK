@@ -1019,15 +1019,12 @@ def test_financial_system_readiness_gate_reports_required_blockers(tmp_path, mon
     assert payload["summary"]["product_ready"] is False
     assert payload["product"]["backend_ready"] is False
     assert payload["product"]["product_ready"] is False
-    desktop_included = bool(payload["product"]["desktop_workbench"]["included"])
-    expected_product_blockers = 0 if desktop_included else 1
-    assert payload["summary"]["product_blockers"] == expected_product_blockers
-    assert len(payload["product"]["blockers"]) == expected_product_blockers
-    if desktop_included:
-        assert payload["product"]["desktop_workbench"]["missing"] == []
-    else:
-        assert payload["product"]["blockers"][0]["code"] == "desktop_workbench_missing"
-        assert "desktop/package.json" in payload["product"]["blockers"][0]["missing"]
+    # This is a backend-only tree, so a missing frontend is no longer a product
+    # blocker. product_ready above is false because the *backend* gates are not
+    # satisfied in this fixture, which is the honest reason.
+    assert "desktop_workbench" not in payload["product"]
+    assert payload["summary"]["product_blockers"] == 0
+    assert payload["product"]["blockers"] == []
     gates = {item["name"]: item for item in payload["required_gates"]}
     assert gates["ai_model"]["status"] == "degraded"
     assert gates["financial_action_safety"]["status"] == "ready"
@@ -1072,10 +1069,9 @@ def test_financial_system_readiness_gate_reports_required_blockers(tmp_path, mon
     assert "ths-readiness-secret" not in json.dumps(payload)
     assert "qmt-readiness-secret" not in json.dumps(payload)
     actions = {item["action_id"]: item for item in payload["next_actions"]}
-    if desktop_included:
-        assert "restore_aiask_desktop_workbench" not in actions
-    else:
-        assert actions["restore_aiask_desktop_workbench"]["priority"] == "critical"
+    # No "restore the Desktop workbench" action: the frontend was removed on
+    # purpose, so telling an operator to restore it would be a false instruction.
+    assert "restore_aiask_desktop_workbench" not in actions
     assert actions["set_control_token"]["priority"] == "critical"
     assert actions["configure_writable_database"]["target_page"] == "data"
     assert payload["live_smoke"]["script"] == "scripts/ops/live_readiness_smoke.py"
@@ -1136,20 +1132,17 @@ def test_financial_system_readiness_can_reach_ready_with_core_runtime_config(tmp
     payload = response.json()
     assert payload["status"] == "ready"
     assert payload["backend_ready"] is True
-    desktop_included = bool(payload["product"]["desktop_workbench"]["included"])
-    expected_product_blockers = 0 if desktop_included else 1
-    assert payload["product_ready"] is desktop_included
-    assert payload["production_ready"] is desktop_included
+    # Backend-only tree: a ready backend is a ready product. This used to be
+    # gated on desktop/** being present, so product_ready could never be true.
+    assert "desktop_workbench" not in payload["product"]
+    assert payload["product_ready"] is True
+    assert payload["production_ready"] is True
     assert payload["summary"]["backend_ready"] is True
-    assert payload["summary"]["product_ready"] is desktop_included
-    assert payload["summary"]["product_blockers"] == expected_product_blockers
+    assert payload["summary"]["product_ready"] is True
+    assert payload["summary"]["product_blockers"] == 0
     assert payload["product"]["backend_ready"] is True
-    assert payload["product"]["product_ready"] is desktop_included
-    assert len(payload["product"]["blockers"]) == expected_product_blockers
-    if desktop_included:
-        assert payload["product"]["desktop_workbench"]["missing"] == []
-    else:
-        assert payload["product"]["blockers"][0]["code"] == "desktop_workbench_missing"
+    assert payload["product"]["product_ready"] is True
+    assert payload["product"]["blockers"] == []
     gates = {item["name"]: item for item in payload["required_gates"]}
     assert all(item["status"] == "ready" for item in gates.values())
     assert gates["financial_action_safety"]["evidence"]["live_trading_enabled"] is False
@@ -1173,10 +1166,9 @@ def test_financial_system_readiness_can_reach_ready_with_core_runtime_config(tmp
     assert matrix_actions["broker-live.cancel_order"]["live_trading_blocked"] is True
     assert matrix_actions["broker-live.cancel_order"]["direct_execution_allowed"] is False
     actions = {item["action_id"]: item for item in payload["next_actions"]}
-    if desktop_included:
-        assert "restore_aiask_desktop_workbench" not in actions
-    else:
-        assert actions["restore_aiask_desktop_workbench"]["priority"] == "critical"
+    # No "restore the Desktop workbench" action: the frontend was removed on
+    # purpose, so telling an operator to restore it would be a false instruction.
+    assert "restore_aiask_desktop_workbench" not in actions
     assert "run_live_financial_workflow" in actions
     assert actions["run_live_financial_workflow"]["target_page"] == "financial-manager"
     assert payload["live_smoke"]["status"] == "ready"

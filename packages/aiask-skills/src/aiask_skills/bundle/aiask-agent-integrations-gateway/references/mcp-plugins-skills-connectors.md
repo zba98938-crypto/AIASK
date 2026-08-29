@@ -53,5 +53,4 @@ Desktop uses these through MCP/Connectors and settings/integrations pages. Keep 
 - `packages/agent/tests/test_mcp_client.py`
 - `packages/agent/tests/test_native_full_parity.py`
 - `packages/agent/tests/test_hermes_full_expanded_capabilities.py`
-- `desktop/src/services/aiaskApi.test.ts`
 - `desktop/e2e/aiask-v1.spec.ts`

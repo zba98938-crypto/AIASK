@@ -63,7 +63,6 @@ PACKAGE_PREFIXES = {
     "akshare-mcp": "packages/akshare-mcp/src/",
     "strategy-factory": "packages/strategy-factory/src/",
     "aiask-quant-core": "packages/aiask-quant-core/src/",
-    "desktop": "desktop/src/",
     "root-runners": "",
 }
 
@@ -96,7 +95,6 @@ def _label(node: dict[str, Any]) -> str:
 def _is_test_source(source_file: str) -> bool:
     return (
         "/tests/" in source_file
-        or source_file.startswith("desktop/tests/")
         or source_file.endswith(".test.ts")
         or source_file.endswith(".test.tsx")
         or source_file.endswith("_test.py")
@@ -122,8 +120,6 @@ def _package_for_source(source_file: str) -> str:
         return "strategy-factory"
     if source_file.startswith("packages/aiask-quant-core/src/"):
         return "aiask-quant-core"
-    if source_file.startswith("desktop/src/"):
-        return "desktop"
     if _is_root_runner(source_file):
         return "root-runners"
     if _is_test_source(source_file):
@@ -139,7 +135,6 @@ def _is_core_source(source_file: str) -> bool:
         "akshare-mcp",
         "strategy-factory",
         "aiask-quant-core",
-        "desktop",
         "root-runners",
     }
 
@@ -375,53 +370,20 @@ def _augment_endpoint_edges(
                     "method": method,
                 },
             )
-            row = endpoint_rows.setdefault(path, {"path": path, "server": [], "desktop": []})
+            row = endpoint_rows.setdefault(path, {"path": path, "server": []})
             row["server"].append({"method": method, "handler": handler_name, "line": index + 1})
-
-    desktop_src = workspace / "desktop" / "src"
-    aiask_api_id = by_source_label.get(("desktop/src/services/aiaskApi.ts", "AiaskApi"), [None])[0]
-    if desktop_src.exists():
-        for path_obj in desktop_src.rglob("*"):
-            if not path_obj.is_file() or path_obj.suffix.lower() not in {".ts", ".tsx"}:
-                continue
-            rel = path_obj.relative_to(workspace).as_posix()
-            if _is_test_source(rel):
-                continue
-            source_text = path_obj.read_text(encoding="utf-8", errors="ignore")
-            source_id = aiask_api_id if rel == "desktop/src/services/aiaskApi.ts" and aiask_api_id else _file_node_id(nodes, rel)
-            if not source_id:
-                continue
-            for line_no, line in enumerate(source_text.splitlines(), start=1):
-                for match in string_endpoint_re.finditer(line):
-                    literal = match.group(1)
-                    endpoint_path = _endpoint_path(literal)
-                    endpoint_id = _ensure_endpoint_node(nodes_by_id, nodes, endpoint_path)
-                    _append_unique_link(
-                        links,
-                        seen_links,
-                        {
-                            "source": source_id,
-                            "target": endpoint_id,
-                            "relation": "calls",
-                            "endpoint_relation": "calls_endpoint",
-                            "confidence": "EXTRACTED",
-                            "confidence_score": 1.0,
-                            "weight": 1.0,
-                            "source_file": rel,
-                            "source_location": f"L{line_no}",
-                            "endpoint_literal": literal,
-                        },
-                    )
-                    row = endpoint_rows.setdefault(endpoint_path, {"path": endpoint_path, "server": [], "desktop": []})
-                    row["desktop"].append({"source_file": rel, "line": line_no, "literal": literal})
 
     _assign_components(nodes, links)
     endpoint_map = sorted(endpoint_rows.values(), key=lambda item: item["path"])
+    # This tree is backend-only: there is no HTTP client in-repo to match server
+    # routes against, so the map is a server-route inventory rather than a
+    # client/server drift report. The matched / *_only counters are kept at 0 for
+    # schema compatibility with consumers that still read them.
     return {
         "endpoint_count": len(endpoint_map),
-        "matched_count": sum(1 for item in endpoint_map if item["server"] and item["desktop"]),
-        "server_only_count": sum(1 for item in endpoint_map if item["server"] and not item["desktop"]),
-        "desktop_only_count": sum(1 for item in endpoint_map if item["desktop"] and not item["server"]),
+        "matched_count": 0,
+        "server_only_count": sum(1 for item in endpoint_map if item["server"]),
+        "desktop_only_count": 0,
         "endpoints": endpoint_map,
     }
 
@@ -498,8 +460,7 @@ def _write_markdown_report(path: Path, report: dict[str, Any]) -> None:
     lines += ["", "## Endpoint Samples"]
     for row in report["endpoint_map"]["endpoints"][:30]:
         server = ", ".join(f"{item['method']}:{item['handler']}" for item in row["server"][:3]) or "-"
-        desktop = ", ".join(f"{item['source_file']}:{item['line']}" for item in row["desktop"][:3]) or "-"
-        lines.append(f"- `{row['path']}`: server `{server}`, desktop `{desktop}`")
+        lines.append(f"- `{row['path']}`: server `{server}`")
 
     lines += [
         "",
@@ -546,7 +507,7 @@ def main() -> None:
     _write_graph(out_dir / "core.graph.json", core_nodes, core_links, meta=core_meta)
 
     packages: dict[str, dict[str, int]] = {}
-    for package in ["agent", "akshare-mcp", "strategy-factory", "aiask-quant-core", "desktop", "root-runners"]:
+    for package in ["agent", "akshare-mcp", "strategy-factory", "aiask-quant-core", "root-runners"]:
         pkg_nodes, pkg_links, pkg_meta = _subgraph(
             nodes,
             links,
@@ -601,7 +562,6 @@ def main() -> None:
             "akshare-mcp": str(out_dir / "akshare-mcp.graph.json"),
             "strategy-factory": str(out_dir / "strategy-factory.graph.json"),
             "aiask-quant-core": str(out_dir / "aiask-quant-core.graph.json"),
-            "desktop": str(out_dir / "desktop.graph.json"),
             "root-runners": str(out_dir / "root-runners.graph.json"),
             "tests": str(out_dir / "tests.graph.json"),
             "docs": str(out_dir / "docs.graph.json"),

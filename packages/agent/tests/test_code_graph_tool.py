@@ -14,10 +14,10 @@ def _write_minimal_curated_graph(root: Path) -> Path:
     curated.mkdir(parents=True)
     nodes = [
         {
-            "id": "services_aiaskapi_aiaskapi",
-            "label": "AiaskApi",
+            "id": "packages_agent_src_aiask_agent_cli_py",
+            "label": "cli.py",
             "file_type": "code",
-            "source_file": "desktop/src/services/aiaskApi.ts",
+            "source_file": "packages/agent/src/aiask_agent/cli.py",
             "source_location": "L62",
         },
         {
@@ -37,12 +37,12 @@ def _write_minimal_curated_graph(root: Path) -> Path:
     ]
     links = [
         {
-            "source": "services_aiaskapi_aiaskapi",
+            "source": "packages_agent_src_aiask_agent_cli_py",
             "target": "endpoint_v1_mcp_servers",
             "relation": "calls",
             "endpoint_relation": "calls_endpoint",
             "confidence": "EXTRACTED",
-            "source_file": "desktop/src/services/aiaskApi.ts",
+            "source_file": "packages/agent/src/aiask_agent/cli.py",
             "source_location": "L185",
         },
         {
@@ -63,20 +63,15 @@ def _write_minimal_curated_graph(root: Path) -> Path:
         json.dumps(
             {
                 "endpoint_count": 1,
-                "matched_count": 1,
-                "server_only_count": 0,
+                # Backend-only: the map is a server-route inventory, so there is
+                # no in-repo client to "match" against.
+                "matched_count": 0,
+                "server_only_count": 1,
                 "desktop_only_count": 0,
                 "endpoints": [
                     {
                         "path": "/v1/mcp/servers",
                         "server": [{"method": "GET", "handler": "mcp_servers", "line": 2209}],
-                        "desktop": [
-                            {
-                                "source_file": "desktop/src/services/aiaskApi.ts",
-                                "line": 185,
-                                "literal": "/v1/mcp/servers?all=true",
-                            }
-                        ],
                     }
                 ],
             },
@@ -89,7 +84,7 @@ def _write_minimal_curated_graph(root: Path) -> Path:
             {
                 "original": {"nodes": 3, "edges": 2},
                 "core": {"nodes": 3, "edges": 2},
-                "packages": {"agent": {"nodes": 1, "edges": 1}, "desktop": {"nodes": 1, "edges": 1}},
+                "packages": {"agent": {"nodes": 2, "edges": 2}},
             },
             indent=2,
         ),
@@ -146,7 +141,7 @@ def test_code_graph_tool_queries_minimal_curated_graph(tmp_path) -> None:
     )
     assert explained["success"] is True
     neighbor_labels = {item["node"]["label"] for item in explained["data"]["neighbors"]}
-    assert {"AiaskApi", "server.py"} <= neighbor_labels
+    assert {"cli.py", "server.py"} <= neighbor_labels
 
     affected = asyncio.run(
         registry.call_tool(
@@ -156,4 +151,4 @@ def test_code_graph_tool_queries_minimal_curated_graph(tmp_path) -> None:
     )
     assert affected["success"] is True
     affected_labels = {item["node"]["label"] for item in affected["data"]["nodes"]}
-    assert {"AiaskApi", "server.py"} <= affected_labels
+    assert {"cli.py", "server.py"} <= affected_labels

@@ -32,8 +32,6 @@ side_effect: read_only
 
 - Agent runtime: `packages/agent/src/aiask_agent/server.py`
 - Agent tool policy/catalog/schemas: `packages/agent/src/aiask_agent/tools/`
-- Desktop API client: `desktop/src/services/aiaskApi.ts`
-- Desktop view registry: `desktop/src/views.ts`
 - AKShare MCP server: `packages/akshare-mcp/src/akshare_mcp/server.py`
 - Strategy Factory facade: `packages/strategy-factory/src/strategy_factory/api/facade.py`
 - Quant Core storage/backtest primitives: `packages/aiask-quant-core/src/aiask_quant_core/`
