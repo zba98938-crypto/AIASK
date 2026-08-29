@@ -64,7 +64,7 @@ def _aiask_root(explicit: str | None) -> Path:
     override = os.getenv("AIASK_PROJECT_ROOT")
     if override:
         return Path(override).expanduser().resolve()
-    # integrations/aiask/scripts/aiask_venv_bootstrap.py -> integrations/aiask
+    # scripts/aiask_venv_bootstrap.py -> <aiask root>
     return Path(__file__).resolve().parents[1]
 
 

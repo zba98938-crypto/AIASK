@@ -302,7 +302,7 @@ def test_single_target_returns_the_child_envelope_directly(monkeypatch, tmp_path
 
 
 def _cli(*argv: str) -> subprocess.CompletedProcess:
-    # tests/ -> agent/ -> packages/ -> integrations/aiask
+    # tests/ -> agent/ -> packages/ -> <aiask root>
     root = Path(__file__).resolve().parents[3]
     return subprocess.run(
         [sys.executable, "-m", "aiask_agent.cli", *argv],

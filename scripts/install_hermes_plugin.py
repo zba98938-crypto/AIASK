@@ -17,8 +17,14 @@ from typing import Any
 
 
 def _repo_root() -> Path:
-    # integrations/aiask/scripts/install_hermes_plugin.py -> repo root
-    return Path(__file__).resolve().parents[3]
+    """Return the root of this tree.
+
+    This used to be parents[3], which assumed the old <repo>/integrations/aiask
+    nesting. Now that the tree is standalone that walked two levels above the
+    repo (to the user's home directory on a typical checkout) and inserted it
+    into sys.path. scripts/install_hermes_plugin.py -> <aiask root>.
+    """
+    return Path(__file__).resolve().parents[1]
 
 
 def _plugin_root() -> Path:

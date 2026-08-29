@@ -2,7 +2,7 @@ groups:
   - name: aiask-agent-readiness
     rules:
       - alert: AiaskAgentHealthProbeFailed
-        expr: probe_success{job="aiask-agent-health", instance="http://host.docker.internal:8766/health"} == 0
+        expr: probe_success{job="aiask-agent-health", instance="http://host.docker.internal:8765/health"} == 0
         for: 2m
         labels:
           severity: critical
@@ -12,7 +12,7 @@ groups:
           description: "Prometheus cannot get a successful response from /health."
 
       - alert: AiaskAgentDetailedHealthProbeFailed
-        expr: probe_success{job="aiask-agent-health", instance="http://host.docker.internal:8766/health/detailed"} == 0
+        expr: probe_success{job="aiask-agent-health", instance="http://host.docker.internal:8765/health/detailed"} == 0
         for: 5m
         labels:
           severity: warning

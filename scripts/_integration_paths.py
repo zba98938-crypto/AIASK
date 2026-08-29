@@ -17,7 +17,8 @@ def aiask_root() -> Path:
     override = os.getenv("AIASK_PROJECT_ROOT")
     if override:
         return Path(override).expanduser().resolve()
-    # integrations/aiask/scripts/_integration_paths.py -> integrations/aiask
+    # scripts/_integration_paths.py -> <aiask root>. This tree is standalone;
+    # it used to be nested at <repo>/integrations/aiask.
     return Path(__file__).resolve().parents[1]
 
 
