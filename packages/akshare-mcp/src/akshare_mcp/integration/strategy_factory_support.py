@@ -1,0 +1,169 @@
+"""Adapter bridging legacy IncubationFactoryRunner to new IncubationRuntimeSupport Protocol.
+
+This adapter allows Strategy Factory's new application-layer orchestrator to work
+with the existing akshare-mcp incubation factory implementation until it can be
+fully refactored to implement the Protocol directly.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+
+class IncubationFactoryRunnerAdapter:
+    """Adapts legacy IncubationFactoryRunner to IncubationRuntimeSupport Protocol."""
+
+    def __init__(self, runner: Any):
+        self._runner = runner
+        self._intake = getattr(runner, "_intake", None)
+        self._signal_generator = getattr(runner, "_signal_generator", None)
+        self._forward_verifier = getattr(runner, "_forward_verifier", None)
+        self._metrics_recorder = getattr(runner, "_metrics_recorder", None)
+        self._reporter = getattr(runner, "_reporter", None)
+        self._feedback_writer = getattr(runner, "_feedback_writer", None)
+        self._trade_prediction_verifier = getattr(runner, "_trade_prediction_verifier", None)
+        self._accelerator = getattr(runner, "_accelerator", None)
+        self._alert_monitor = getattr(runner, "_alert_monitor", None)
+
+    async def _get_db(self) -> Any:
+        """Get DB connection from runner."""
+        return await self._runner._get_db()
+
+    async def scan_and_accept_strategies(self, db: Any) -> dict[str, Any]:
+        """Phase 1: Intake."""
+        if self._intake is None:
+            return {"accepted_count": 0, "rejected_count": 0}
+        result = await self._intake.scan_and_accept(db)
+        return {
+            "accepted_count": result.get("accepted", 0),
+            "rejected_count": result.get("rejected", 0),
+            "strategies_processed": result.get("accepted", 0) + result.get("rejected", 0),
+        }
+
+    async def list_incubating_strategies(self, db: Any, limit: int = 100) -> list[dict[str, Any]]:
+        """List strategies in incubating stage."""
+        return await self._runner._list_incubating(db)
+
+    async def list_paper_observation_strategies(self, db: Any, limit: int = 100) -> list[dict[str, Any]]:
+        """List strategies in paper observation stage."""
+        return await self._runner._list_paper_observation(db)
+
+    async def list_diagnostic_observation_strategies(self, db: Any, limit: int = 50) -> list[dict[str, Any]]:
+        """List strategies in diagnostic observation stage."""
+        return await self._runner._list_diagnostic_observation(db)
+
+    async def generate_signals(self, db: Any, strategy: dict[str, Any]) -> dict[str, Any]:
+        """Generate signals for a strategy."""
+        if self._signal_generator is None:
+            return {"signals_generated": 0}
+        return await self._signal_generator.generate(db, strategy)
+
+    async def verify_forward_returns(
+        self, db: Any, strategy: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Verify forward returns."""
+        if self._forward_verifier is None:
+            return {"verified_count": 0}
+        return await self._forward_verifier.verify(db, strategy)
+
+    async def record_metrics(
+        self,
+        db: Any,
+        strategy: dict[str, Any],
+        verification: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Record metrics."""
+        if self._metrics_recorder is None:
+            return {"metrics_recorded": 0}
+        return await self._metrics_recorder.record(db, strategy, verification)
+
+    async def generate_hit_rate_report(
+        self, db: Any, strategy: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Generate hit rate report."""
+        if self._reporter is None:
+            return {"hit_rate": 0.0}
+        return await self._reporter.generate_report(db, strategy)
+
+    async def write_feedback(
+        self,
+        db: Any,
+        strategy: dict[str, Any],
+        verification: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Write feedback."""
+        if self._feedback_writer is None:
+            return {"feedback_written": 0}
+        return await self._feedback_writer.write(db, strategy, verification)
+
+    async def settle_strategy_orders(
+        self,
+        db: Any,
+        strategy: dict[str, Any],
+        signal_result: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Settle orders."""
+        return await self._runner._settle_strategy_orders(db, strategy, signal_result=signal_result)
+
+    async def run_recompile_remediation(self, db: Any) -> dict[str, Any]:
+        """Run recompile remediation."""
+        return await self._runner._run_recompile_remediation(db)
+
+    async def verify_trade_predictions(self, db: Any) -> dict[str, Any]:
+        """Verify trade predictions."""
+        if self._trade_prediction_verifier is None:
+            return {"verified_count": 0}
+        verifier = self._trade_prediction_verifier
+        if hasattr(verifier, "verify_pending"):
+            return await verifier.verify_pending(db)
+        if hasattr(verifier, "verify"):
+            return await verifier.verify(db)
+        return {"verified_count": 0, "error": "verifier_method_missing"}
+
+    async def run_accelerator(self, db: Any) -> dict[str, Any]:
+        """Run accelerator."""
+        if self._accelerator is None:
+            return {"accelerated_count": 0, "promoted_count": 0}
+        accelerator = self._accelerator
+        # evaluate_batch requires strategies/verifications from a full pipeline;
+        # when called from lightweight runtime.once, return a structured skip.
+        if hasattr(accelerator, "evaluate_batch"):
+            return {
+                "accelerated_count": 0,
+                "promoted_count": 0,
+                "status": "skipped",
+                "reason": "evaluate_batch_requires_strategies_and_verifications",
+            }
+        if hasattr(accelerator, "run"):
+            return await accelerator.run(db)
+        return {"accelerated_count": 0, "promoted_count": 0, "error": "accelerator_method_missing"}
+
+    async def monitor_alerts(self, db: Any) -> dict[str, Any]:
+        """Monitor alerts."""
+        if self._alert_monitor is None:
+            return {"alerts_processed": 0}
+        monitor = self._alert_monitor
+        if hasattr(monitor, "check"):
+            return await monitor.check(db)
+        if hasattr(monitor, "monitor"):
+            return await monitor.monitor(db)
+        return {"alerts_processed": 0, "error": "alert_monitor_method_missing"}
+
+    async def _start_paper_trading_daemons(self) -> None:
+        """Start paper trading daemons."""
+        await self._runner._start_paper_trading_daemons()
+
+    async def _stop_paper_trading_daemons(self) -> None:
+        """Stop paper trading daemons."""
+        await self._runner._stop_paper_trading_daemons()
+
+
+def build_incubation_support() -> IncubationFactoryRunnerAdapter:
+    """Build incubation support by adapting the legacy runner."""
+    from ..services.incubation_factory.runner import IncubationFactoryRunner
+
+    runner = IncubationFactoryRunner()
+    return IncubationFactoryRunnerAdapter(runner)
+
+
+__all__ = ["IncubationFactoryRunnerAdapter", "build_incubation_support"]

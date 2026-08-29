@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIASK Quant Core"
+  short_description: "Work on AIASK quant primitives and SQLite contracts"
+  default_prompt: "Use $aiask-quant-core to work safely on AIASK Quant Core storage, backtest, factor, DSL, or trade prediction code."

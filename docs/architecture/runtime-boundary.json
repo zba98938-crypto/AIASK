@@ -1,0 +1,115 @@
+{
+  "schema": "aiask.runtime-boundary.v1",
+  "ownership": {
+    "hermes_core": "Hermes owns the conversation loop, prompt cache, gateway and core tools.",
+    "aiask_edge": "AIASK owns finance services exposed through its local HTTP plugin and optional MCP servers."
+  },
+  "rules": [
+    "Hermes core must not import aiask_agent, akshare_mcp or strategy_factory.",
+    "Hermes core must not dynamically import those packages either (importlib.import_module / __import__ with a string), because a static import scan cannot see a string.",
+    "The Hermes AIASK plugin communicates with AIASK through allowlisted loopback HTTP routes or optional MCP manifests.",
+    "The legacy ThreadingHTTPServer is compatibility-only and may only be selected explicitly with --legacy-http.",
+    "Fragment-loader and *_parts packaging are retired; new code must use ordinary importable modules only.",
+    "The four-factory control plane is owned by the aiask CLI. Host commands (hermes aiask factory ...) must delegate to it, not re-implement orchestration.",
+    "SignalTracker is a sidecar and is never counted as one of the four factories.",
+    "Decoupling claims must be backed by an executable test, not only by an import scan."
+  ],
+  "package_dag": {
+    "notes": "Verified 2026-08-28 by import scan: acyclic, and akshare_mcp reaches strategy_factory only through .api.*/.runtime.* public surfaces (zero application/infrastructure/domain references).",
+    "order": [
+      "aiask-quant-core",
+      "strategy-factory",
+      "akshare-mcp",
+      "aiask-data-mcp",
+      "aiask-finance-mcp-servers",
+      "aiask-skills",
+      "aiask-agent-reference",
+      "aiask-agent"
+    ],
+    "allowed_edges": {
+      "strategy-factory": ["aiask-quant-core"],
+      "akshare-mcp": ["aiask-quant-core", "strategy-factory"],
+      "aiask-data-mcp": ["aiask-quant-core", "strategy-factory", "akshare-mcp"],
+      "aiask-finance-mcp-servers": ["aiask-quant-core"],
+      "aiask-skills": [],
+      "aiask-agent-reference": ["strategy-factory", "aiask-skills"],
+      "aiask-agent": ["aiask-quant-core", "strategy-factory", "akshare-mcp", "aiask-data-mcp", "aiask-skills"]
+    },
+    "forbidden": [
+      "aiask-quant-core must not import strategy_factory, akshare_mcp or aiask_agent.",
+      "strategy-factory must not statically import akshare_mcp. The single dynamic configurator hook in runtime/default_bootstrap.py is the documented exception and is scheduled for removal.",
+      "No package may import strategy_factory.application, strategy_factory.infrastructure or strategy_factory.domain from outside strategy-factory."
+    ]
+  },
+  "four_factories": [
+    "strategy_factory",
+    "factor_mining",
+    "incubation",
+    "market_event_ingest"
+  ],
+  "sidecars": [
+    "signal_tracker"
+  ],
+  "run_envelope": {
+    "protocol_version": "1.0",
+    "module": "strategy_factory.contracts.run_envelope",
+    "required_fields": [
+      "protocol_version",
+      "runtime",
+      "run_id",
+      "status",
+      "started_at",
+      "finished_at",
+      "counts",
+      "degraded_reasons",
+      "errors",
+      "evidence_refs",
+      "data"
+    ],
+    "statuses": ["success", "partial", "degraded", "failed", "blocked", "skipped"],
+    "exit_codes": {
+      "0": "clean success",
+      "1": "failed or blocked",
+      "2": "completed but not clean (partial / degraded / skipped)"
+    },
+    "fail_closed": "Unknown, empty or non-mapping results resolve to failed. An explicit success claim never overrides recorded errors or degraded reasons."
+  },
+  "schema_ownership": {
+    "factory_domain": {
+      "owner_target": "strategy-factory",
+      "current_location": "aiask_quant_core/storage/sqlite/schema_strategy.py",
+      "table_count_observed": 51,
+      "fingerprint_module": "aiask_quant_core.storage.sqlite.factory_schema_fingerprint",
+      "notes": "record_schema_namespace_checkpoint hashes only a module-name string and refreshes its checksum on drift, so it cannot prove a move preserved structure. Use the structural fingerprint for migrations."
+    },
+    "vector_domain": {
+      "owner_target": "unchanged",
+      "tables": [
+        "vector_index_registry",
+        "strategy_vector_index_items",
+        "strategy_vector_index_snapshots",
+        "strategy_vector_profiles"
+      ]
+    },
+    "market_domain": {
+      "owner_target": "data provider",
+      "notes": "Raw market data never moves with the factory domain. The StrategyFactoryRepository protocol currently mixes 4 market-data methods (get_klines, get_limit_up_stats, get_factor_ic_history, list_stock_universe) with 32 factory-domain methods; it must be split before the tables move."
+    }
+  },
+  "provider_registry": {
+    "single_registration_point": "akshare_mcp/adapters/strategy_factory_runtime.py::configure_strategy_factory_runtime_services",
+    "required_provider_count": 19,
+    "notes": "All providers are registered in one call, so ownership migration replaces one registration point rather than editing every call site."
+  },
+  "fragment_debt_budget": {
+    "consumer_modules_max": 0,
+    "fragment_files_max": 0,
+    "target": 0,
+    "notes": "2026-07-16: all exec_fragments/exec_block consumers migrated to ordinary modules; unused *_parts directories and _fragment_loader.py removed from packages. Budget is zero."
+  },
+  "metric_semantics": {
+    "missing": "null/None — critical hard gates fail with missing_*; never coerce to 0 for admission.",
+    "real_zero": "0.0 — compare against thresholds normally.",
+    "undefined_excellence": "None (never 999.0) for Sortino/Calmar/Omega/profit_factor when denominator is zero; do not rank as excellent."
+  }
+}

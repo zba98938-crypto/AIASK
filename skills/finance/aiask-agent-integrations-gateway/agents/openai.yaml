@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIASK Agent Integrations Gateway"
+  short_description: "Operate AIASK integrations gateway"
+  default_prompt: "Use $aiask-agent-integrations-gateway to work with AIASK MCP, plugins, connectors, gateways, webhooks, and platform integrations."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIASK Agent Memory Model Learning RL"
+  short_description: "Use AIASK memory model learning RL"
+  default_prompt: "Use $aiask-agent-memory-model-learning-rl to work with AIASK model providers, memory, sessions, learning loop, MoA, and RL."

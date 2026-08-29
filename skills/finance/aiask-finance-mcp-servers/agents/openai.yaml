@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIASK Finance MCP Servers"
+  short_description: "Use AIASK finance MCP server guards"
+  default_prompt: "Use $aiask-finance-mcp-servers to work with finance MCP servers and live-trading guardrails."

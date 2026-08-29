@@ -1,0 +1,1905 @@
+{
+  "endpoint_count": 162,
+  "matched_count": 0,
+  "server_only_count": 162,
+  "desktop_only_count": 0,
+  "endpoints": [
+    {
+      "path": "/health",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "health",
+          "line": 28
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/health/detailed",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "health_detailed",
+          "line": 32
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/intents",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "intent_list",
+          "line": 24
+        },
+        {
+          "method": "POST",
+          "handler": "intent_create",
+          "line": 42
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/intents/{intent_id}",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "intent_get",
+          "line": 29
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/intents/{intent_id}/confirm",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "intent_confirm",
+          "line": 56
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/intents/{intent_id}/deny",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "intent_deny",
+          "line": 61
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/ai/config",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "ai_config",
+          "line": 26
+        },
+        {
+          "method": "PATCH",
+          "handler": "ai_config_save",
+          "line": 31
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/ai/models",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "ai_models",
+          "line": 45
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/ai/smoke",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "ai_smoke",
+          "line": 40
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/ai/status",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "ai_status",
+          "line": 21
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/approvals",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "approvals",
+          "line": 17
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/approvals/{approval_id}/{decision}",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "approval_decide",
+          "line": 22
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/artifacts/{artifact_id}",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "artifact_get",
+          "line": 110
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/artifacts/{artifact_id}/content",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "artifact_content",
+          "line": 102
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/browser/sessions",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "browser_sessions",
+          "line": 44
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/capabilities/parity",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "capabilities_parity",
+          "line": 70
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/chat/completions",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "chat_completions",
+          "line": 54
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/connectors",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "connectors_list_api",
+          "line": 17
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/connectors/summary",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "connectors_summary_api",
+          "line": 27
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/connectors/{connector_type}/{name}",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "connector_detail_api",
+          "line": 32
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/connectors/{connector_type}/{name}/test",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "connector_test_api",
+          "line": 40
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/analytics/summary",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_analytics_summary",
+          "line": 61
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/broker-readiness",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_broker_readiness",
+          "line": 227
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/broker/accounts",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_broker_accounts",
+          "line": 247
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/broker/analytics/latest",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_broker_analytics_latest",
+          "line": 270
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/broker/analytics/run",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_broker_analytics_run",
+          "line": 265
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/broker/orders",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_broker_orders",
+          "line": 259
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/broker/positions",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_broker_positions",
+          "line": 253
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/broker/sync",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_broker_sync",
+          "line": 232
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/capabilities",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_capabilities",
+          "line": 81
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/data/status",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_data_status",
+          "line": 26
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/data/sync-plan",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_data_sync_plan",
+          "line": 32
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/events",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_events",
+          "line": 40
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/factor-factory/status",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_factor_factory_status",
+          "line": 30
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/feedback",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_feedback",
+          "line": 47
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/files",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_files_list",
+          "line": 184
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/files/save",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_files_save",
+          "line": 192
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/files/upload",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_files_upload",
+          "line": 168
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/files/{file_id}",
+      "server": [
+        {
+          "method": "DELETE",
+          "handler": "desktop_files_delete",
+          "line": 200
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/financial-manager/catalog",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_financial_manager_catalog",
+          "line": 185
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/financial-manager/intent",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_financial_manager_intent",
+          "line": 210
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/financial-manager/query",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_financial_manager_query",
+          "line": 195
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/financial-manager/status",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_financial_manager_status",
+          "line": 190
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/quant/presets",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_quant_presets",
+          "line": 153
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/quant/research-runs",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_quant_research_create",
+          "line": 158
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/quant/research-runs/{research_id}",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_quant_research_get",
+          "line": 169
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/quant/research-runs/{research_id}/report",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_quant_research_report",
+          "line": 177
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/retention/sweep",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_retention_sweep",
+          "line": 90
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/runs",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_runs",
+          "line": 16
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/settings/status",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_settings_status",
+          "line": 21
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/stock-data-sources",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_stock_data_sources",
+          "line": 37
+        },
+        {
+          "method": "POST",
+          "handler": "desktop_stock_data_source_save",
+          "line": 42
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/stock-data-sources/test",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_stock_data_source_test",
+          "line": 52
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/stock-radar/candidates",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_stock_radar_candidates",
+          "line": 115
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/stock-radar/digest",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_stock_radar_digest",
+          "line": 138
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/stock-radar/status",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_stock_radar_status",
+          "line": 105
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/trade-predictions/matrix",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_trade_predictions_matrix",
+          "line": 81
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/trade-predictions/outcomes",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_trade_predictions_outcomes",
+          "line": 50
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/trade-predictions/status",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_trade_predictions_status",
+          "line": 35
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/local-profile",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_local_profile_get",
+          "line": 25
+        },
+        {
+          "method": "POST",
+          "handler": "desktop_local_profile_post",
+          "line": 30
+        },
+        {
+          "method": "PATCH",
+          "handler": "desktop_local_profile_patch",
+          "line": 35
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/activity",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_user_activity",
+          "line": 55
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/data-policy",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_user_data_policy",
+          "line": 109
+        },
+        {
+          "method": "PATCH",
+          "handler": "desktop_user_data_policy_patch",
+          "line": 115
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/delete",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_user_data_delete",
+          "line": 75
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/export",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_user_data_export",
+          "line": 69
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/learning-dataset",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_user_learning_dataset",
+          "line": 97
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/recommendations",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_user_recommendations",
+          "line": 103
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/stock-pools",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_user_stock_pools",
+          "line": 98
+        },
+        {
+          "method": "POST",
+          "handler": "desktop_user_stock_pool_create",
+          "line": 108
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/stock-pools/reorder",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_user_stock_pool_reorder",
+          "line": 132
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/stock-pools/{pool_id}",
+      "server": [
+        {
+          "method": "PATCH",
+          "handler": "desktop_user_stock_pool_update",
+          "line": 116
+        },
+        {
+          "method": "DELETE",
+          "handler": "desktop_user_stock_pool_delete",
+          "line": 124
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/stock-pools/{pool_id}/stocks",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_user_stock_pool_add_stock",
+          "line": 140
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/stock-pools/{pool_id}/stocks/batch-remove",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_user_stock_pool_batch_remove",
+          "line": 156
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/stock-pools/{pool_id}/stocks/{stock_code}",
+      "server": [
+        {
+          "method": "DELETE",
+          "handler": "desktop_user_stock_pool_remove_stock",
+          "line": 148
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/strategies",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_user_strategies",
+          "line": 56
+        },
+        {
+          "method": "POST",
+          "handler": "desktop_user_strategy_create",
+          "line": 66
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/strategies/reorder",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_user_strategy_reorder",
+          "line": 90
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/users/{user_id}/strategies/{strategy_id}",
+      "server": [
+        {
+          "method": "PATCH",
+          "handler": "desktop_user_strategy_update",
+          "line": 74
+        },
+        {
+          "method": "DELETE",
+          "handler": "desktop_user_strategy_delete",
+          "line": 82
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/desktop/workbench/summary",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "desktop_workbench_summary",
+          "line": 16
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/financial-system/readiness",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "financial_readiness",
+          "line": 28
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/gateway/daemon/status",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "gateway_daemon_status_api",
+          "line": 184
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/gateway/direct-deliver",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "gateway_direct_deliver_api",
+          "line": 120
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/gateway/directory",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "gateway_directory_api",
+          "line": 94
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/gateway/directory/refresh",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "gateway_directory_refresh_api",
+          "line": 99
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/gateway/messages",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "gateway_messages_api",
+          "line": 89
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/gateway/messages/{message_id}/retry",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "gateway_retry_api",
+          "line": 136
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/gateway/pairing",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "gateway_pairing_status_api",
+          "line": 39
+        },
+        {
+          "method": "POST",
+          "handler": "gateway_pairing_create_api",
+          "line": 66
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/gateway/platforms",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "gateway_platforms_api",
+          "line": 34
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/gateway/platforms/{platform}/health",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "gateway_platform_health_api",
+          "line": 154
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/gateway/platforms/{platform}/start",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "gateway_platform_start_api",
+          "line": 142
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/gateway/platforms/{platform}/stop",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "gateway_platform_stop_api",
+          "line": 148
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/gateway/send",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "gateway_send_api",
+          "line": 105
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/gateway/status",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "gateway_status_api",
+          "line": 29
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/gateway/webhooks/{platform}",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "gateway_webhook_api",
+          "line": 165
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/hermes/admin/tools/{tool_name}",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "hermes_tool_call",
+          "line": 37
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/hermes/config",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "hermes_config",
+          "line": 33
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/hermes/handoffs",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "hermes_handoffs",
+          "line": 53
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/hermes/readiness",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "hermes_readiness",
+          "line": 23
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/hermes/sessions",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "hermes_sessions",
+          "line": 37
+        },
+        {
+          "method": "POST",
+          "handler": "hermes_session_create",
+          "line": 47
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/hermes/sessions/{session_id}/resume-context",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "hermes_session_resume_context",
+          "line": 71
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/hermes/status",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "hermes_status",
+          "line": 18
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/hermes/tools",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "hermes_tools",
+          "line": 29
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/hermes/toolsets",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "hermes_toolsets",
+          "line": 24
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/jobs",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "jobs",
+          "line": 18
+        },
+        {
+          "method": "POST",
+          "handler": "job_create",
+          "line": 28
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/jobs/{job_id}",
+      "server": [
+        {
+          "method": "PATCH",
+          "handler": "job_update",
+          "line": 46
+        },
+        {
+          "method": "DELETE",
+          "handler": "job_delete",
+          "line": 55
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/jobs/{job_id}/run",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "job_run",
+          "line": 60
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/jobs/{job_id}/runs",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "job_runs",
+          "line": 23
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/learning/apply",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "learning_apply_api",
+          "line": 27
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/learning/review",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "learning_review_api",
+          "line": 22
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/learning/status",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "learning_status_api",
+          "line": 17
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/mcp/discover",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "mcp_discover",
+          "line": 125
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/mcp/oauth/callback",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "mcp_oauth_callback",
+          "line": 158
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/mcp/oauth/start",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "mcp_oauth_start",
+          "line": 152
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/mcp/oauth_status",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "mcp_oauth_status",
+          "line": 107
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/mcp/prompts",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "mcp_prompts",
+          "line": 102
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/mcp/prompts/get",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "mcp_prompt_get",
+          "line": 179
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/mcp/register-local",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "mcp_register_local",
+          "line": 112
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/mcp/resources",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "mcp_resources",
+          "line": 97
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/mcp/resources/read",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "mcp_resource_read",
+          "line": 164
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/mcp/servers",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "mcp_servers",
+          "line": 24
+        },
+        {
+          "method": "POST",
+          "handler": "mcp_server_create",
+          "line": 35
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/mcp/servers/{name}",
+      "server": [
+        {
+          "method": "PATCH",
+          "handler": "mcp_server_update",
+          "line": 58
+        },
+        {
+          "method": "DELETE",
+          "handler": "mcp_server_delete",
+          "line": 83
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/mcp/tools",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "mcp_tools",
+          "line": 92
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/plugins",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "plugins",
+          "line": 75
+        },
+        {
+          "method": "POST",
+          "handler": "plugin_upsert",
+          "line": 80
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/plugins/{name}",
+      "server": [
+        {
+          "method": "PATCH",
+          "handler": "plugin_toggle",
+          "line": 85
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/plugins/{name}/commands",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "plugin_commands",
+          "line": 119
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/plugins/{name}/commands/{command}/test",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "plugin_command_test",
+          "line": 127
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/plugins/{name}/tools/{tool}/test",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "plugin_tool_test",
+          "line": 91
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/processes",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "processes",
+          "line": 18
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/responses",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "responses",
+          "line": 33
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/responses/{response_id}",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "response_get",
+          "line": 76
+        },
+        {
+          "method": "DELETE",
+          "handler": "response_delete",
+          "line": 84
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/rl/config",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "rl_config_api",
+          "line": 39
+        },
+        {
+          "method": "PATCH",
+          "handler": "rl_config_patch_api",
+          "line": 44
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/rl/environments",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "rl_environments_api",
+          "line": 34
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/rl/runs",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "rl_runs_api",
+          "line": 50
+        },
+        {
+          "method": "POST",
+          "handler": "rl_run_create_api",
+          "line": 55
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/rl/runs/{run_id}",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "rl_run_get_api",
+          "line": 62
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/rl/runs/{run_id}/logs",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "rl_run_logs_api",
+          "line": 77
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/rl/runs/{run_id}/results",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "rl_run_results_api",
+          "line": 72
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/rl/runs/{run_id}/stop",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "rl_run_stop_api",
+          "line": 67
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/runs/{run_id}",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "run_get",
+          "line": 67
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/runs/{run_id}/artifacts",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "run_artifacts",
+          "line": 32
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/runs/{run_id}/cancel",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "run_cancel",
+          "line": 19
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/runs/{run_id}/events",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "run_events",
+          "line": 21
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/runs/{run_id}/events/stream",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "run_events_stream",
+          "line": 28
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/runs/{run_id}/sources",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "run_sources",
+          "line": 41
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/runs/{run_id}/steer",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "run_steer",
+          "line": 35
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/runs/{run_id}/stop",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "run_stop",
+          "line": 31
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/runs/{run_id}/tool-invocations",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "run_tool_invocations",
+          "line": 58
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/runs/{run_id}/trace-eval",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "run_trace_eval",
+          "line": 50
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/search",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "search",
+          "line": 89
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/sessions/batch/archive",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "desktop_sessions_batch_archive",
+          "line": 208
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/sessions/{session_id}/archive",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "session_archive",
+          "line": 63
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/sessions/{session_id}/artifacts",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "session_artifacts",
+          "line": 75
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/sessions/{session_id}/messages",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "session_messages",
+          "line": 93
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/sessions/{session_id}/sources",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "session_sources",
+          "line": 84
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/sessions/{session_id}/undo",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "session_undo",
+          "line": 48
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/skills",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "skills",
+          "line": 23
+        },
+        {
+          "method": "POST",
+          "handler": "skill_create",
+          "line": 44
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/skills/{name}",
+      "server": [
+        {
+          "method": "PATCH",
+          "handler": "skill_update",
+          "line": 55
+        },
+        {
+          "method": "DELETE",
+          "handler": "skill_delete",
+          "line": 71
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/sources/{source_id}",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "source_get",
+          "line": 118
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/terminal/backends",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "terminal_backends_api",
+          "line": 23
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/terminal/backends/{name}/sessions",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "terminal_backend_sessions_api",
+          "line": 33
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/terminal/sessions",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "terminal_sessions_api",
+          "line": 28
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/tool-invocations/{invocation_id}",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "tool_invocation_get",
+          "line": 126
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/tools",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "tools",
+          "line": 76
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/tools/{tool_name}",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "tool_call_read_only",
+          "line": 20
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/webhooks",
+      "server": [
+        {
+          "method": "GET",
+          "handler": "webhooks",
+          "line": 20
+        },
+        {
+          "method": "POST",
+          "handler": "webhook_subscribe",
+          "line": 25
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/webhooks/{webhook_id}",
+      "server": [
+        {
+          "method": "DELETE",
+          "handler": "webhook_delete",
+          "line": 30
+        }
+      ],
+      "desktop": []
+    },
+    {
+      "path": "/v1/webhooks/{webhook_id}/trigger",
+      "server": [
+        {
+          "method": "POST",
+          "handler": "webhook_trigger",
+          "line": 34
+        }
+      ],
+      "desktop": []
+    }
+  ]
+}

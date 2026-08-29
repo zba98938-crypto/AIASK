@@ -1,0 +1,22 @@
+[project]
+name = "aiask-skills"
+version = "1.0.0"
+description = "Host-neutral AIASK Skills bundle with machine-readable metadata."
+requires-python = ">=3.12,<3.14"
+dependencies = []
+
+[project.optional-dependencies]
+test = ["pytest==9.0.2"]
+
+[project.scripts]
+aiask-skills = "aiask_skills.cli:main"
+
+[build-system]
+requires = ["hatchling==1.29.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aiask_skills"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

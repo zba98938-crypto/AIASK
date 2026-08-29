@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIASK Incubation Factory"
+  short_description: "Operate AIASK incubation workflows"
+  default_prompt: "Use $aiask-incubation-factory to work on incubation phases, hit-rate reports, and promotion pipeline."

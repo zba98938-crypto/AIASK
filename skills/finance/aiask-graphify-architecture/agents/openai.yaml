@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIASK Graphify Architecture"
+  short_description: "Analyze AIASK with graph/code evidence"
+  default_prompt: "Use $aiask-graphify-architecture to analyze AIASK architecture, code graph facts, endpoint coverage, implemented capabilities, and readiness."

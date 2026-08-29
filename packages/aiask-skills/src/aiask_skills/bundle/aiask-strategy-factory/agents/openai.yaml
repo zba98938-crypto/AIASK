@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIASK Strategy Factory"
+  short_description: "Work with AIASK Strategy Factory"
+  default_prompt: "Use $aiask-strategy-factory to work on AIASK strategy generation, gates, and scheduler flows."

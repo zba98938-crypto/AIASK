@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run Market Event Ingest"
+  short_description: "Run one confirmed event-ingest cycle"
+  default_prompt: "Use $aiask-run-market-event-ingest to run one confirmed market event ingest cycle and verify its ledger result."

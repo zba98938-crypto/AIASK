@@ -1,0 +1,65 @@
+{
+  "mcpServers": {
+    "tongdaxin": {
+      "command": "python",
+      "args": ["-m", "aiask_finance_mcp.tongdaxin.server"],
+      "env": {
+        "TDX_SERVER_IP": "119.147.212.81",
+        "TDX_SERVER_PORT": "7709"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "tdx_realtime_quote",
+        "tdx_kline_history",
+        "tdx_minute_data",
+        "tdx_tick_data",
+        "tdx_finance_info",
+        "tdx_market_snapshot"
+      ]
+    },
+    "tonghuashun": {
+      "command": "python",
+      "args": ["-m", "aiask_finance_mcp.tonghuashun.server"],
+      "env": {
+        "THS_BROKER": "ths"
+      },
+      "disabled": true,
+      "autoApprove": [
+        "ths_query_balance",
+        "ths_query_position",
+        "ths_query_orders",
+        "ths_query_deals"
+      ]
+    },
+    "eastmoney": {
+      "command": "python",
+      "args": ["-m", "aiask_finance_mcp.eastmoney.server"],
+      "env": {},
+      "disabled": false,
+      "autoApprove": [
+        "em_realtime_quote",
+        "em_kline_history",
+        "em_fund_info",
+        "em_fund_nav",
+        "em_bond_data",
+        "em_futures_data",
+        "em_news_flow",
+        "em_dragon_tiger_list"
+      ]
+    },
+    "qmt": {
+      "command": "python",
+      "args": ["-m", "aiask_finance_mcp.qmt.server"],
+      "env": {
+        "QMT_ACCOUNT_TYPE": "STOCK"
+      },
+      "disabled": true,
+      "autoApprove": [
+        "qmt_query_account",
+        "qmt_query_position",
+        "qmt_query_orders",
+        "qmt_query_stock_data"
+      ]
+    }
+  }
+}

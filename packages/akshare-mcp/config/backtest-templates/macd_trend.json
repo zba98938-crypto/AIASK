@@ -1,0 +1,20 @@
+{
+  "id": "macd_trend",
+  "name": "MACD Trend",
+  "strategy": "macd",
+  "description": "Trend-following proxy for MACD strategy",
+  "input": {
+    "stock_codes": ["300750"],
+    "params": {
+      "start_date": "2024-01-01",
+      "end_date": "2024-12-31",
+      "initial_capital": 100000,
+      "order_cost": {
+        "commission_rate": 0.0003,
+        "min_commission": 5,
+        "stamp_duty_rate": 0.001,
+        "slippage_rate": 0.0005
+      }
+    }
+  }
+}

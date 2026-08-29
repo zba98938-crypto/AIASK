@@ -1,0 +1,40 @@
+[project]
+name = "aiask-finance-mcp-servers"
+version = "0.1.0"
+description = "AIASK 金融软件 MCP Server 集合 — 通达信、同花顺、东方财富、QMT"
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "AIASK Team" }]
+
+dependencies = [
+    "mcp==1.26.0",
+    "pytdx==1.72",
+    "efinance==0.5.8",
+]
+
+[project.optional-dependencies]
+tongdaxin = ["pytdx==1.72"]
+tonghuashun = ["easytrader==0.23.7"]
+eastmoney = ["efinance==0.5.8"]
+qmt = []
+all = ["pytdx==1.72", "easytrader==0.23.7", "efinance==0.5.8"]
+dev = ["pytest==9.0.2", "pytest-asyncio==1.3.0"]
+
+[project.scripts]
+aiask-finance-tdx = "aiask_finance_mcp.tongdaxin.server:main"
+aiask-finance-ths = "aiask_finance_mcp.tonghuashun.server:main"
+aiask-finance-em = "aiask_finance_mcp.eastmoney.server:main"
+aiask-finance-qmt = "aiask_finance_mcp.qmt.server:main"
+
+[build-system]
+requires = ["hatchling==1.29.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aiask_finance_mcp"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

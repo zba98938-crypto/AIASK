@@ -1,0 +1,1882 @@
+[
+  {
+    "source_package": "agent",
+    "target_package": "akshare-mcp",
+    "source": "governance_check()",
+    "target": "governance_check_workflow()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/akshare.py",
+    "source_location": "L89"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "akshare-mcp",
+    "source": "_execute_data_sync()",
+    "target": "register_data_sync_manager()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/desktop_ops.py",
+    "source_location": "L136"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "strategy-factory",
+    "source": "_execute_factor_factory()",
+    "target": "ensure_default_runtime_services()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/desktop_ops.py",
+    "source_location": "L172"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "strategy-factory",
+    "source": "_execute_factor_factory()",
+    "target": "get_factor_mining_runtime()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/desktop_ops.py",
+    "source_location": "L173"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "strategy-factory",
+    "source": "_execute_incubation_factory()",
+    "target": "ensure_default_runtime_services()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/desktop_ops.py",
+    "source_location": "L204"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "strategy-factory",
+    "source": "_execute_incubation_factory()",
+    "target": "build_incubation_runtime()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/desktop_ops.py",
+    "source_location": "L207"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "akshare-mcp",
+    "source": "_execute_stock_radar()",
+    "target": "push_stock_radar_digest()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/desktop_ops.py",
+    "source_location": "L537"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "akshare-mcp",
+    "source": "_execute_stock_radar()",
+    "target": "run_stock_radar()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/desktop_ops.py",
+    "source_location": "L520"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "akshare-mcp",
+    "source": "_load_status_handler()",
+    "target": "stock_radar_status()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/stock_radar.py",
+    "source_location": "L102"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "akshare-mcp",
+    "source": "_load_candidates_handler()",
+    "target": "stock_radar_candidates()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/stock_radar.py",
+    "source_location": "L108"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "akshare-mcp",
+    "source": "_load_digest_handler()",
+    "target": "stock_radar_digest()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/stock_radar.py",
+    "source_location": "L114"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "akshare-mcp",
+    "source": "_load_factory_status_handler()",
+    "target": "handle_factory_status()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/strategy_factory.py",
+    "source_location": "L165"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "akshare-mcp",
+    "source": "_load_factory_runs_handler()",
+    "target": "handle_factory_runs()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/strategy_factory.py",
+    "source_location": "L171"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "akshare-mcp",
+    "source": "_load_promotion_reviews_handler()",
+    "target": "handle_promotion_reviews()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/strategy_factory.py",
+    "source_location": "L177"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "akshare-mcp",
+    "source": "_load_domain_events_handler()",
+    "target": "handle_domain_events()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/strategy_factory.py",
+    "source_location": "L183"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "akshare-mcp",
+    "source": "_load_factory_dispatch_handler()",
+    "target": "handle_factory_dispatch_run()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/strategy_factory.py",
+    "source_location": "L189"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "strategy-factory",
+    "source": "incubation_factory_status()",
+    "target": "ensure_default_runtime_services()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/strategy_factory.py",
+    "source_location": "L368"
+  },
+  {
+    "source_package": "agent",
+    "target_package": "strategy-factory",
+    "source": "incubation_factory_status()",
+    "target": "build_incubation_runtime()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/agent/src/aiask_agent/adapters/strategy_factory.py",
+    "source_location": "L369"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "configure_akshare_storage_runtime_hooks()",
+    "target": "configure_storage_runtime_hooks()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/adapters/strategy_factory_runtime.py",
+    "source_location": "L91"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "configure_strategy_factory_runtime_services()",
+    "target": "configure_runtime_services()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/adapters/strategy_factory_runtime.py",
+    "source_location": "L152"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "build_strategy_factory_runtime_adapters()",
+    "target": "build_default_runtime_adapters()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/adapters/strategy_factory_runtime.py",
+    "source_location": "L203"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "build_strategy_factory_scheduler_kwargs()",
+    "target": "build_default_scheduler_kwargs()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/adapters/strategy_factory_runtime.py",
+    "source_location": "L211"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "market_data.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/data_source/market_data.py",
+    "source_location": "L17"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "configure_local_strategy_factory_runtime()",
+    "target": "ensure_default_runtime_services()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/runtime/strategy_factory_bootstrap.py",
+    "source_location": "L11"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "build_local_strategy_factory_runtime_adapters()",
+    "target": "build_default_runtime_adapters()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/runtime/strategy_factory_bootstrap.py",
+    "source_location": "L17"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "build_local_strategy_factory_scheduler_kwargs()",
+    "target": "build_default_scheduler_kwargs()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/runtime/strategy_factory_bootstrap.py",
+    "source_location": "L23"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_shutdown_services_async()",
+    "target": "close_db()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/server.py",
+    "source_location": "L278"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_shutdown_services_async()",
+    "target": "drain_cleanup_callbacks()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/server.py",
+    "source_location": "L284"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_build_oos_validation_report()",
+    "target": "FactorValidationPipeline",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_factor_validation_pipeline_support.py",
+    "source_location": "L214"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "StrategyExecutionUniverse",
+    "target": "ExecutionUniverseContract",
+    "relation": "inherits",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_execution_universe.py",
+    "source_location": "L55"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_imports()",
+    "target": "preferred_strategy_types_for_factor()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_context.py",
+    "source_location": "L35"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_imports()",
+    "target": "preferred_strategy_types_for_factor()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_external.py",
+    "source_location": "L37"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_imports()",
+    "target": "resolve_candidate_validation_profile()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_generate.py",
+    "source_location": "L42"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_imports()",
+    "target": "validate_precompile_candidate_contract()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_generate.py",
+    "source_location": "L43"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_imports()",
+    "target": "preferred_strategy_types_for_factor()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_generate.py",
+    "source_location": "L39"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_pipeline_candidate_to_spec()",
+    "target": "resolve_candidate_validation_profile()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_generate_parts/specs.py",
+    "source_location": "L39"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_pipeline_candidate_to_spec()",
+    "target": "validate_precompile_candidate_contract()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_generate_parts/specs.py",
+    "source_location": "L52"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_imports()",
+    "target": "HypothesisLoweringCompiler",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_specs_parts/context.py",
+    "source_location": "L31"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_imports()",
+    "target": "validate_precompile_candidate_contract()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_specs_parts/context.py",
+    "source_location": "L41"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_imports()",
+    "target": "synthesize_confidence_contract()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_specs_parts/context.py",
+    "source_location": "L40"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_imports()",
+    "target": "preferred_strategy_types_for_factor()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_specs_parts/context.py",
+    "source_location": "L37"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_build_rule_semantic_contract_bundle()",
+    "target": "synthesize_confidence_contract()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_specs_parts/specs.py",
+    "source_location": "L313"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_canonicalize_validation_profile()",
+    "target": "resolve_candidate_validation_profile()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_llm_provider_normalize_parts/context.py",
+    "source_location": "L329"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_normalize_open_dsl_candidate_contract()",
+    "target": "ensure_candidate_semantic_contract()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_llm_provider_normalize_parts/context.py",
+    "source_location": "L504"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_normalize_candidate_payload()",
+    "target": "validate_precompile_candidate_contract()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_llm_provider_normalize_parts/specs.py",
+    "source_location": "L191"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_normalize_candidate_payload()",
+    "target": "ensure_candidate_semantic_contract()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_llm_provider_normalize_parts/specs.py",
+    "source_location": "L351"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_normalize_candidate_payload()",
+    "target": "synthesize_confidence_contract()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_strategy_llm_provider_normalize_parts/specs.py",
+    "source_location": "L348"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_run_walk_forward_validate_task()",
+    "target": "ValidationSummary",
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_validation_support.py",
+    "source_location": "L802"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_run_purged_kfold_validate_task()",
+    "target": "PurgedKFoldCV",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_validation_support.py",
+    "source_location": "L825"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_run_purged_kfold_validate_task()",
+    "target": "ValidationSummary",
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/_validation_support.py",
+    "source_location": "L818"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "run_factory_mining_cycle()",
+    "target": "ensure_default_runtime_services()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/factor_scheduler.py",
+    "source_location": "L116"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "run_factory_mining_cycle()",
+    "target": "get_factor_mining_runtime()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/factor_scheduler.py",
+    "source_location": "L117"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_persist_signal_evidence()",
+    "target": "build_signal_evidence_records()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/incubation.py",
+    "source_location": "L665"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "intake.py",
+    "target": "strategy_explanation.py",
+    "relation": "imports_from",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/intake.py",
+    "source_location": "L12"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "_existing_normalized_events_for_signature()",
+    "target": "list_events()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/market_event_sources.py",
+    "source_location": "L591"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "run_market_text_source_ingest()",
+    "target": "build_market_event_ingest_runtime()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/market_text_source_ingest.py",
+    "source_location": "L745"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "build_default_research_validation_contract()",
+    "target": "build_research_validation_contract()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/research_510300_v3_parts/data_loading.py",
+    "source_location": "L189"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "simulate_monthly_rotation_family()",
+    "target": "FactoryBacktestAssumptions",
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/research_510300_v3_parts/evaluation.py",
+    "source_location": "L3"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "simulate_leveraged_family()",
+    "target": "FactoryBacktestAssumptions",
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/research_510300_v3_parts/evaluation.py",
+    "source_location": "L125"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_build_candidate_validation()",
+    "target": "PurgedKFoldCV",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/research_510300_v3_parts/evaluation.py",
+    "source_location": "L360"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_build_family_candidate_runs()",
+    "target": "FactoryBacktestAssumptions",
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/research_510300_v3_parts/evaluation.py",
+    "source_location": "L452"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_legacy_assumptions()",
+    "target": "FactoryBacktestAssumptions",
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/research_510300_v3_parts/feature_engineering.py",
+    "source_location": "L231"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "risk_model.py",
+    "target": "risk_model.py",
+    "relation": "imports_from",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/risk_model.py",
+    "source_location": "L7"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "load_executable_strategies_via_contract()",
+    "target": "ExecutionUniverseContract",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/signal_tracker_parts/execution_universe_adapter.py",
+    "source_location": "L43"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "load_executable_strategies_via_contract()",
+    "target": "ExecutionUniverseQuery",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/signal_tracker_parts/execution_universe_adapter.py",
+    "source_location": "L44"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "slippage.py",
+    "target": "slippage.py",
+    "relation": "imports_from",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/slippage.py",
+    "source_location": "L7"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_extract_event_context()",
+    "target": "extract_event_context()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_autonomy_components_parts/context.py",
+    "source_location": "L14"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_apply_resolved_candidate_envelope()",
+    "target": "apply_resolved_candidate_envelope()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_autonomy_components_parts/context.py",
+    "source_location": "L20"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_run_cycle_pipeline()",
+    "target": "StrategySubmitter",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_autonomy_parts/specs.py",
+    "source_location": "L291"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "strategy_dsl.py",
+    "target": "strategy_dsl.py",
+    "relation": "imports_from",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_dsl.py",
+    "source_location": "L6"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_imports()",
+    "target": "normalize_execution_assumptions()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_generators_parts/context.py",
+    "source_location": "L41"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_imports()",
+    "target": "normalize_strategy_preferences()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_generators_parts/context.py",
+    "source_location": "L42"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_imports()",
+    "target": "synthesize_confidence_contract()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_generators_parts/context.py",
+    "source_location": "L43"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_imports()",
+    "target": "preferred_strategy_types_for_factor()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_generators_parts/context.py",
+    "source_location": "L38"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_enrich_rule_template_contract()",
+    "target": "normalize_execution_assumptions()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_generators_parts/context.py",
+    "source_location": "L128"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_build_rule_semantic_contract_bundle()",
+    "target": "synthesize_confidence_contract()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_generators_parts/context.py",
+    "source_location": "L407"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "build_closure_review()",
+    "target": "build_research_window_status()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_lifecycle_shared/closure_review.py",
+    "source_location": "L445"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "build_closure_review()",
+    "target": "hydrate_full_market_topn_payload()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_lifecycle_shared/closure_review.py",
+    "source_location": "L478"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "presentation.py",
+    "target": "strategy_explanation.py",
+    "relation": "imports_from",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_lifecycle_shared/presentation.py",
+    "source_location": "L7"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "build_strategy_presentation()",
+    "target": "build_strategy_explanation()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_lifecycle_shared/presentation.py",
+    "source_location": "L125"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "build_trend_strategy_recompile_backfill()",
+    "target": "apply_resolved_candidate_envelope()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_recompile_backfill.py",
+    "source_location": "L736"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "build_factor_strategy_recompile_backfill()",
+    "target": "apply_resolved_candidate_envelope()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_recompile_backfill.py",
+    "source_location": "L843"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "model.py",
+    "target": "strategy_explanation.py",
+    "relation": "imports_from",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_spec/model.py",
+    "source_location": "L9"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_resolve_nonmissing_field_provenance()",
+    "target": "normalize_field_provenance_token()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_spec/runtime_contracts_parts/runtime_contract_builders.py",
+    "source_location": "L207"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_fallback_event_recognition()",
+    "target": "get_local_event_engine()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_stages_parts/context.py",
+    "source_location": "L599"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_fallback_exposure_mapping()",
+    "target": "call_optional_async()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/strategy_stages_parts/specs.py",
+    "source_location": "L20"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_VectorBenchmarkHelper",
+    "target": "VectorUnifiedMixin",
+    "relation": "inherits",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/unified_vector_benchmark.py",
+    "source_location": "L81"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "validation.py",
+    "target": "validation.py",
+    "relation": "imports_from",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/services/validation.py",
+    "source_location": "L6"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "block_helpers.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/block_helpers.py",
+    "source_location": "L24"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "finance.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/finance.py",
+    "source_location": "L6"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_stock_info_from_sqlite()",
+    "target": "default_sqlite_path()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/finance.py",
+    "source_location": "L84"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "financials_helpers.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/financials_helpers.py",
+    "source_location": "L6"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "formula_fallback.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/formula_fallback.py",
+    "source_location": "L6"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "fund_flow_market.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/fund_flow_market.py",
+    "source_location": "L10"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "macro.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/macro.py",
+    "source_location": "L6"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_sync_market_text_source_ingest_now()",
+    "target": "ensure_default_runtime_services()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/_data_sync_manager_support_sync.py",
+    "source_location": "L242"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_sync_market_text_source_ingest_now()",
+    "target": "get_market_event_ingest_runtime()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/_data_sync_manager_support_sync.py",
+    "source_location": "L243"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_support.py",
+    "target": "strategy_explanation.py",
+    "relation": "imports_from",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_crud/_support.py",
+    "source_location": "L10"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_build_strategy_market_summary()",
+    "target": "build_strategy_explanation()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_crud/_support.py",
+    "source_location": "L481"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_capabilities()",
+    "target": "get_factory_constants()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_crud/handlers_personal.py",
+    "source_location": "L581"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_event_preview_tasks()",
+    "target": "resolve_target_basket()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_factory_events.py",
+    "source_location": "L358"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_event_preview_tasks()",
+    "target": "NormalizedEvent",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_factory_events.py",
+    "source_location": "L329"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_event_preview_tasks()",
+    "target": "propagate_event_to_themes()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_factory_events.py",
+    "source_location": "L344"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_theme_exposure_refresh()",
+    "target": "ThemeExposureBuilder",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_factory_events.py",
+    "source_location": "L481"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_event_bootstrap()",
+    "target": "ThemeExposureBuilder",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_factory_events.py",
+    "source_location": "L513"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_event_bootstrap()",
+    "target": "seed_default_theme_graph()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_factory_events.py",
+    "source_location": "L504"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_event_outbox_drain()",
+    "target": "generate_tasks_from_active_events()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_factory_events.py",
+    "source_location": "L581"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_theme_regression_run()",
+    "target": "ThemeResponseRegression",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_factory_events.py",
+    "source_location": "L685"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "normalize_factory_run_summary_contract()",
+    "target": "normalize_run_result_to_detail()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_helpers_parts/actions.py",
+    "source_location": "L275"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "normalize_factory_run_summary_contract()",
+    "target": "normalize_run_result_to_summary()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_helpers_parts/actions.py",
+    "source_location": "L274"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "normalize_factory_run_summary_contract()",
+    "target": "build_research_window_status()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_helpers_parts/actions.py",
+    "source_location": "L285"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "normalize_factory_run_summary_contract()",
+    "target": "hydrate_full_market_topn_payload()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_helpers_parts/actions.py",
+    "source_location": "L287"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "normalize_factory_run_detail_contract()",
+    "target": "normalize_run_result_to_detail()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_helpers_parts/actions.py",
+    "source_location": "L330"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "normalize_factory_run_detail_contract()",
+    "target": "build_research_window_status()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_helpers_parts/actions.py",
+    "source_location": "L340"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "normalize_factory_run_detail_contract()",
+    "target": "hydrate_full_market_topn_payload()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_helpers_parts/actions.py",
+    "source_location": "L342"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_scheduler_with_runtime()",
+    "target": "get_strategy_factory_scheduler()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/_lifecycle_support.py",
+    "source_location": "L168"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_scheduler_with_runtime()",
+    "target": "build_scheduler_runtime_kwargs()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/_lifecycle_support.py",
+    "source_location": "L168"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "_get_strategy_factory_scheduler_with_runtime()",
+    "target": "ensure_default_runtime_services()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/_lifecycle_support.py",
+    "source_location": "L167"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_submission_replay()",
+    "target": "StrategySubmitter",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/handlers.py",
+    "source_location": "L141"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_submit()",
+    "target": "StrategySubmitter",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/handlers.py",
+    "source_location": "L229"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_status()",
+    "target": "get_factory_constants()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/handlers.py",
+    "source_location": "L318"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_status()",
+    "target": "extract_bulk_stock_cursor()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/handlers.py",
+    "source_location": "L401"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_status()",
+    "target": "build_research_window_status()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/handlers.py",
+    "source_location": "L413"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_status()",
+    "target": "hydrate_full_market_topn_payload()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/handlers.py",
+    "source_location": "L435"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_dispatch_run()",
+    "target": "dispatch_run()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/handlers.py",
+    "source_location": "L541"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_dispatch_status()",
+    "target": "get_dispatch_status()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/handlers.py",
+    "source_location": "L566"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_run_detail()",
+    "target": "build_research_window_status()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/handlers.py",
+    "source_location": "L616"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_run_detail()",
+    "target": "hydrate_full_market_topn_payload()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/handlers.py",
+    "source_location": "L629"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_topn_latest()",
+    "target": "hydrate_full_market_topn_payload()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/handlers.py",
+    "source_location": "L663"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_factory_run_topn()",
+    "target": "hydrate_full_market_topn_payload()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/handlers.py",
+    "source_location": "L698"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_runtime_cycle_status()",
+    "target": "ensure_default_runtime_services()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_runtime.py",
+    "source_location": "L199"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_runtime_cycle_status()",
+    "target": "get_signal_tracker_runtime()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_runtime.py",
+    "source_location": "L200"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_runtime_cycle_run()",
+    "target": "ensure_default_runtime_services()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_runtime.py",
+    "source_location": "L207"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "strategy-factory",
+    "source": "handle_runtime_cycle_run()",
+    "target": "get_signal_tracker_runtime()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_runtime.py",
+    "source_location": "L208"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "_quote_support.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/market/_quote_support.py",
+    "source_location": "L26"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_save_quote_nonblocking()",
+    "target": "run_with_db_cleanup()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/market/_quote_support.py",
+    "source_location": "L163"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_save_quotes_nonblocking()",
+    "target": "run_with_db_cleanup()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/market/_quote_support.py",
+    "source_location": "L189"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "helpers.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/market/helpers.py",
+    "source_location": "L19"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "__init__.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/market/kline/__init__.py",
+    "source_location": "L35"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "kline_minute.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/market/kline/kline_minute.py",
+    "source_location": "L35"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "kline_rows.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/market/kline/kline_rows.py",
+    "source_location": "L35"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "limit_up.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/market/limit_up.py",
+    "source_location": "L20"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_read_tdx_limit_up_from_sqlite()",
+    "target": "default_sqlite_path()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/market/limit_up.py",
+    "source_location": "L54"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "order_book.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/market/order_book.py",
+    "source_location": "L28"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "quote.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/market/quote.py",
+    "source_location": "L37"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_stock_list_from_sqlite()",
+    "target": "default_sqlite_path()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/market/stock_list.py",
+    "source_location": "L46"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "market_blocks.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/market_blocks.py",
+    "source_location": "L24"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "helpers.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/news/helpers.py",
+    "source_location": "L8"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "notices.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/news/notices.py",
+    "source_location": "L11"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "research.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/news/research.py",
+    "source_location": "L6"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "agent",
+    "source": "options.py",
+    "target": "akshare.py",
+    "relation": "imports",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/options.py",
+    "source_location": "L6"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "run_factor_group_backtest()",
+    "target": "SlippageCalculator",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/quant_analysis.py",
+    "source_location": "L371"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "run_factor_oos_validation()",
+    "target": "FactorValidationPipeline",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/quant_analysis.py",
+    "source_location": "L740"
+  },
+  {
+    "source_package": "akshare-mcp",
+    "target_package": "aiask-quant-core",
+    "source": "_compute_trade_return_with_costs()",
+    "target": "SlippageCalculator",
+    "relation": "references",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/akshare-mcp/src/akshare_mcp/tools/quant_engine.py",
+    "source_location": "L349"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "StrategyResearchContract",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "StrategyTargetingPolicy",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "StrategyPortfolioSpec",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "StrategyExecutionAssumptions",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "StrategyInstrumentProfile",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "StrategyValidationProfile",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "ResearchValidationContract",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "StrategySubmissionAudit",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "FactoryBacktestAssumptions",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "StrategyFactoryRepository",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "VectorSearchGateway",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "AutonomyGateway",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "FactorResearchGateway",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "FactorPoolGateway",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "IncubationGateway",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "ValidationGateway",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "RiskGateway",
+    "target": "StrategyFactoryRepository",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/api/contracts.py",
+    "source_location": "L559"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "akshare-mcp",
+    "source": "_external_llm_health_snapshot()",
+    "target": "get_health_snapshot()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/application/_factory_scheduler_loop_parts/policy_execution.py",
+    "source_location": "L253"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "_runner_helpers.py",
+    "target": "strategy_explanation.py",
+    "relation": "imports_from",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/application/_submitter_actions/_runner_helpers.py",
+    "source_location": "L17"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "runner.py",
+    "target": "strategy_explanation.py",
+    "relation": "imports_from",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/application/_submitter_actions/runner.py",
+    "source_location": "L17"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "_build_strategy_data()",
+    "target": "build_strategy_explanation()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/application/_submitter_actions/runner_parts/submission_flow.py",
+    "source_location": "L347"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "_build_strategy_data()",
+    "target": "render_strategy_description()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/application/_submitter_actions/runner_parts/submission_flow.py",
+    "source_location": "L374"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "_run_portfolio_engine_summary()",
+    "target": "run_portfolio_backtest()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/application/backtest_filter_parts/policy.py",
+    "source_location": "L12"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "_bounded_dumps()",
+    "target": "bounded_json_text()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/application/factory_task_board.py",
+    "source_location": "L64"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "akshare-mcp",
+    "source": "_llm_optimize_candidates()",
+    "target": "get_strategy_llm_provider()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/application/futures_calendar_research_parts/part_5.py",
+    "source_location": "L134"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "gate_1_fast_screen()",
+    "target": "run_portfolio_backtest()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/application/quality_gates_parts/reporting.py",
+    "source_location": "L139"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "akshare-mcp",
+    "source": "load_feedback_evidence_overview()",
+    "target": "build_incubation_overview()",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/application/research/_feedback_metrics.py",
+    "source_location": "L574"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "akshare-mcp",
+    "source": "load_governed_candidate_pool()",
+    "target": "quant_manager()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/application/research/_research_context_sources.py",
+    "source_location": "L90"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "akshare-mcp",
+    "source": "load_model_registry_lineage()",
+    "target": "quant_manager()",
+    "relation": "calls",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/application/research/_research_context_sources.py",
+    "source_location": "L150"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "runtime_services.py",
+    "target": "strategy_dsl.py",
+    "relation": "imports_from",
+    "confidence": "EXTRACTED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/infrastructure/runtime_services.py",
+    "source_location": "L15"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "get_strategy_registry()",
+    "target": "StrategyRegistry",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/infrastructure/runtime_services.py",
+    "source_location": "L96"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "get_risk_model_class()",
+    "target": "RiskModel",
+    "relation": "indirect_call",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/infrastructure/runtime_services.py",
+    "source_location": "L106"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "_NullSentimentAnalyzer",
+    "target": "RiskModel",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/infrastructure/runtime_services.py",
+    "source_location": "L104"
+  },
+  {
+    "source_package": "strategy-factory",
+    "target_package": "aiask-quant-core",
+    "source": "_NullFinancialSemanticService",
+    "target": "RiskModel",
+    "relation": "uses",
+    "confidence": "INFERRED",
+    "source_file": "packages/strategy-factory/src/strategy_factory/infrastructure/runtime_services.py",
+    "source_location": "L104"
+  }
+]

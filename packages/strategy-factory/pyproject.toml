@@ -1,0 +1,31 @@
+[project]
+name = "strategy-factory"
+version = "0.1.0"
+description = "Strategy Factory facade and migration package"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "aiask-quant-core",
+    "numpy==2.2.6",
+    "pandas==2.3.3",
+    "mcp==1.26.0",
+]
+
+[project.optional-dependencies]
+test = ["pytest==9.0.2", "pytest-asyncio==1.3.0"]
+
+[build-system]
+requires = ["hatchling==1.29.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/strategy_factory"]
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "function"
+pythonpath = [
+    "src",
+    "../aiask-quant-core/src",
+]
+
+[tool.uv.sources]
+aiask-quant-core = { path = "../aiask-quant-core", editable = true }

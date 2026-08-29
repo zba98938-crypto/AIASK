@@ -1,0 +1,36 @@
+[project]
+name = "aiask-data-mcp"
+version = "0.1.0"
+description = "Neutral data-provider facade for AIASK. Re-exports the current provider implementation under a vendor-neutral name."
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "aiask-quant-core",
+    "strategy-factory",
+    "akshare-mcp",
+]
+
+[project.optional-dependencies]
+test = ["pytest==9.0.2"]
+
+[project.scripts]
+aiask-data-mcp = "aiask_data_mcp.server:main"
+
+[build-system]
+requires = ["hatchling==1.29.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aiask_data_mcp"]
+
+[tool.uv.sources]
+aiask-quant-core = { path = "../aiask-quant-core", editable = true }
+strategy-factory = { path = "../strategy-factory", editable = true }
+akshare-mcp = { path = "../akshare-mcp", editable = true }
+
+[tool.pytest.ini_options]
+pythonpath = [
+    "src",
+    "../akshare-mcp/src",
+    "../strategy-factory/src",
+    "../aiask-quant-core/src",
+]

@@ -1,0 +1,25 @@
+{
+  "$schema": "https://anthropic.com/claude-code/mcp.schema.json",
+  "mcpServers": {
+    "fastapi-mcp": {
+      "command": "uvx",
+      "args": ["fastapi-mcp"],
+      "description": "自动将 FastAPI endpoints 转换为 MCP 工具",
+      "env": {
+        "FASTAPI_BASE_URL": "http://localhost:8000"
+      }
+    },
+    "tauri-plugin-mcp": {
+      "command": "npx",
+      "args": ["-y", "tauri-plugin-mcp"],
+      "description": "Tauri 应用 AI 调试（截图、DOM、窗口管理）",
+      "disabled": false
+    },
+    "python-repl-mcp": {
+      "command": "uvx",
+      "args": ["mcp-server-py3repl"],
+      "description": "Python REPL 交互式开发",
+      "disabled": false
+    }
+  }
+}

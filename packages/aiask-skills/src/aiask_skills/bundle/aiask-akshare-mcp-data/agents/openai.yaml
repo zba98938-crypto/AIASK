@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIASK AKShare MCP Data"
+  short_description: "Use AIASK AKShare MCP data systems"
+  default_prompt: "Use $aiask-akshare-mcp-data to work with AIASK market data, MCP tools, sync, and storage."

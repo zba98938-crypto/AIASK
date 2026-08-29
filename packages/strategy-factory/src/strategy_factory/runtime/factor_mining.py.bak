@@ -1,0 +1,245 @@
+"""Canonical factor-mining runtime owned by Strategy Factory.
+
+The runtime keeps orchestration and result contracts in ``strategy-factory``
+while the host process injects the concrete engine/QC/pool/persistence support.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+import logging
+from typing import Any
+from uuid import uuid4
+
+from ..infrastructure.runtime_services import (
+    get_factor_mining_factory,
+    get_factor_mining_support_factory,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class FactorMiningRuntime:
+    """Host-neutral factor-mining runtime with Strategy Factory-owned orchestration."""
+
+    def __init__(self, support: Any):
+        self._support = support
+
+    def preflight(self) -> dict[str, Any]:
+        return {
+            "available": self._support is not None,
+            "runtime_type": type(self._support).__name__ if self._support is not None else None,
+        }
+
+    def status(self) -> dict[str, Any]:
+        status = getattr(self._support, "status", None)
+        if callable(status):
+            return dict(status() or {})
+        return self.preflight()
+
+    async def run_once(
+        self,
+        *,
+        trigger: str = "scheduled",
+        engines: list[str] | None = None,
+        candidate_count: int = 30,
+        evolution_generations: int = 5,
+        codes: list[str] | None = None,
+    ) -> dict[str, Any]:
+        support = self._support
+        if support is None:
+            return {
+                "success": False,
+                "error": "factor_mining_support_missing",
+                "trigger": trigger,
+            }
+
+        ensure_initialized = getattr(support, "_ensure_initialized", None)
+        if callable(ensure_initialized):
+            ensure_initialized()
+
+        db = await support._get_db()
+        await support._ensure_persistent_pool(db)
+
+        run_id = f"mining_{int(datetime.now().timestamp())}_{uuid4().hex[:8]}"
+        started_at = datetime.now(timezone.utc)
+        logger.info("FactorMiningRuntime: starting cycle run_id=%s trigger=%s", run_id, trigger)
+
+        try:
+            context = await support._build_mining_context(db=db, codes=codes)
+            if len(getattr(context, "validation_codes", []) or []) < 120:
+                report = {
+                    "success": True,
+                    "skipped": True,
+                    "reason": "data_universe_insufficient",
+                    "run_id": run_id,
+                    "trigger": trigger,
+                    "started_at": started_at.isoformat(),
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                    "raw_candidate_count": 0,
+                    "evolved_count": 0,
+                    "validated_count": 0,
+                    "admitted_count": 0,
+                    "quarantine_count": 0,
+                    "active_promoted_count": 0,
+                    "pool_size": support._active_pool.size,
+                    "engines_used": [],
+                    "validation_universe_health": getattr(context, "validation_universe_health", {}),
+                    "quality_summary": {
+                        "reject_reasons": {"data_universe_insufficient": 1},
+                    },
+                }
+                await support._persist_mining_run(db, report)
+                return report
+
+            quick_ic_evaluator = support._install_quick_evidence_evaluators(db, context)
+            raw_candidates = await support._engine_scheduler.search(
+                context=context,
+                engines=engines,
+                candidate_count=candidate_count,
+            )
+            logger.info("FactorMiningRuntime: raw candidates=%d", len(raw_candidates))
+
+            evolved = await support._evolutionary_optimizer.evolve(
+                candidates=raw_candidates,
+                context=context,
+                generations=evolution_generations,
+                ic_evaluator=quick_ic_evaluator,
+            )
+            logger.info("FactorMiningRuntime: evolved candidates=%d", len(evolved))
+
+            quick_passed = await support._quick_filter_candidates(evolved, context)
+            logger.info(
+                "FactorMiningRuntime: quick evidence passed=%d/%d",
+                len(quick_passed),
+                len(evolved),
+            )
+
+            validated = await support._validate_batch(db, quick_passed, context)
+            logger.info("FactorMiningRuntime: validated candidates=%d", len(validated))
+
+            admitted = await support._active_pool.admit_batch(validated)
+            await support._persist_admitted_factors(db, admitted)
+            quality_summary = support._build_quality_summary(
+                raw_candidates,
+                evolved,
+                validated,
+                admitted,
+                context,
+            )
+            if hasattr(support._engine_scheduler, "record_quality_feedback"):
+                support._engine_scheduler.record_quality_feedback(
+                    raw_candidates,
+                    validated,
+                    admitted,
+                )
+            logger.info(
+                "FactorMiningRuntime: admitted=%d pool_size=%d",
+                len(admitted),
+                support._active_pool.size,
+            )
+
+            await support._record_feedback(run_id, raw_candidates, evolved, validated, admitted)
+
+            reappraisal: dict[str, Any] = {}
+            try:
+                reappraise = getattr(support, "_reappraise_quarantine_factors", None)
+                if callable(reappraise):
+                    reappraisal = await reappraise(db, limit=200)
+                else:
+                    reappraisal = {"scanned": 0, "promoted": 0, "kept_quarantine": 0}
+            except Exception as exc:
+                logger.warning("FactorMiningRuntime: quarantine reappraisal failed: %s", exc)
+                reappraisal = {"error": f"{type(exc).__name__}: {exc}"}
+
+            reappraisal_promoted_count = int(reappraisal.get("promoted") or 0)
+            cycle_active_promoted_count = int(quality_summary.get("active_promoted_count") or 0)
+            total_active_promoted_count = cycle_active_promoted_count + max(0, reappraisal_promoted_count)
+            quality_summary["reappraisal_promoted_count"] = max(0, reappraisal_promoted_count)
+            quality_summary["active_promoted_count"] = total_active_promoted_count
+            quality_funnel = dict(quality_summary.get("quality_funnel") or {})
+            quality_funnel["promoted"] = total_active_promoted_count
+            quality_funnel["reappraisal_promoted"] = max(0, reappraisal_promoted_count)
+            quality_summary["quality_funnel"] = quality_funnel
+
+            support._last_run_at = datetime.now(timezone.utc)
+            support._run_count += 1
+            report = {
+                "success": True,
+                "run_id": run_id,
+                "trigger": trigger,
+                "started_at": started_at.isoformat(),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+                "raw_candidate_count": len(raw_candidates),
+                "evolved_count": len(evolved),
+                "validated_count": len(validated),
+                "admitted_count": len(admitted),
+                "quarantine_count": quality_summary.get("quarantine_count", 0),
+                "active_promoted_count": total_active_promoted_count,
+                "cycle_active_promoted_count": cycle_active_promoted_count,
+                "reappraisal_promoted_count": max(0, reappraisal_promoted_count),
+                "pool_size": support._active_pool.size,
+                "engines_used": support._engine_scheduler.last_engines_used,
+                "validation_universe_health": getattr(context, "validation_universe_health", {}),
+                "quality_summary": quality_summary,
+                "quarantine_reappraisal": {
+                    "scanned": reappraisal.get("scanned", 0),
+                    "promoted": reappraisal.get("promoted", 0),
+                    "kept_quarantine": reappraisal.get("kept_quarantine", 0),
+                },
+            }
+            await support._persist_mining_run(db, report)
+            return report
+        except Exception as exc:
+            logger.error("FactorMiningRuntime: cycle failed: %s", exc, exc_info=True)
+            report = {
+                "success": False,
+                "run_id": run_id,
+                "trigger": trigger,
+                "error": str(exc),
+                "started_at": started_at.isoformat(),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }
+            await support._persist_mining_run(db, report)
+            return report
+
+    async def run_maintenance(self) -> dict[str, Any]:
+        support = self._support
+        ensure_initialized = getattr(support, "_ensure_initialized", None)
+        if callable(ensure_initialized):
+            ensure_initialized()
+        db = await support._get_db()
+        await support._ensure_persistent_pool(db)
+        decay_report = await support._decay_monitor.daily_check(support._active_pool, db=db)
+        await support._persist_decay_report(db, decay_report)
+        await support._persist_decay_updates(db, decay_report)
+        promotion_report = await support._promote_quarantine_factors(db)
+        qc_report = await support._run_qc_pipeline(db)
+        return {
+            "decay_report": decay_report,
+            "promotion_report": promotion_report,
+            "qc_pipeline_report": qc_report,
+            "pool_size": support._active_pool.size,
+            "maintained_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+
+def build_factor_mining_runtime(*, support: Any | None = None) -> FactorMiningRuntime:
+    resolved_support = support or get_factor_mining_support_factory()()
+    return FactorMiningRuntime(resolved_support)
+
+
+def get_factor_mining_runtime() -> FactorMiningRuntime:
+    return build_factor_mining_runtime()
+
+
+def get_factor_mining_factory() -> FactorMiningRuntime:
+    return get_factor_mining_runtime()
+
+
+__all__ = [
+    "FactorMiningRuntime",
+    "build_factor_mining_runtime",
+    "get_factor_mining_factory",
+    "get_factor_mining_runtime",
+]

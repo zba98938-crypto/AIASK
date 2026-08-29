@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIASK AKShare Manager Plane"
+  short_description: "Operate AIASK AKShare managers safely"
+  default_prompt: "Use $aiask-akshare-manager-plane to work with AKShare MCP managers, manager protocol, side effects, and safety policies."

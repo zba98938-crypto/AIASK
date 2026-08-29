@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIASK Factor Mining Factory"
+  short_description: "Run AIASK factor mining workflows"
+  default_prompt: "Use $aiask-factor-mining-factory to work on factor mining cycles, engines, validation, and pools."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIASK Agent Runtime"
+  short_description: "Work with AIASK Agent runtime safely"
+  default_prompt: "Use $aiask-agent-runtime to inspect or modify AIASK Agent tools, routes, and runtime policy."

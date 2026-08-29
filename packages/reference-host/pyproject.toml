@@ -1,0 +1,22 @@
+[project]
+name = "aiask-agent-reference"
+version = "1.0.0"
+description = "Minimal host adapter reference implementation for AIASK."
+requires-python = ">=3.12,<3.14"
+dependencies = ["strategy-factory"]
+
+[project.scripts]
+aiask-reference-host = "aiask_reference_host.host:main"
+
+[build-system]
+requires = ["hatchling==1.29.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/aiask_reference_host"]
+
+[tool.uv.sources]
+strategy-factory = { path = "../strategy-factory", editable = true }
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "../strategy-factory/src", "../aiask-quant-core/src"]

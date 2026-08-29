@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run Strategy Factory"
+  short_description: "Run one confirmed Strategy Factory cycle"
+  default_prompt: "Use $aiask-run-strategy-factory to run one confirmed Strategy Factory cycle and verify its ledger result."

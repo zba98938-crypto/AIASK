@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run Factor Mining"
+  short_description: "Run one confirmed factor-mining cycle"
+  default_prompt: "Use $aiask-run-factor-mining to run one confirmed factor-mining cycle and verify its ledger result."

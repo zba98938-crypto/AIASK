@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIASK Repo Orientation"
+  short_description: "Navigate AIASK repo rules and commands"
+  default_prompt: "Use $aiask-repo-orientation to orient work in the AIASK repository before editing."

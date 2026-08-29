@@ -1,0 +1,19 @@
+[project]
+name = "hermes-aiask-integration"
+version = "0.1.0"
+description = "Isolated backend-only copy of AIASK financial agent packages inside Hermes Agent. Install packages/* individually."
+requires-python = ">=3.12,<3.14"
+
+[tool.hermes-aiask]
+# This root pyproject is intentionally not an install target for desktop/frontend code.
+# Install backend packages individually from packages/ in dependency order.
+package_order = [
+  "packages/aiask-quant-core",
+  "packages/strategy-factory",
+  "packages/akshare-mcp",
+  "packages/data-mcp",
+  "packages/finance-mcp-servers",
+  "packages/aiask-skills",
+  "packages/reference-host",
+  "packages/agent",
+]

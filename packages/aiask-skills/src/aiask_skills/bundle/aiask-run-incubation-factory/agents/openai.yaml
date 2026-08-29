@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run Incubation Factory"
+  short_description: "Run one confirmed incubation cycle"
+  default_prompt: "Use $aiask-run-incubation-factory to run one confirmed incubation cycle and verify its ledger result."

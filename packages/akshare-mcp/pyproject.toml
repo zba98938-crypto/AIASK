@@ -1,0 +1,61 @@
+[project]
+name = "akshare-mcp"
+version = "2.0.0"
+description = "AKShare MCP Server v2 - 完整的A股量化分析服务"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+    "aiask-quant-core",
+    "mcp==1.26.0",
+    "anyio==4.12.1",
+    "pandas==2.3.3",
+    "tushare==1.4.29",
+    "pydantic==2.13.4",
+    # 性能优化依赖
+    "numpy==2.2.6",
+    "scipy==1.17.1",
+    "scikit-learn==1.8.0",
+    "numba==0.61.2",
+    # 生产级数据质量 / conformal 依赖
+    "great_expectations==1.17.0",
+    "mapie==1.3.0",
+    # 技术分析依赖
+    "pandas-ta==0.4.71b0",
+    "TA-Lib==0.6.8",
+    "strategy-factory",
+]
+
+[project.optional-dependencies]
+parallel = ["ray[default]==2.53.0"]
+legacy = [
+    "baostock==0.8.9",
+    "efinance==0.5.5.2",
+]
+# 实验跟踪与持久化(P3-5.1 / 诊断报告 §4.3.7 修复 — 部署侧)
+experiment_tracking = [
+    "mlflow==3.13.0",  # 真实 experiment tracker(替代 builtin in-memory)
+]
+# 概率校准(P2-4.3.1 should_i_buy ECE 修复)
+calibration = [
+    "scikit-learn==1.8.0",  # Platt scaling / isotonic CalibratedClassifierCV
+]
+# 完整生产级:实验跟踪 + 校准 + 数据质量 + conformal
+production = [
+    "mlflow==3.13.0",
+    "scikit-learn==1.8.0",
+    "great_expectations==1.17.0",
+    "mapie==1.3.0",
+]
+
+[project.scripts]
+akshare-mcp = "akshare_mcp.server:main"
+
+[build-system]
+requires = ["hatchling==1.29.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/akshare_mcp"]
+
+[tool.uv.sources]
+aiask-quant-core = { path = "../aiask-quant-core", editable = true }
+strategy-factory = { path = "../strategy-factory", editable = true }

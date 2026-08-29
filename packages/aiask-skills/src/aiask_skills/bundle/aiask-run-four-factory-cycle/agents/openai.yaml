@@ -1,0 +1,4 @@
+interface:
+  display_name: "Run Four Factory Cycle"
+  short_description: "Orchestrate four confirmed factory runs"
+  default_prompt: "Use $aiask-run-four-factory-cycle to orchestrate one confirmed run of all four AIASK factories."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIASK Agent Native Tools"
+  short_description: "Use AIASK Agent native full tools"
+  default_prompt: "Use $aiask-agent-native-tools to work with AIASK full-mode file, terminal, browser, media, jobs, and security tools."

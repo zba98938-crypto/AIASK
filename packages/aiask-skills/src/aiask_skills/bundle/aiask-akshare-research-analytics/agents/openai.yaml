@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIASK AKShare Research Analytics"
+  short_description: "Use AIASK research analytics tools"
+  default_prompt: "Use $aiask-akshare-research-analytics to work with AIASK market research, analytics, decision, vector, and sentiment tools."

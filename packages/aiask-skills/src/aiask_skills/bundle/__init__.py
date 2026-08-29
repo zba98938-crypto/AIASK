@@ -1,0 +1,2 @@
+"""Packaged AIASK Skills resources."""
+
