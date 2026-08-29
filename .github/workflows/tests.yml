@@ -1,0 +1,71 @@
+name: tests
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+  workflow_dispatch:
+
+# Read-only by default. No job here needs to write to the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install test dependencies
+        # The packages are consumed from source via pytest.ini pythonpath, so only
+        # the runtime imports the suites actually touch are installed here.
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install \
+            "pytest==9.0.2" \
+            "pytest-asyncio==1.3.0" \
+            "pydantic==2.13.4" \
+            "fastapi==0.133.1" \
+            "uvicorn==0.41.0" \
+            "httpx" \
+            "pandas" \
+            "numpy"
+
+      - name: Byte-compile every package
+        run: |
+          python -m compileall -q packages scripts tools
+
+      - name: agent
+        run: python -m pytest -q tests
+        working-directory: packages/agent
+
+      - name: aiask-quant-core
+        run: python -m pytest -q tests
+        working-directory: packages/aiask-quant-core
+
+      - name: finance-mcp-servers
+        run: python -m pytest -q tests
+        working-directory: packages/finance-mcp-servers
+
+      # akshare-mcp and strategy-factory carry pre-existing failures that predate
+      # the backend-only migration (missing optional deps such as numba). They are
+      # run with `continue-on-error` so regressions stay visible in the log without
+      # turning a known-red baseline into a permanently failing gate.
+      - name: strategy-factory (baseline, non-blocking)
+        continue-on-error: true
+        run: python -m pytest -q tests
+        working-directory: packages/strategy-factory
+
+      - name: akshare-mcp (baseline, non-blocking)
+        continue-on-error: true
+        run: python -m pytest -q tests
+        working-directory: packages/akshare-mcp

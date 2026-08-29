@@ -1,0 +1,45 @@
+.bce-tool/
+
+# Python bytecode and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Test and type-check caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Node (kept so a stray install cannot be committed; this tree is backend-only)
+node_modules/
+
+# Local runtime state: SQLite databases and their WAL/SHM sidecars
+*.sqlite
+*.sqlite3
+*.db
+*-wal
+*-shm
+
+# Logs and temporary output
+logs/
+*.log
+tmp/
+.DS_Store
+
+# Local environment files. env.example is the tracked template.
+.env
+.env.*
+!.env.example

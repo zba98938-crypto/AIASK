@@ -1,0 +1,95 @@
+{
+  "schema_version": 1,
+  "last_reviewed": "2026-08-29",
+  "source": "https://api.osv.dev/v1/vulns/{advisory_id}",
+  "notes": [
+    "Curated offline supply-chain advisory ledger for the AIASK agent.",
+    "Every entry was verified against the OSV API before being committed; do not add unverified entries.",
+    "vulnerable_versions uses the constraint grammar accepted by aiask_agent.security._matches_constraint:",
+    "  operators <= >= == != < >, comma inside one string means AND, separate strings mean OR.",
+    "Version targets must be purely numeric-dotted (see _parse_version), so avoid pre-release suffixes."
+  ],
+  "advisories": [
+    {
+      "advisory_id": "GHSA-j8r2-6x86-q33q",
+      "aliases": [
+        "CVE-2023-32681",
+        "PYSEC-2023-74"
+      ],
+      "package": "requests",
+      "ecosystem": "PyPI",
+      "vulnerable_versions": [
+        ">=2.3.0,<2.31.0"
+      ],
+      "fixed_in": "2.31.0",
+      "severity": "medium",
+      "category": "security",
+      "summary": "Unintended leak of Proxy-Authorization header in requests"
+    },
+    {
+      "advisory_id": "GHSA-9wx4-h78v-vm56",
+      "aliases": [
+        "CVE-2024-35195",
+        "PYSEC-2026-1873"
+      ],
+      "package": "requests",
+      "ecosystem": "PyPI",
+      "vulnerable_versions": [
+        "<2.32.0"
+      ],
+      "fixed_in": "2.32.0",
+      "severity": "medium",
+      "category": "security",
+      "summary": "Requests `Session` object does not verify requests after making first request with verify=False"
+    },
+    {
+      "advisory_id": "GHSA-34jh-p97f-mpxf",
+      "aliases": [
+        "CVE-2024-37891",
+        "PYSEC-2026-1995"
+      ],
+      "package": "urllib3",
+      "ecosystem": "PyPI",
+      "vulnerable_versions": [
+        "<1.26.19",
+        ">=2.0.0,<2.2.2"
+      ],
+      "fixed_in": "2.2.2",
+      "severity": "medium",
+      "category": "security",
+      "summary": "urllib3's Proxy-Authorization request header isn't stripped during cross-origin redirects"
+    },
+    {
+      "advisory_id": "GHSA-9548-qrrj-x5pj",
+      "aliases": [
+        "CVE-2025-53643",
+        "PYSEC-2026-1104"
+      ],
+      "package": "aiohttp",
+      "ecosystem": "PyPI",
+      "vulnerable_versions": [
+        "<3.12.14"
+      ],
+      "fixed_in": "3.12.14",
+      "severity": "medium",
+      "category": "security",
+      "summary": "AIOHTTP is vulnerable to HTTP Request/Response Smuggling through incorrect parsing of chunked trailer sections"
+    },
+    {
+      "advisory_id": "GHSA-248v-346w-9cwc",
+      "aliases": [
+        "CVE-2024-39689",
+        "PYSEC-2024-230"
+      ],
+      "package": "certifi",
+      "ecosystem": "PyPI",
+      "vulnerable_versions": [
+        ">=2021.5.30,<2024.7.4"
+      ],
+      "fixed_in": "2024.7.4",
+      "severity": "low",
+      "category": "security",
+      "summary": "Certifi removes GLOBALTRUST root certificate"
+    }
+  ]
+}

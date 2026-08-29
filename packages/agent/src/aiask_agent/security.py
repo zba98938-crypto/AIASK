@@ -67,15 +67,54 @@ def _matches_constraint(version: str, constraint: str) -> bool:
     return True
 
 
+def _ledger_defect(ledger: dict[str, Any]) -> str | None:
+    """Return a machine-readable defect code when the ledger is unusable.
+
+    A missing, unparsable or structurally invalid ledger must never be reported
+    as a clean scan: the scanner would claim "passed" while checking nothing.
+    """
+
+    if ledger.get("missing_ledger"):
+        return "ledger_missing"
+    if ledger.get("parse_error"):
+        return "ledger_parse_error"
+    if not isinstance(ledger.get("advisories"), list):
+        return "ledger_schema_invalid"
+    try:
+        schema_version = int(ledger.get("schema_version") or 0)
+    except (TypeError, ValueError):
+        return "ledger_schema_invalid"
+    if schema_version < 1:
+        return "ledger_schema_invalid"
+    for advisory in ledger["advisories"]:
+        if not isinstance(advisory, dict):
+            return "ledger_schema_invalid"
+        if not str(advisory.get("package") or "").strip():
+            return "ledger_schema_invalid"
+        if not str(advisory.get("advisory_id") or "").strip():
+            return "ledger_schema_invalid"
+        constraints = advisory.get("vulnerable_versions")
+        if not isinstance(constraints, list) or not constraints:
+            return "ledger_schema_invalid"
+        if any(not str(expr or "").strip() for expr in constraints):
+            return "ledger_schema_invalid"
+    return None
+
+
 def _load_advisories() -> dict[str, Any]:
     try:
         raw = _ADVISORIES_PATH.read_text(encoding="utf-8")
     except FileNotFoundError:
         return {"schema_version": 0, "advisories": [], "missing_ledger": True}
+    except OSError as exc:
+        return {"schema_version": 0, "advisories": [], "parse_error": str(exc)}
     try:
-        return json.loads(raw)
+        loaded = json.loads(raw)
     except json.JSONDecodeError as exc:
         return {"schema_version": 0, "advisories": [], "parse_error": str(exc)}
+    if not isinstance(loaded, dict):
+        return {"schema_version": 0, "advisories": [], "parse_error": "ledger root must be a JSON object"}
+    return loaded
 
 
 SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -85,6 +124,12 @@ SECRET_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("generic_secret_assignment", re.compile(r"(?i)\b(api[_-]?key|token|secret|password)\b\s*[:=]\s*['\"]?[^'\"\s]{8,}")),
     ("private_key_block", re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----")),
 )
+
+_LEDGER_DEFECT_MESSAGES: dict[str, str] = {
+    "ledger_missing": "Offline advisory ledger is missing; dependency advisory results are not trustworthy.",
+    "ledger_parse_error": "Offline advisory ledger could not be parsed; dependency advisory results are not trustworthy.",
+    "ledger_schema_invalid": "Offline advisory ledger failed schema validation; dependency advisory results are not trustworthy.",
+}
 
 PROTECTED_PATH_PARTS = {
     ".ssh",
@@ -108,6 +153,7 @@ class SecurityScanner:
 
     def status(self) -> dict[str, Any]:
         ledger = _load_advisories()
+        defect = _ledger_defect(ledger)
         return {
             "object": "aiask.security_status",
             "implemented": True,
@@ -122,12 +168,17 @@ class SecurityScanner:
             "ssrf_private_url_default_block": self.env.get("AIASK_AGENT_ALLOW_PRIVATE_WEB", "").strip().lower() not in {"1", "true", "yes", "on"},
             "secrets_redacted": True,
             "dependency_advisory": {
-                "configured": True,
+                "configured": defect is None,
+                "ledger_path": str(_ADVISORIES_PATH),
                 "ledger_version": ledger.get("schema_version"),
                 "advisory_count": len(list(ledger.get("advisories") or [])),
                 "ledger_last_reviewed": ledger.get("last_reviewed"),
+                "status": "degraded" if defect else "implemented",
+                "error_code": defect,
+                "error": _LEDGER_DEFECT_MESSAGES.get(defect) if defect else None,
+                "degraded": defect is not None,
             },
-            "status": "implemented",
+            "status": "degraded" if defect else "implemented",
         }
 
     def scan(self, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -252,7 +303,8 @@ class SecurityScanner:
 
     def dependency_advisory(self, arguments: dict[str, Any]) -> dict[str, Any]:
         ledger = _load_advisories()
-        advisories = list(ledger.get("advisories") or [])
+        defect = _ledger_defect(ledger)
+        advisories = list(ledger.get("advisories") or []) if defect is None else []
         explicit_packages = arguments.get("packages")
         explicit_map: dict[str, str] = {}
         if isinstance(explicit_packages, dict):
@@ -332,10 +384,19 @@ class SecurityScanner:
 
         severity_rank = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
         max_severity = max((severity_rank.get(str(item.get("severity")), 0) for item in findings), default=0)
-        status = "blocked" if max_severity >= 4 else "warning" if findings else "passed"
+        if defect is not None:
+            # An unusable ledger means nothing was actually checked. Reporting
+            # "passed" here would be a false clean bill of health.
+            status = "degraded"
+        elif max_severity >= 4:
+            status = "blocked"
+        elif findings:
+            status = "warning"
+        else:
+            status = "passed"
         return {
             "object": "aiask.dependency_advisory",
-            "configured": True,
+            "configured": defect is None,
             "ledger_path": str(_ADVISORIES_PATH),
             "ledger_version": ledger.get("schema_version"),
             "ledger_last_reviewed": ledger.get("last_reviewed"),
@@ -344,6 +405,9 @@ class SecurityScanner:
             "findings": findings,
             "finding_count": len(findings),
             "status": status,
+            "degraded": defect is not None,
+            "error_code": defect,
+            "error": _LEDGER_DEFECT_MESSAGES.get(defect) if defect else None,
             "secrets_redacted": True,
             "lazy_supply_chain_check": True,
         }

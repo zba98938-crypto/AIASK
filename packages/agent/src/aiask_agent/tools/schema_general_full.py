@@ -463,10 +463,29 @@ GENERAL_FULL_TOOL_SCHEMAS: dict[str, dict[str, Any]] = {
     ),
     "agent_security_scan": schema(
         {
+            "action": {
+                "type": "string",
+                "enum": ["secret_scan", "dependency_advisory"],
+                "default": "secret_scan",
+            },
             "text": {"type": "string"},
             "path": {"type": "string"},
             "url": {"type": "string"},
             "include_env": {"type": "boolean", "default": False},
+            "packages": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string"},
+                        "version": {"type": "string"},
+                    },
+                    "required": ["name"],
+                },
+                "description": "dependency_advisory: explicit package/version pairs to check instead of the live environment.",
+            },
+            "include_loaded": {"type": "boolean", "default": True},
+            "include_installed": {"type": "boolean", "default": True},
         }
     ),
     "agent_message_send": schema(
