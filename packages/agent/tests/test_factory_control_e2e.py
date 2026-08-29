@@ -20,8 +20,12 @@ from aiask_agent.intents import ActionIntentStore, IntentExecutor
 from aiask_quant_core.storage import SQLiteAdapter, close_db
 
 
-ROOT = Path(__file__).resolve().parents[5]
-AIASK_ROOT = ROOT / "integrations" / "aiask"
+# tests/ -> agent/ -> packages/ -> <aiask root>. This tree used to be nested at
+# <repo>/integrations/aiask, and the old parents[5] + "integrations/aiask" pair
+# resolved to a directory that no longer exists now that it is standalone, so the
+# subprocess got an unusable PYTHONPATH.
+AIASK_ROOT = Path(__file__).resolve().parents[3]
+ROOT = AIASK_ROOT
 SOURCE_PATHS = [
     AIASK_ROOT / "packages" / "agent" / "src",
     AIASK_ROOT / "packages" / "aiask-quant-core" / "src",

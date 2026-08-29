@@ -19,10 +19,23 @@ _TRANSITIONS = {
     **{state: frozenset() for state in _TERMINAL_STATES},
 }
 _JSON_LIMIT = 64 * 1024
+# Diagnostic stderr is kept bounded: enough to identify a startup failure or
+# traceback, small enough that a chatty runner cannot bloat the ledger.
+_STDERR_TAIL_LIMIT = 4 * 1024
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _clip_text(value: Any, limit: int) -> Optional[str]:
+    """Keep the tail of a diagnostic string, which is where failures show up."""
+    if value is None:
+        return None
+    text = str(value)
+    if len(text) <= limit:
+        return text
+    return text[-limit:]
 
 
 def _json_text(value: Any, fallback: Any) -> str:
@@ -221,8 +234,12 @@ class _FactoryControlMixin:
                     blockers_json = $14,
                     error = $15,
                     raw_status = $16,
+                    worker_started_at = $17,
+                    worker_command = $18,
+                    failure_kind = $19,
+                    stderr_tail = $20,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE run_id = $1 AND status = $17
+                WHERE run_id = $1 AND status = $21
                 RETURNING *
                 """,
                 str(run_id),
@@ -241,6 +258,10 @@ class _FactoryControlMixin:
                 _json_text(updates.get("blockers", current.get("blockers") or []), []),
                 updates.get("error", current.get("error")),
                 updates.get("raw_status", current.get("raw_status")),
+                updates.get("worker_started_at", current.get("worker_started_at")),
+                updates.get("worker_command", current.get("worker_command")),
+                updates.get("failure_kind", current.get("failure_kind")),
+                _clip_text(updates.get("stderr_tail", current.get("stderr_tail")), _STDERR_TAIL_LIMIT),
                 source,
             )
         if row is None:
@@ -293,11 +314,46 @@ class _FactoryControlMixin:
             attempt_count=int(current.get("attempt_count") or 0) + 1,
             pid=pid,
             phase="claimed",
+            worker_started_at=now,
         )
         if claimed is None or claimed.get("status") != "running":
             await self.release_factory_lock(run_id, owner_id=owner_id)
             return None
         return claimed
+
+    async def record_factory_worker_launch(
+        self,
+        run_id: str,
+        *,
+        worker_started_at: str,
+        worker_command: str,
+        pid: int | None = None,
+    ) -> Optional[dict[str, Any]]:
+        """Attach launch diagnostics without touching the run state machine.
+
+        The dispatcher records how it started the worker, but the worker races
+        ahead on its own: a fast run can already be terminal by the time the
+        dispatcher gets here. Going through transition_factory_run would then
+        attempt an illegal ``partial -> queued`` move, so write the diagnostic
+        columns directly and leave ``status`` alone.
+        """
+        async with self.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                UPDATE factory_run_ledger SET
+                    worker_started_at = $2,
+                    worker_command = $3,
+                    pid = COALESCE($4, pid),
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE run_id = $1
+                RETURNING *
+                """,
+                str(run_id),
+                str(worker_started_at),
+                str(worker_command),
+                int(pid) if pid is not None else None,
+            )
+        return self._decode_factory_control_run(dict(row)) if row else None
 
     async def heartbeat_factory_run(
         self,

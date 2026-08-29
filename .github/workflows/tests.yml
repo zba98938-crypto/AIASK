@@ -36,9 +36,14 @@ jobs:
             "pydantic==2.13.4" \
             "fastapi==0.133.1" \
             "uvicorn==0.41.0" \
+            "mcp==1.26.0" \
             "httpx" \
             "pandas" \
             "numpy"
+          # mcp is pinned to match every package's pyproject. mcp 2.x removed
+          # mcp.server.fastmcp, which the MCP server modules import at module
+          # scope, so an unpinned install turns ~20 tests red for an unrelated
+          # reason.
 
       - name: Byte-compile every package
         run: |

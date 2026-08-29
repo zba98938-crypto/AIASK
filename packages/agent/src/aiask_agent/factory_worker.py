@@ -94,6 +94,17 @@ def _outcome(result: dict[str, Any], exit_code: int) -> tuple[str, str | None, l
     return "succeeded", raw_status, quality_flags, error
 
 
+def _failure_kind(target: str, exit_code: int) -> str | None:
+    """Classify a terminal outcome so operators can tell failure modes apart."""
+    if target == "failed":
+        return "runner_nonzero_exit" if exit_code != 0 else "runner_reported_failure"
+    if target == "partial":
+        return "runner_partial"
+    if target == "blocked":
+        return "runner_blocked"
+    return None
+
+
 async def _execute(run_id: str) -> int:
     db = get_db()
     await db.initialize()
@@ -104,6 +115,7 @@ async def _execute(run_id: str) -> int:
     run = await db.claim_factory_run(run_id, owner_id=owner_id, pid=os.getpid())
     if run is None:
         return 3
+    stderr = ""
     try:
         params = dict(run.get("params") or {})
         if os.getenv("AIASK_FACTORY_TEST_MODE") == "1" and isinstance(params.get("_test_result"), dict):
@@ -141,18 +153,36 @@ async def _execute(run_id: str) -> int:
             phase="completed",
             exit_code=exit_code,
             summary=result or {"stderr_tail": stderr[-2000:]},
+            # stderr used to be persisted only when the runner produced no
+            # parsable JSON, so a failing-but-chatty run discarded the one thing
+            # needed to diagnose it. Always keep a bounded tail.
+            stderr_tail=stderr or None,
+            failure_kind=_failure_kind(target, exit_code),
             quality_flags=quality_flags,
             blockers=blockers,
             raw_status=raw_status,
             error=error,
         )
         return 0 if target in {"succeeded", "partial", "blocked"} else 1
+    except asyncio.TimeoutError as exc:
+        await db.transition_factory_run(
+            run_id,
+            "failed",
+            expected_status="running",
+            phase="worker_failed",
+            failure_kind="runner_timeout",
+            stderr_tail=stderr or None,
+            error=f"factory runner timed out: {exc}",
+        )
+        return 1
     except Exception as exc:
         await db.transition_factory_run(
             run_id,
             "failed",
             expected_status="running",
             phase="worker_failed",
+            failure_kind="lease_lost" if "lease was lost" in str(exc) else "worker_exception",
+            stderr_tail=stderr or None,
             error=str(exc),
         )
         return 1

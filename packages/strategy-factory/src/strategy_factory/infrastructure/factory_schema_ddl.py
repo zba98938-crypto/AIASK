@@ -709,6 +709,10 @@ async def init_strategy_tables(conn, sqlite_python_enabled: bool = False) -> Non
             blockers_json TEXT NOT NULL DEFAULT '[]',
             error TEXT,
             raw_status TEXT,
+            worker_started_at TEXT,
+            worker_command TEXT,
+            failure_kind TEXT,
+            stderr_tail TEXT,
             contract_version TEXT NOT NULL DEFAULT 'aiask.factory_run.v1',
             created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -730,6 +734,22 @@ async def init_strategy_tables(conn, sqlite_python_enabled: bool = False) -> Non
         CREATE INDEX IF NOT EXISTS idx_factory_run_locks_expiry
             ON factory_run_locks(expires_at_epoch);
     """)
+
+    # 35.1.1 兼容旧库：补齐 worker 可诊断列。worker 子进程此前把 stdout/stderr
+    # 丢给 DEVNULL，启动失败(如 ModuleNotFoundError)不留任何痕迹，run 会永久停在
+    # queued。这些列让"启动失败/超时/业务 partial/成功"在账本里可区分。
+    await conn.execute(
+        "ALTER TABLE factory_run_ledger ADD COLUMN IF NOT EXISTS worker_started_at TEXT;"
+    )
+    await conn.execute(
+        "ALTER TABLE factory_run_ledger ADD COLUMN IF NOT EXISTS worker_command TEXT;"
+    )
+    await conn.execute(
+        "ALTER TABLE factory_run_ledger ADD COLUMN IF NOT EXISTS failure_kind TEXT;"
+    )
+    await conn.execute(
+        "ALTER TABLE factory_run_ledger ADD COLUMN IF NOT EXISTS stderr_tail TEXT;"
+    )
 
     # 35.2 策略工厂事件簇 / 主题 / 暴露 / 信号
     await conn.execute("""
