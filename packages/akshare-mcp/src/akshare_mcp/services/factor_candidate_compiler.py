@@ -342,6 +342,17 @@ def evaluate_compiled_factor(compiled: dict[str, Any], frame: pd.DataFrame) -> p
 
     if not isinstance(compiled, dict) or compiled.get("compiled_code") is None:
         raise ValueError("compiled candidate missing compiled_code")
+    # A rejected candidate still carries a usable compiled_code object, so
+    # without this gate a caller that skips the `valid` check would execute an
+    # expression the compiler refused. Enforce the refusal here, at the point of
+    # execution, instead of trusting every call site.
+    if not compiled.get("valid"):
+        raise ValueError(
+            "refusing to evaluate an invalid compiled candidate: "
+            f"unsupported_fields={compiled.get('unsupported_fields')} "
+            f"unsupported_functions={compiled.get('unsupported_functions')} "
+            f"complexity={(compiled.get('complexity') or {}).get('score')}"
+        )
 
     feature_frame = build_factor_feature_frame(frame)
     local_env: dict[str, Any] = {name: feature_frame[name] for name in feature_frame.columns}

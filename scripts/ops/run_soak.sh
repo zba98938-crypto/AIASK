@@ -20,8 +20,10 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AIASK_ROOT="$(cd "$HERE/../.." && pwd)"
-# AIASK_ROOT is <repo>/integrations/aiask, so the repo root is two levels up.
-REPO_ROOT="$(cd "$AIASK_ROOT/../.." && pwd)"
+# This tree used to be nested at <repo>/integrations/aiask, where the outer repo
+# root was two levels up. It is now standalone, so default to AIASK_ROOT itself
+# and let an operator override when it is still vendored inside a host repo.
+REPO_ROOT="${AIASK_HOST_REPO_ROOT:-$AIASK_ROOT}"
 
 export AIASK_PROJECT_ROOT="$AIASK_ROOT"
 : "${AIASK_VENV_PYTHON:=$AIASK_ROOT/packages/agent/.venv/bin/python}"
@@ -36,13 +38,39 @@ SOAK_LOG_DIR="$AIASK_RUNTIME_HOME/logs/soak"
 mkdir -p "$SOAK_LOG_DIR"
 
 _plugin_call() {
-  # $1 = python expression against the loaded module `m`
+  # $1 = operation name, resolved through an explicit allowlist below.
+  #
+  # This used to pass a Python expression to eval() with unrestricted builtins,
+  # which is arbitrary code execution by construction. Every call site only ever
+  # named one of these five operations, so dispatch on the name instead.
   "$HERMES_PY" - "$PLUGIN" "$1" <<'PY'
 import importlib.util, json, sys
+
 spec = importlib.util.spec_from_file_location("aiask_ops", sys.argv[1])
-m = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(m)
-print(json.dumps(eval(sys.argv[2], {"m": m}), indent=2, default=str))
+module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(module)
+
+# operation name -> (attribute, kwargs). No caller-supplied code is executed.
+OPERATIONS = {
+    "preflight": ("factory_ops_start", {"dry_run": True}),
+    "triage_readiness": ("triage_readiness", {}),
+    "status": ("factory_ops_status", {}),
+    "evidence_summary": ("evidence_summary", {}),
+    "stop": ("factory_ops_stop", {}),
+}
+
+operation = sys.argv[2]
+if operation not in OPERATIONS:
+    print(f"unknown plugin operation: {operation!r}; expected one of {sorted(OPERATIONS)}", file=sys.stderr)
+    raise SystemExit(2)
+
+attribute, kwargs = OPERATIONS[operation]
+handler = getattr(module, attribute, None)
+if not callable(handler):
+    print(f"plugin does not expose {attribute}()", file=sys.stderr)
+    raise SystemExit(2)
+
+print(json.dumps(handler(**kwargs), indent=2, default=str))
 PY
 }
 
@@ -53,10 +81,10 @@ case "${1:-}" in
     LOG="$SOAK_LOG_DIR/soak-$MODE-$STAMP.log"
 
     echo "== preflight =="
-    _plugin_call 'm.factory_ops_start(dry_run=True)'
+    _plugin_call preflight
     echo
     echo "== readiness (research track) =="
-    _plugin_call 'm.triage_readiness()' | head -40 || true
+    _plugin_call triage_readiness | head -40 || true
     echo
     read -r -p "Start the four-runtime supervisor now? [y/N] " reply
     [[ "$reply" == "y" || "$reply" == "Y" ]] || { echo "aborted"; exit 1; }
@@ -75,7 +103,7 @@ PY
     sleep 20
     echo
     echo "== status after 20s =="
-    _plugin_call 'm.factory_ops_status()'
+    _plugin_call status
 
     if [[ "$MODE" == "probe" ]]; then
       echo
@@ -100,10 +128,10 @@ PY
 
   status)
     echo "== ops status =="
-    _plugin_call 'm.factory_ops_status()'
+    _plugin_call status
     echo
     echo "== evidence counts =="
-    _plugin_call 'm.evidence_summary()' | head -30 || true
+    _plugin_call evidence_summary | head -30 || true
     echo
     echo "== live children =="
     pgrep -fl 'run_strategy_factory|run_factor_mining|run_incubation|run_market_event' || echo "(none)"
@@ -114,7 +142,7 @@ PY
 
   stop)
     echo "== stopping =="
-    _plugin_call 'm.factory_ops_stop()'
+    _plugin_call stop
     sleep 3
     echo
     echo "== orphan check (must be empty — this is the P0-6 regression test) =="

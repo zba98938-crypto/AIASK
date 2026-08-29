@@ -166,34 +166,52 @@ MAX_COMPLEXITY_SCORE = 120
 def compile_factor_extended(candidate: dict[str, Any]) -> dict[str, Any]:
     """扩展编译器 — 支持扩展字段/函数集。
 
-    先尝试核心编译器，如果失败（因为使用了扩展字段/函数），
-    则使用扩展编译器重新编译。
+    先尝试核心编译器；若唯一的失败原因是使用了扩展集内的字段/函数，
+    则重新标记为有效。复杂度超限的拒绝绝不重分类。
     """
-    try:
-        result = _core_compile(candidate)
-        if result.get("valid"):
-            return result
-        # 如果无效是因为 unsupported_fields/functions，检查是否在扩展集中
-        unsupported_fields = set(result.get("unsupported_fields", []))
-        unsupported_functions = set(result.get("unsupported_functions", []))
-        extended_field_names = EXTENDED_FIELDS - CORE_FIELDS
-        extended_func_names = EXTENDED_FUNCTIONS - CORE_FUNCTIONS
-        if unsupported_fields <= extended_field_names and unsupported_functions <= extended_func_names:
-            # 所有"不支持"的都在扩展集中，标记为有效
-            result["valid"] = True
-            result["degraded"] = False
-            result["extended_mode"] = True
-            result["warnings"] = [w for w in result.get("warnings", []) if "unsupported" not in w.lower()]
-            return result
+    result = _core_compile(candidate)
+    if result.get("valid"):
         return result
-    except Exception:
-        return _core_compile(candidate)
+
+    unsupported_fields = set(result.get("unsupported_fields", []))
+    unsupported_functions = set(result.get("unsupported_functions", []))
+    extended_field_names = EXTENDED_FIELDS - CORE_FIELDS
+    extended_func_names = EXTENDED_FUNCTIONS - CORE_FUNCTIONS
+
+    # Only reclassify when there is actually something to reclassify. Empty sets
+    # are a subset of anything, so the old check also flipped a pure
+    # complexity-limit rejection into valid=True, laundering it into an
+    # executable expression.
+    if not unsupported_fields and not unsupported_functions:
+        return result
+    if not (unsupported_fields <= extended_field_names and unsupported_functions <= extended_func_names):
+        return result
+    # The core compiler already applies its own complexity ceiling; respect the
+    # extended ceiling here rather than dropping the limit entirely.
+    complexity_score = int((result.get("complexity") or {}).get("score") or 0)
+    if complexity_score > MAX_COMPLEXITY_SCORE:
+        return result
+
+    result["valid"] = True
+    result["degraded"] = False
+    result["extended_mode"] = True
+    result["warnings"] = [w for w in result.get("warnings", []) if "unsupported" not in w.lower()]
+    return result
 
 
 def evaluate_factor_extended(compiled: dict[str, Any], frame: pd.DataFrame) -> pd.Series:
     """扩展求值器 — 支持扩展函数集。"""
     if not isinstance(compiled, dict) or compiled.get("compiled_code") is None:
         raise ValueError("compiled candidate missing compiled_code")
+    # Same reasoning as evaluate_compiled_factor: a rejected candidate still
+    # carries a runnable code object, so refuse it at the point of execution.
+    if not compiled.get("valid"):
+        raise ValueError(
+            "refusing to evaluate an invalid compiled candidate: "
+            f"unsupported_fields={compiled.get('unsupported_fields')} "
+            f"unsupported_functions={compiled.get('unsupported_functions')} "
+            f"complexity={(compiled.get('complexity') or {}).get('score')}"
+        )
 
     feature_frame = build_factor_feature_frame(frame)
     local_env: dict[str, Any] = {name: feature_frame[name] for name in feature_frame.columns}

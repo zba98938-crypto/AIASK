@@ -18,7 +18,18 @@ import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
+from .pandas_formula_guard import FormulaRejected, compile_pandas_formula
+
 logger = logging.getLogger(__name__)
+
+# Bare helpers exposed to validated factor formulas. The guard's ALLOWED_FUNCTIONS
+# whitelist must stay in sync with these bindings.
+_FORMULA_FUNCTION_ENV: Dict[str, Any] = {
+    "abs": np.abs,
+    "log1p": np.log1p,
+    "sign": np.sign,
+    "sqrt": np.sqrt,
+}
 
 
 # ── P2-1: 可解释文本信号管线 ──────────────────────────────
@@ -418,13 +429,26 @@ class LLMAlphaMiner:
         namespace: Dict[str, Any],
         forward_returns: pd.Series,
     ) -> Optional[float]:
-        """对单条因子公式求值并返回 |IC|;无法求值/样本不足时返回 None。"""
-        formula = formula.strip()
-        # 仅支持单一 pandas 表达式;含赋值/分号的(如文本信号公式)跳过
-        if not formula or ";" in formula or "=" in formula.replace("==", "").replace(">=", "").replace("<=", "").replace("!=", ""):
-            return None
+        """对单条因子公式求值并返回 |IC|;无法求值/样本不足时返回 None。
+
+        公式先过 pandas 表达式 AST 白名单(见 pandas_formula_guard),只执行验证后的
+        code object。此前直接对原始字符串 eval,清空 __builtins__ 并不足以阻止通过
+        属性链(``().__class__.__base__.__subclasses__()``)逃逸。
+        """
         try:
-            factor_series = eval(formula, {"__builtins__": {}}, dict(namespace))  # noqa: S307 - 公式为本模块自产模板
+            code_obj = compile_pandas_formula(formula, allowed_names=frozenset(namespace))
+        except FormulaRejected as exc:
+            # Multi-statement templates (the text-signal formula) land here as a
+            # syntax_error and are skipped, same as before. Anything else means
+            # the formula was actively refused; log the reason rather than
+            # letting it vanish into a bare None.
+            logger.debug("factor formula rejected (%s): %s", exc.code, formula[:200])
+            return None
+
+        env: Dict[str, Any] = dict(namespace)
+        env.update(_FORMULA_FUNCTION_ENV)
+        try:
+            factor_series = eval(code_obj, {"__builtins__": {}}, env)  # noqa: S307 - 已过 AST 白名单
         except Exception:
             return None
         if not isinstance(factor_series, pd.Series):

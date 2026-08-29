@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import signal
+import threading
 import time
 from typing import Any
 
@@ -58,10 +59,35 @@ class FactorSandbox:
         return compiled
 
     def evaluate(self, compiled: dict[str, Any], frame: pd.DataFrame) -> pd.Series:
-        """带时间限制的安全执行。"""
-        start = time.perf_counter()
+        """带时间限制的安全执行。
 
-        result = evaluate_factor_extended(compiled, frame)
+        超时通过 SIGALRM 中断真正生效;仅在主线程可用(signal 限制),
+        其他线程退回执行后测量 —— 后者只能事后报告,不能中断。
+        """
+        start = time.perf_counter()
+        timeout_seconds = self.MAX_EXECUTION_TIME_MS / 1000.0
+        interrupt_armed = False
+        previous_handler: Any = None
+
+        def _on_timeout(signum: int, frame_obj: Any) -> None:
+            raise ExecutionLimitExceeded(
+                f"Factor execution exceeded {self.MAX_EXECUTION_TIME_MS}ms limit"
+            )
+
+        if hasattr(signal, "setitimer") and threading.current_thread() is threading.main_thread():
+            try:
+                previous_handler = signal.signal(signal.SIGALRM, _on_timeout)
+                signal.setitimer(signal.ITIMER_REAL, timeout_seconds)
+                interrupt_armed = True
+            except (ValueError, OSError):
+                interrupt_armed = False
+
+        try:
+            result = evaluate_factor_extended(compiled, frame)
+        finally:
+            if interrupt_armed:
+                signal.setitimer(signal.ITIMER_REAL, 0)
+                signal.signal(signal.SIGALRM, previous_handler)
 
         elapsed_ms = (time.perf_counter() - start) * 1000
         if elapsed_ms > self.MAX_EXECUTION_TIME_MS:
