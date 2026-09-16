@@ -44,7 +44,7 @@ def test_live_readiness_smoke_contract_accepts_explicitly_blocked_data_state() -
             }
         if path.startswith("/v1/workbench/summary?"):
             return 200, {
-                "object": "aiask.desktop.workbench.summary",
+                "object": "aiask.workbench.summary",
                 "recent_sessions": [{"session_id": "sess_test"}],
                 "recent_runs": [{"run_id": "run_test", "status": "completed"}],
                 "queues": {
@@ -89,7 +89,7 @@ def test_live_readiness_smoke_contract_accepts_explicitly_blocked_data_state() -
             assert body["capability_id"] == "portfolio"
             assert body["action_id"] == "risk"
             return 200, {
-                "object": "aiask.desktop.financial_manager.query",
+                "object": "aiask.financial_manager.query",
                 "capability_id": "portfolio",
                 "action_id": "risk",
                 "tool": "agent_portfolio_risk",

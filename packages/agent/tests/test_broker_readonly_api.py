@@ -83,7 +83,7 @@ def test_broker_readiness_reports_missing_config_without_secret_values(tmp_path,
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["object"] == "aiask.desktop.broker_readiness"
+    assert payload["object"] == "aiask.broker_readiness"
     qmt = next(item for item in payload["connectors"] if item["provider"] == "qmt")
     assert qmt["read_only"] is True
     assert qmt["live_trading_enabled"] is False

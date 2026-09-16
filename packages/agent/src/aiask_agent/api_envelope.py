@@ -160,11 +160,59 @@ def wrap_domain_payload(
     return result
 
 
+def ensure_envelope(
+    payload: Any,
+    *,
+    status_code: int = 200,
+    path: str = "",
+    source: str = "aiask_agent.routes",
+) -> dict[str, Any]:
+    """Fill the neutral contract fields without rewriting a domain payload.
+
+    Domain handlers pre-date the neutral API and often return a useful object
+    with ``data`` plus extra keys but no explicit success metadata.  The HTTP
+    adapter uses this function at the transport boundary so every JSON response
+    under a neutral route has the same observable contract while preserving all
+    domain-specific fields.
+    """
+    if isinstance(payload, dict):
+        body = dict(payload)
+    else:
+        body = {"data": payload}
+    ok = status_code < 400 and body.get("success", True) is not False
+    body.setdefault("object", "aiask.domain.response")
+    body.setdefault("success", bool(ok))
+    body.setdefault("data", None)
+    if not ok and body.get("error") is None:
+        detail = body.get("detail")
+        body["error"] = detail if isinstance(detail, str) else ("request failed" if status_code >= 400 else None)
+    else:
+        body.setdefault("error", None)
+    if not ok and body.get("error_code") is None:
+        body["error_code"] = f"HTTP_{status_code}"
+    else:
+        body.setdefault("error_code", None)
+    body.setdefault("source", source)
+    body.setdefault("freshness", body.get("generated_at"))
+    degraded = bool(body.get("degraded", False) or status_code >= 500)
+    body["degraded"] = degraded
+    meta = body.get("meta")
+    if not isinstance(meta, dict):
+        meta = {}
+    meta.setdefault("degraded", degraded)
+    if path:
+        meta.setdefault("path", path)
+    body["meta"] = meta
+    body.setdefault("secrets_redacted", True)
+    return body
+
+
 __all__ = [
     "REMOVED_PREFIX",
     "REMOVED_ROUTE_REPLACEMENTS",
     "envelope",
     "removed_route_payload",
     "replacement_for",
+    "ensure_envelope",
     "wrap_domain_payload",
 ]

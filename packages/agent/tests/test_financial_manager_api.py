@@ -55,7 +55,7 @@ def test_financial_manager_catalog_and_status_redact_secrets(tmp_path, monkeypat
     assert reports_action["status"] == "missing_mcp_tool"
     assert reports_action["availability"]["reason_code"] == "no_financial_mcp_server_registered"
     matrix = catalog_payload["safety_matrix"]
-    assert matrix["object"] == "aiask.desktop.financial_manager.safety_matrix"
+    assert matrix["object"] == "aiask.financial_manager.safety_matrix"
     assert matrix["live_trading_enabled"] is False
     assert matrix["live_trading_policy"] == "blocked_in_financial_manager_v1"
     assert matrix["control_token_configured"] is True
@@ -115,7 +115,7 @@ def test_financial_manager_read_only_query_dispatches_agent_tool(tmp_path, monke
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["object"] == "aiask.desktop.financial_manager.query"
+    assert payload["object"] == "aiask.financial_manager.query"
     assert payload["tool"] == "agent_portfolio_risk"
     assert payload["success"] is True
     assert payload["meta"]["side_effect"]["level"] == "read_only"
@@ -174,7 +174,7 @@ def test_financial_manager_read_only_query_blocks_non_read_only_tool_result(tmp_
     assert response.status_code == 200
     payload = response.json()
     raw = json.dumps(payload, ensure_ascii=False)
-    assert payload["object"] == "aiask.desktop.financial_manager.query"
+    assert payload["object"] == "aiask.financial_manager.query"
     assert payload["tool"] == "agent_portfolio_risk"
     assert payload["success"] is False
     assert payload["error_code"] == "READ_ONLY_TOOL_RESULT_BLOCKED"

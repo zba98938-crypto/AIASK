@@ -689,7 +689,7 @@ class AgentSessionStore(SessionStoreBrokerMixin, SessionStoreEvidenceMixin, Sess
                     _clean_optional(payload.get("target_label")),
                     _clean_optional(payload.get("target_testid")),
                     _dumps(safe_payload),
-                    str(payload.get("source") or "desktop").strip()[:80] or "desktop",
+                    str(payload.get("source") or "api").strip()[:80] or "api",
                     ts,
                 ),
             )
@@ -709,7 +709,7 @@ class AgentSessionStore(SessionStoreBrokerMixin, SessionStoreEvidenceMixin, Sess
             "target_label": _clean_optional(payload.get("target_label")),
             "target_testid": _clean_optional(payload.get("target_testid")),
             "payload": safe_payload,
-            "source": str(payload.get("source") or "desktop").strip()[:80] or "desktop",
+            "source": str(payload.get("source") or "api").strip()[:80] or "api",
             "created_at": ts,
         }
 

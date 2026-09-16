@@ -68,7 +68,7 @@ async def _wait_run(db: SQLiteAdapter, run_id: str, *, timeout: float = 15) -> d
 async def _mcp_probe(env: dict[str, str], run_id: str) -> tuple[list[str], dict, dict]:
     params = StdioServerParameters(
         command=sys.executable,
-        args=["-m", "akshare_mcp.factory_server"],
+        args=["-m", "strategy_factory.mcp_server"],
         env=env,
     )
     async with stdio_client(params) as (read, write):
@@ -79,8 +79,16 @@ async def _mcp_probe(env: dict[str, str], run_id: str) -> tuple[list[str], dict,
             detail_result = await session.call_tool("factory_run_read", {"run_id": run_id})
             resource = await session.read_resource("resource://factories/readiness")
             run_resource = await session.read_resource(f"resource://factory-runs/{run_id}")
-            readiness = readiness_result.structuredContent or json.loads(readiness_result.content[0].text)
-            detail = detail_result.structuredContent or json.loads(detail_result.content[0].text)
+            # MCP 1.x used camelCase; MCP 2.x uses the Pydantic snake_case
+            # spelling. Keep the contract test valid across both wire clients.
+            readiness_payload = getattr(readiness_result, "structured_content", None)
+            if readiness_payload is None:
+                readiness_payload = getattr(readiness_result, "structuredContent", None)
+            readiness = readiness_payload or json.loads(readiness_result.content[0].text)
+            detail_payload = getattr(detail_result, "structured_content", None)
+            if detail_payload is None:
+                detail_payload = getattr(detail_result, "structuredContent", None)
+            detail = detail_payload or json.loads(detail_result.content[0].text)
             resource_payload = json.loads(resource.contents[0].text)
             run_resource_payload = json.loads(run_resource.contents[0].text)
             assert resource_payload["read_only"] is True

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any, Callable
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.responses import JSONResponse
 
 from .adapters import quant as quant_adapter
 from .approvals import ApprovalStore
@@ -53,6 +55,7 @@ from .runtime import AgentRuntime
 from .server_http_utils import cors_origins as _cors_origins
 from .server_http_utils import truthy as _truthy
 from .terminal_backends import list_backends, sessions as terminal_backend_sessions
+from .api_envelope import ensure_envelope
 
 
 @dataclass(slots=True)
@@ -127,6 +130,50 @@ class AgentRouteAssembly:
 
 
 def configure_agent_app(app: FastAPI, routes: AgentRouteAssembly) -> None:
+    # Legacy payload builders are intentionally kept domain-specific.  Adapt
+    # their JSON responses at the transport boundary so every neutral API has
+    # the same success/error/meta/source/freshness/degraded fields without
+    # duplicating wrappers in each business handler.
+    neutral_prefixes = (
+        "/v1/data",
+        "/v1/settings",
+        "/v1/users",
+        "/v1/finance",
+        "/v1/research",
+        "/v1/workbench",
+    )
+
+    @app.middleware("http")
+    async def _neutral_api_envelope(request, call_next):
+        response = await call_next(request)
+        if not request.url.path.startswith(neutral_prefixes):
+            return response
+        content_type = str(response.headers.get("content-type") or "").lower()
+        if "application/json" not in content_type or not hasattr(response, "body_iterator"):
+            return response
+        raw = b"".join([chunk async for chunk in response.body_iterator])
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            return response
+        body = ensure_envelope(
+            payload,
+            status_code=response.status_code,
+            path=request.url.path,
+            source=f"aiask_agent.routes.{request.url.path.split('/')[2]}",
+        )
+        headers = {
+            key: value
+            for key, value in response.headers.items()
+            if key.lower() not in {"content-length", "content-type"}
+        }
+        return JSONResponse(
+            status_code=response.status_code,
+            content=body,
+            headers=headers,
+            background=response.background,
+        )
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=sorted(_cors_origins()),

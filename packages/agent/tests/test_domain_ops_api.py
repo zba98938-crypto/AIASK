@@ -87,7 +87,7 @@ def test_desktop_settings_status_redacts_secret_state_and_reports_profile(tmp_pa
     assert response.status_code == 200
     payload = response.json()
     raw = json.dumps(payload)
-    assert payload["object"] == "aiask.desktop_settings_status"
+    assert payload["object"] == "aiask.settings_status"
     assert payload["secrets_redacted"] is True
     assert payload["agent"]["control_authorized"] is True
     assert payload["llm"]["ai_status"]["api_key_configured"] is True
@@ -263,7 +263,7 @@ def test_desktop_data_sync_plan_creates_intent_request_without_executing(tmp_pat
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["object"] == "aiask.desktop_data_sync_plan"
+    assert payload["object"] == "aiask.data_sync_plan"
     assert payload["intent_request"]["action"] == "data_sync.sync"
     assert payload["intent_request"]["params"]["codes"] == ["600519", "000001"]
     assert payload["commands"][0]["path"] == "/intents"
@@ -648,7 +648,7 @@ def test_admin_full_tool_file_write_creates_intent_without_writing(tmp_path, mon
 def test_desktop_factor_factory_status_endpoint_uses_safe_facade(tmp_path, monkeypatch) -> None:
     async def fake_factor_status(limit: int = 50) -> dict:
         return {
-            "object": "aiask.desktop.factor_factory_status",
+            "object": "aiask.factor_factory_status",
             "status": "ready",
             "configured": True,
             "active_factors": [{"name": "alpha"}][:limit],

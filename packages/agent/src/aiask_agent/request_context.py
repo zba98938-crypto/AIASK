@@ -33,7 +33,7 @@ def request_context_payload(payload: dict[str, Any] | None, *, headers: Any | No
         "session_id": str(body.get("session_id") or header("X-AIASK-Session-Id") or "").strip() or None,
         "run_id": str(body.get("run_id") or header("X-AIASK-Run-Id") or "").strip() or None,
         "trace_id": str(body.get("trace_id") or header("X-AIASK-Trace-Id") or f"trace_{int(time.time() * 1000)}").strip(),
-        "source": str(body.get("source") or "desktop").strip() or "desktop",
+        "source": str(body.get("source") or "api").strip() or "api",
     }
 
 

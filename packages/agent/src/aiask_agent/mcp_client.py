@@ -20,6 +20,18 @@ try:
 except Exception:  # pragma: no cover - mcp remote transports require httpx at runtime.
     httpx = None  # type: ignore[assignment]
 
+# MCP 1.x exposed ``streamablehttp_client`` while newer SDKs renamed it to
+# ``streamable_http_client``.  Keep the old attribute available for plugins and
+# callers that still monkeypatch the 1.x spelling, while resolving either name
+# at the actual call site below.
+try:  # pragma: no cover - availability depends on the installed MCP major.
+    import mcp.client.streamable_http as _streamable_http
+
+    if not hasattr(_streamable_http, "streamablehttp_client") and hasattr(_streamable_http, "streamable_http_client"):
+        _streamable_http.streamablehttp_client = _streamable_http.streamable_http_client
+except Exception:
+    _streamable_http = None  # type: ignore[assignment]
+
 DEFAULT_LOCAL_MCP_AUTH_HEADER = "Authorization"
 MCP_TOOL_CONTRACT_FIELDS = (
     "input_schema",
@@ -1030,17 +1042,45 @@ class MCPAggregator:
                     )
                 )
             elif transport == "streamable_http":
-                from mcp.client.streamable_http import streamablehttp_client
+                from mcp.client import streamable_http as streamable_http_module
 
-                streams = await stack.enter_async_context(
-                    streamablehttp_client(
-                        self._server_url(server),
-                        headers=self._headers(server),
-                        timeout=float(server.get("timeout") or 30),
-                        sse_read_timeout=float(server.get("sse_read_timeout") or 300),
-                        auth=await self._auth_for_server(server),
+                streamablehttp_client = getattr(streamable_http_module, "streamablehttp_client", None)
+                if streamablehttp_client is None:
+                    streamablehttp_client = getattr(streamable_http_module, "streamable_http_client", None)
+                if streamablehttp_client is None:
+                    raise RuntimeError("installed MCP SDK has no Streamable HTTP client")
+                auth = await self._auth_for_server(server)
+                # MCP 1.x accepted headers/auth/timeout directly. MCP 2.x
+                # moved those options onto its httpx2 client object.
+                import inspect
+
+                if "headers" in inspect.signature(streamablehttp_client).parameters:
+                    streams = await stack.enter_async_context(
+                        streamablehttp_client(
+                            self._server_url(server),
+                            headers=self._headers(server),
+                            timeout=float(server.get("timeout") or 30),
+                            sse_read_timeout=float(server.get("sse_read_timeout") or 300),
+                            auth=auth,
+                        )
                     )
-                )
+                else:
+                    try:
+                        import httpx2
+                    except Exception as exc:  # pragma: no cover - only MCP 2.x
+                        raise RuntimeError("MCP 2.x requires the httpx2 transport dependency") from exc
+                    headers = dict(self._headers(server) or {})
+                    token = getattr(auth, "token", None)
+                    if token and not any(key.lower() == "authorization" for key in headers):
+                        headers["Authorization"] = f"Bearer {token}"
+                    client = httpx2.AsyncClient(
+                        headers=headers or None,
+                        timeout=float(server.get("timeout") or 30),
+                    )
+                    client = await stack.enter_async_context(client)
+                    streams = await stack.enter_async_context(
+                        streamablehttp_client(self._server_url(server), http_client=client)
+                    )
                 read_stream, write_stream = streams[0], streams[1]
             else:
                 raise NotImplementedError(f"unsupported MCP transport: {transport}")

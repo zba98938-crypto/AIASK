@@ -112,7 +112,7 @@ def settings_status_payload_for_runtime(
 ) -> dict[str, Any]:
     quant_db = quant_adapter.database_status()
     return {
-        "object": "aiask.desktop_settings_status",
+        "object": "aiask.settings_status",
         "agent": {
             "endpoint": endpoint or agent_endpoint(),
             "api_token_configured": bool(str(os.getenv("AIASK_AGENT_API_TOKEN", "")).strip()),
@@ -176,7 +176,7 @@ async def data_status_payload_for_runtime(
     gate_data = gate.get("data") if isinstance(gate.get("data"), dict) else {}
     coverage = dict(gate_data.get("coverage") or {})
     return {
-        "object": "aiask.desktop_data_status",
+        "object": "aiask.data_status",
         "status": "ready" if gate_data.get("ready") else "blocked",
         "database": quant_adapter.database_status(),
         "presets": presets,
@@ -239,7 +239,7 @@ async def data_sync_plan_payload_for_runtime(
         else f"Sync {task_type} data for {len(codes)} codes from Desktop."
     )
     return {
-        "object": "aiask.desktop_data_sync_plan",
+        "object": "aiask.data_sync_plan",
         "status": "ready" if plan_ready else "needs_codes",
         "data_status": data_status,
         "intent_request": {

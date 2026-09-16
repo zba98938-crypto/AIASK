@@ -172,7 +172,7 @@ async def capabilities_payload_for_runtime(
     ]
     full_runtime_for_readiness = build_full_runtime() if hermes_full_enabled() else current_full_runtime()
     return {
-        "object": "aiask.desktop_capabilities",
+        "object": "aiask.capabilities",
         "summary": {
             "status": parity.get("strict_status") or parity.get("status"),
             "source": "live_backend" if full_ok else "gated",

@@ -65,25 +65,40 @@ def test_worker_module_runs_as_a_subprocess() -> None:
     assert completed.returncode == 3, f"rc={completed.returncode} stderr={completed.stderr}"
 
 
-def test_startup_failure_reports_a_crashing_child() -> None:
-    process = subprocess.Popen(
-        [sys.executable, "-c", "import sys; sys.stderr.write('kaboom\\n'); raise SystemExit(7)"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
+def _spawn(code: str) -> subprocess.Popen[bytes]:
+    """Spawn with the stream shape the dispatcher uses: both streams merged."""
+    return subprocess.Popen(
+        [sys.executable, "-c", code],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
     )
+
+
+def test_startup_failure_reports_a_crashing_child() -> None:
+    process = _spawn("import sys; sys.stderr.write('kaboom\\n'); raise SystemExit(7)")
     outcome = _startup_failure(process)
     assert outcome is not None, "a child that exits non-zero must be reported"
-    exit_code, stderr_tail = outcome
+    exit_code, output_tail = outcome
     assert exit_code == 7
-    assert "kaboom" in stderr_tail
+    assert "kaboom" in output_tail
+
+
+def test_startup_failure_captures_stdout_not_just_stderr() -> None:
+    """The launcher used to send stdout to DEVNULL, so a crash that only printed
+    there was undiagnosable. Both streams must reach the tail."""
+    process = _spawn(
+        "import sys; print('on-stdout'); sys.stderr.write('on-stderr\\n'); raise SystemExit(4)"
+    )
+    outcome = _startup_failure(process)
+    assert outcome is not None
+    exit_code, output_tail = outcome
+    assert exit_code == 4
+    assert "on-stdout" in output_tail, "stdout must not be discarded"
+    assert "on-stderr" in output_tail, "stderr must still be kept"
 
 
 def test_startup_failure_ignores_a_healthy_long_running_child() -> None:
-    process = subprocess.Popen(
-        [sys.executable, "-c", "import time; time.sleep(30)"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-    )
+    process = _spawn("import time; time.sleep(30)")
     try:
         assert _startup_failure(process) is None
     finally:
@@ -93,12 +108,7 @@ def test_startup_failure_ignores_a_healthy_long_running_child() -> None:
 
 def test_startup_failure_ignores_a_fast_clean_exit() -> None:
     """A worker that finds nothing to do exits 0 quickly; that is not a failure."""
-    process = subprocess.Popen(
-        [sys.executable, "-c", "raise SystemExit(0)"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE,
-    )
-    assert _startup_failure(process) is None
+    assert _startup_failure(_spawn("raise SystemExit(0)")) is None
 
 
 class _FakeDb:

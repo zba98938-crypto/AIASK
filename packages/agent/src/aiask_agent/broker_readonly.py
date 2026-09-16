@@ -366,7 +366,7 @@ def broker_readiness(store: AgentSessionStore | None = None) -> dict[str, Any]:
         )
     latest = store.latest_broker_analytics() if store else None
     return {
-        "object": "aiask.desktop.broker_readiness",
+        "object": "aiask.broker_readiness",
         "status": "ready" if any(item["ready"] for item in connectors) else "not_ready",
         "connectors": connectors,
         "mcp": {
@@ -386,7 +386,7 @@ class BrokerSyncContext:
     session_id: str | None = None
     run_id: str | None = None
     trace_id: str | None = None
-    source: str = "desktop"
+    source: str = "api"
 
 
 async def sync_broker_readonly(
@@ -695,7 +695,7 @@ def _broker_payload(
     error_code: str | None = None,
 ) -> dict[str, Any]:
     return {
-        "object": "aiask.desktop.broker_readonly",
+        "object": "aiask.broker_readonly",
         "success": bool(success),
         "data": data,
         "error": error,

@@ -136,7 +136,7 @@ async def factor_factory_status(limit: int = 50) -> dict[str, Any]:
     except ModuleNotFoundError as exc:
         return _public_desktop_result(
             {
-                "object": "aiask.desktop.factor_factory_status",
+                "object": "aiask.factor_factory_status",
                 "status": "unconfigured",
                 "configured": False,
                 "active_factors": [],
@@ -157,7 +157,7 @@ async def factor_factory_status(limit: int = 50) -> dict[str, Any]:
         )
         return _public_desktop_result(
             {
-                "object": "aiask.desktop.factor_factory_status",
+                "object": "aiask.factor_factory_status",
                 "status": "ready",
                 "configured": True,
                 "factory": pool_status,
@@ -170,7 +170,7 @@ async def factor_factory_status(limit: int = 50) -> dict[str, Any]:
     except Exception as exc:
         return _public_desktop_result(
             {
-                "object": "aiask.desktop.factor_factory_status",
+                "object": "aiask.factor_factory_status",
                 "status": "degraded",
                 "configured": False,
                 "active_factors": [],

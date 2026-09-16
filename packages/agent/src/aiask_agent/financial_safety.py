@@ -234,7 +234,7 @@ def financial_safety_matrix(*, control_token_ready: bool | None = None) -> dict[
         )
     broker_env_presence = _broker_live_env_presence()
     return {
-        "object": "aiask.desktop.financial_manager.safety_matrix",
+        "object": "aiask.financial_manager.safety_matrix",
         "schema_version": 1,
         "mode": "read_only_plus_intents",
         "live_trading_enabled": False,

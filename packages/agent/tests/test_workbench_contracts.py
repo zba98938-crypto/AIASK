@@ -72,7 +72,7 @@ def test_desktop_workbench_summary_contract_includes_session_run_flags(tmp_path,
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["object"] == "aiask.desktop.workbench.summary"
+    assert payload["object"] == "aiask.workbench.summary"
     assert payload["queues"]["pending_intents"] == 1
     assert payload["queues"]["unknown_execution_intents"] == 1
     assert payload["queues"]["pending_approvals"] == 1

@@ -226,7 +226,7 @@ def financial_catalog_payload_for_runtime(runtime: AgentRuntime) -> dict[str, An
         status = str(item.get("status") or "unknown")
         summary[status] = summary.get(status, 0) + 1
     return {
-        "object": "aiask.desktop.financial_manager.catalog",
+        "object": "aiask.financial_manager.catalog",
         "groups": list(FINANCIAL_MANAGER_GROUPS),
         "actions": actions,
         "summary": summary,
@@ -263,7 +263,7 @@ async def financial_status_payload_for_runtime(
     )
     mcp = MCPAggregator()
     return {
-        "object": "aiask.desktop.financial_manager.status",
+        "object": "aiask.financial_manager.status",
         "status": readiness.get("status") or "unknown",
         "readiness": _redact_secrets(readiness),
         "catalog_summary": catalog.get("summary") or {},
@@ -398,11 +398,11 @@ async def financial_query_payload_for_runtime(
 ) -> dict[str, Any]:
     action = _financial_action_map().get(_financial_action_key(str(payload.get("capability_id") or ""), str(payload.get("action_id") or "")))
     if not action:
-        return {"object": "aiask.desktop.financial_manager.query", "success": False, "data": None, "error": "financial manager action is not registered", "error_code": "FINANCIAL_ACTION_NOT_FOUND", "secrets_redacted": True}
+        return {"object": "aiask.financial_manager.query", "success": False, "data": None, "error": "financial manager action is not registered", "error_code": "FINANCIAL_ACTION_NOT_FOUND", "secrets_redacted": True}
     if action.get("mode") == "blocked":
-        return {"object": "aiask.desktop.financial_manager.query", "success": False, "data": {"action": action, "reason": action.get("blocked_reason")}, "error": str(action.get("blocked_reason") or "action is blocked"), "error_code": "FINANCIAL_ACTION_BLOCKED", "secrets_redacted": True}
+        return {"object": "aiask.financial_manager.query", "success": False, "data": {"action": action, "reason": action.get("blocked_reason")}, "error": str(action.get("blocked_reason") or "action is blocked"), "error_code": "FINANCIAL_ACTION_BLOCKED", "secrets_redacted": True}
     if action.get("mode") != "read_only":
-        return {"object": "aiask.desktop.financial_manager.query", "success": False, "data": {"action": action, "required_endpoint": "/v1/finance/manager/intent"}, "error": "stateful financial actions must be created as ActionIntent", "error_code": "FINANCIAL_ACTION_REQUIRES_INTENT", "secrets_redacted": True}
+        return {"object": "aiask.financial_manager.query", "success": False, "data": {"action": action, "required_endpoint": "/v1/finance/manager/intent"}, "error": "stateful financial actions must be created as ActionIntent", "error_code": "FINANCIAL_ACTION_REQUIRES_INTENT", "secrets_redacted": True}
     params = dict(action.get("default_params") or {})
     params.update(dict(payload.get("params") or {}))
     tool_name = str(action.get("tool") or "")
@@ -421,7 +421,7 @@ async def financial_query_payload_for_runtime(
             else _financial_tool_availability_detail(runtime, action)
         )
         return {
-            "object": "aiask.desktop.financial_manager.query",
+            "object": "aiask.financial_manager.query",
             "success": False,
             "data": {"action": action, "availability": _redact_secrets(availability)},
             "error": "financial manager tool is not available",
@@ -446,7 +446,7 @@ async def financial_query_payload_for_runtime(
         )
     result = read_only_desktop_result_guard(tool_name, result)
     return {
-        "object": "aiask.desktop.financial_manager.query",
+        "object": "aiask.financial_manager.query",
         "capability_id": action.get("capability_id"),
         "action_id": action.get("action_id"),
         "tool": tool_name,
@@ -466,7 +466,7 @@ def _broker_request_context(payload: dict[str, Any] | None, *, headers: Any | No
         session_id=context.get("session_id"),
         run_id=context.get("run_id"),
         trace_id=context.get("trace_id"),
-        source=str(context.get("source") or "desktop"),
+        source=str(context.get("source") or "api"),
     )
 
 
@@ -557,7 +557,7 @@ def broker_analytics_payload_for_runtime(runtime: AgentRuntime, payload: dict[st
         period_end=str(body.get("period_end") or "").strip() or None,
     )
     return {
-        "object": "aiask.desktop.broker_readonly.analytics",
+        "object": "aiask.broker_readonly.analytics",
         "success": True,
         "data": {"analytics": analytics},
         "error": None,
@@ -576,11 +576,11 @@ async def financial_intent_payload_for_runtime(
 ) -> dict[str, Any]:
     action = _financial_action_map().get(_financial_action_key(str(payload.get("capability_id") or ""), str(payload.get("action_id") or "")))
     if not action:
-        return {"object": "aiask.desktop.financial_manager.intent", "success": False, "data": None, "error": "financial manager action is not registered", "error_code": "FINANCIAL_ACTION_NOT_FOUND", "secrets_redacted": True}
+        return {"object": "aiask.financial_manager.intent", "success": False, "data": None, "error": "financial manager action is not registered", "error_code": "FINANCIAL_ACTION_NOT_FOUND", "secrets_redacted": True}
     if action.get("mode") == "blocked":
-        return {"object": "aiask.desktop.financial_manager.intent", "success": False, "data": {"action": action, "reason": action.get("blocked_reason")}, "error": str(action.get("blocked_reason") or "action is blocked"), "error_code": "FINANCIAL_ACTION_BLOCKED", "secrets_redacted": True}
+        return {"object": "aiask.financial_manager.intent", "success": False, "data": {"action": action, "reason": action.get("blocked_reason")}, "error": str(action.get("blocked_reason") or "action is blocked"), "error_code": "FINANCIAL_ACTION_BLOCKED", "secrets_redacted": True}
     if action.get("mode") != "stateful_intent":
-        return {"object": "aiask.desktop.financial_manager.intent", "success": False, "data": {"action": action}, "error": "read-only financial actions do not create intents", "error_code": "FINANCIAL_ACTION_READ_ONLY", "secrets_redacted": True}
+        return {"object": "aiask.financial_manager.intent", "success": False, "data": {"action": action}, "error": "read-only financial actions do not create intents", "error_code": "FINANCIAL_ACTION_READ_ONLY", "secrets_redacted": True}
     params = dict(action.get("default_params") or {})
     params.update(dict(payload.get("params") or {}))
     intent_action = str(action.get("intent_action") or "")
@@ -593,7 +593,7 @@ async def financial_intent_payload_for_runtime(
             error_code = "FINANCIAL_MANAGER_DRY_RUN_REQUIRED"
             error = "financial manager confirmed action requires dry_run=true"
         return {
-            "object": "aiask.desktop.financial_manager.intent",
+            "object": "aiask.financial_manager.intent",
             "success": False,
             "data": {
                 "action": action,
@@ -625,7 +625,7 @@ async def financial_intent_payload_for_runtime(
             source_chain=["aiask_agent.server", "financial_manager.intent"],
         )
     return {
-        "object": "aiask.desktop.financial_manager.intent",
+        "object": "aiask.financial_manager.intent",
         "capability_id": action.get("capability_id"),
         "action_id": action.get("action_id"),
         "success": bool(result.get("success")),

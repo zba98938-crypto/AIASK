@@ -1050,7 +1050,7 @@ def test_financial_system_readiness_gate_reports_required_blockers(tmp_path, mon
     assert payload["parity"]["v016_delta"]["release_tag"] == "v2026.6.5"
     matrix = payload["financial_safety_matrix"]
     assert payload["safety_matrix"] == matrix
-    assert matrix["object"] == "aiask.desktop.financial_manager.safety_matrix"
+    assert matrix["object"] == "aiask.financial_manager.safety_matrix"
     assert matrix["live_trading_enabled"] is False
     assert matrix["control_token_configured"] is False
     assert matrix["summary"]["control_token_ready"] is False

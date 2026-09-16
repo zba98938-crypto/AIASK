@@ -66,7 +66,7 @@ def test_desktop_capabilities_returns_public_subset_without_control_token(tmp_pa
     response = client.get("/v1/capabilities")
     assert response.status_code == 200
     payload = response.json()
-    assert payload["object"] == "aiask.desktop_capabilities"
+    assert payload["object"] == "aiask.capabilities"
     assert payload["summary"]["control"]["authorized"] is False
     assert payload["summary"]["source"] == "gated"
     assert payload["summary"]["control"]["full_mode_enabled"] is True

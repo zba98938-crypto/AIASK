@@ -573,7 +573,7 @@ def _workbench_summary_payload(
     mcp_servers = MCPAggregator().servers_summary(include_all=True)
     mcp_degraded = sum(1 for item in mcp_servers if item.get("configured") is False or item.get("status") == "failed")
     return {
-        "object": "aiask.desktop.workbench.summary",
+        "object": "aiask.workbench.summary",
         "recent_sessions": recent_sessions,
         "recent_runs": run_summaries,
         "queues": {
