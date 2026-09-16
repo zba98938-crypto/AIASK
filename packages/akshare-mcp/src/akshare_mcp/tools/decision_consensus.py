@@ -213,16 +213,39 @@ def register(mcp):
                     })
 
             # 4. smart_stock_diagnosis
+            # The module is `semantic.diagnosis`; this used to import
+            # `.smart_diagnosis`, which does not exist, so the ImportError below
+            # silently dropped this tool from every consensus. With only
+            # should_i_buy + build_stock_context contributing, the documented
+            # "cross-validate >= 3 tools" rule was unreachable by construction.
             try:
-                from . import smart_diagnosis as smart_diag_mod  # type: ignore
+                from .semantic import diagnosis as smart_diag_mod  # type: ignore
                 if hasattr(smart_diag_mod, "smart_stock_diagnosis"):
                     diag_result = await smart_diag_mod.smart_stock_diagnosis(code=resolved_code)
                     decisions.append(_extract_decision_from_payload("smart_stock_diagnosis", diag_result))
-            except ImportError:
-                pass
             except Exception as exc:
+                # Record an unavailable tool instead of swallowing ImportError:
+                # a silently absent participant shrinks the consensus base
+                # without the caller being able to tell.
                 decisions.append({
                     "tool": "smart_stock_diagnosis",
+                    "available": False,
+                    "error": f"{type(exc).__name__}:{exc}",
+                })
+
+            # 5. get_unified_decision — named in this tool's contract but never
+            # actually queried before, so the consensus was computed over a
+            # smaller set than it advertised.
+            try:
+                from .decision import get_unified_decision_summary
+
+                unified_result = await get_unified_decision_summary(code=resolved_code)
+                decisions.append(
+                    _extract_decision_from_payload("get_unified_decision", unified_result)
+                )
+            except Exception as exc:
+                decisions.append({
+                    "tool": "get_unified_decision",
                     "available": False,
                     "error": f"{type(exc).__name__}:{exc}",
                 })

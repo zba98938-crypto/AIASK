@@ -16,6 +16,7 @@ from . import _decision_context as _decision_context_mod
 from . import _decision_sell as _decision_sell_mod
 from . import _decision_unified as _decision_unified_mod
 from .pit_middleware import build_pit_meta, create_pit_context
+from ..utils import fail
 
 get_db = _default_get_db
 technical_analysis = _decision_common_mod.technical_analysis
@@ -45,20 +46,50 @@ def _attach_pit_meta(result: Any, *, as_of: str | None) -> Any:
     """
     if not isinstance(result, dict):
         return result
-    ctx = create_pit_context(as_of)
+
+    explicit_as_of = bool(as_of and str(as_of).strip())
+    try:
+        ctx = create_pit_context(as_of)
+    except ValueError as exc:
+        # An unparseable as_of used to raise straight through the MCP layer as
+        # UnexpectedToolError. Return the tool's own failure envelope instead so
+        # a bad date is distinguishable from a crash.
+        return fail(f"as_of 无法解析：{as_of!r} ({exc})")
+
     pit_meta = build_pit_meta(ctx, total_records=0, filtered_records=0)
     meta = dict(result.get("meta") or {})
     meta.setdefault("tool", "decision")
     meta.update(pit_meta)
-    pit_guard = dict(meta.get("pit_guard") or {})
-    explicit_as_of = bool(as_of and str(as_of).strip())
-    pit_guard.setdefault("active", explicit_as_of)
-    pit_guard.setdefault("filtered_rows", 0)
-    meta["pit_guard"] = pit_guard
-    if explicit_as_of:
-        meta.setdefault("time_precision", "historical_eod_close_as_of")
+
+    # The decision body is the only place that knows whether it actually
+    # filtered by as_of. Trust the guard it reports (payload or meta) and never
+    # upgrade a missing guard to active: labelling an unfiltered result
+    # ``active=True`` / ``historical_eod_close_as_of`` is a false point-in-time
+    # audit claim, which is worse than no claim at all.
+    payload = result.get("data") if isinstance(result.get("data"), dict) else {}
+    body_guard = payload.get("pit_guard") or (result.get("meta") or {}).get("pit_guard")
+    if isinstance(body_guard, dict) and body_guard:
+        pit_guard = dict(body_guard)
+        pit_guard.setdefault("active", False)
+        pit_guard.setdefault("filtered_rows", 0)
     else:
-        meta.setdefault("time_precision", "historical_eod_close")
+        pit_guard = {
+            "active": False,
+            "filtered_rows": 0,
+            "requested_as_of": str(as_of or ""),
+            "applied_as_of": None,
+        }
+        if explicit_as_of:
+            # The caller asked for a point-in-time answer and the body did not
+            # report doing one. Say so rather than implying it happened.
+            pit_guard["unenforced"] = True
+            pit_guard["reason"] = "tool_did_not_report_as_of_filtering"
+    meta["pit_guard"] = pit_guard
+    meta["time_precision"] = (
+        "historical_eod_close_as_of"
+        if pit_guard.get("active")
+        else "historical_eod_close"
+    )
     result["meta"] = meta
     return result
 
@@ -169,6 +200,7 @@ async def should_i_sell(
         _sync_decision_overrides()
         result = await _decision_sell_mod.should_i_sell(
             code=code, buy_price=buy_price, holding_days=holding_days,
+            as_of=as_of,
             stock_code=stock_code, symbol=symbol, ticker=ticker,
         )
     return _attach_pit_meta(result, as_of=as_of)

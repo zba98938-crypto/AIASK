@@ -504,21 +504,22 @@ _SKILL_CONTRACTS.update(
 )
 
 
-def _find_repo_skills_root() -> Path | None:
-    cur = Path(__file__).resolve()
-    for parent in cur.parents:
-        candidate = parent / ".codex" / "skills"
-        if candidate.is_dir():
-            return candidate
-    return None
-
-
 def _find_repo_root() -> Path | None:
+    # 以 .git 为仓库边界。此前按 ".codex/skills" 是否存在向上找，仓库内没有该目录时
+    # 会一路走到 $HOME，把用户全局技能算成仓库内技能（repo_local_skill_count 随开发机而异）。
     cur = Path(__file__).resolve()
     for parent in cur.parents:
-        if (parent / ".codex" / "skills").is_dir():
+        if (parent / ".git").exists():
             return parent
     return None
+
+
+def _find_repo_skills_root() -> Path | None:
+    repo_root = _find_repo_root()
+    if repo_root is None:
+        return None
+    candidate = repo_root / ".codex" / "skills"
+    return candidate if candidate.is_dir() else None
 
 
 def _list_skill_roots() -> List[Path]:

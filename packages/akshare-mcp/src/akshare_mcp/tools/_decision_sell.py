@@ -4,6 +4,7 @@ async def should_i_sell(
     code: str | None = None,
     buy_price: float = 0.0,
     holding_days: int = 0,
+    as_of: str = '',
     stock_code: str | None = None,
     symbol: str | None = None,
     ticker: str | None = None,
@@ -15,6 +16,7 @@ async def should_i_sell(
         code: 股票代码
         buy_price: 买入价格
         holding_days: 持有天数
+        as_of: 时点日期；传入后只使用该日及之前的 K 线。不传则用最新数据。
     """
     try:
         code = resolve_security_code(code, stock_code=stock_code, symbol=symbol, ticker=ticker)
@@ -29,12 +31,24 @@ async def should_i_sell(
         if not stock_info:
             return fail(f'Stock {code} not found')
 
-        # 2. 获取K线数据
+        # 2. 获取K线数据。``as_of`` 必须实际过滤，不能只打在 meta 上：
+        # decision.py 的 wrapper  historically labelled the envelope
+        # ``pit_guard.active=True`` / ``time_precision=historical_eod_close_as_of``
+        # while this function ignored the date and used the latest bars.
         klines = await db.get_klines(code, limit=100)
+        klines, pit_guard = _filter_klines_by_as_of(klines, as_of)
         if not klines:
             return fail('No kline data')
+        if as_of and str(as_of).strip() and not pit_guard.get("active"):
+            return fail(f'as_of={as_of!r} could not be parsed as a date')
+        if as_of and str(as_of).strip() and len(klines) < 20:
+            return fail(f'Insufficient kline data on or before as_of={as_of!r}')
 
-        current_price = klines[-1]['close']
+        latest_kline = max(
+            klines,
+            key=lambda item: str(item.get('date') or item.get('trade_date') or item.get('timestamp') or ''),
+        )
+        current_price = float(latest_kline.get('close') or klines[-1]['close'])
         closes = [k['close'] for k in klines]
 
         analysis_context = {}
@@ -255,7 +269,18 @@ async def should_i_sell(
             'risks': risks,
             'score_breakdown': {k: round(float(v), 2) for k, v in score_breakdown.items()},
             'signal_breakdown': signal_breakdown,
-            'analysis_date': klines[-1].get('date', ''),
+            'analysis_date': (
+                latest_kline.get('date')
+                or latest_kline.get('trade_date')
+                or latest_kline.get('timestamp')
+                or ''
+            ),
+            'time_precision': (
+                'historical_eod_close_as_of'
+                if pit_guard.get('active')
+                else 'historical_eod_close'
+            ),
+            'pit_guard': pit_guard,
             'failed_modules': ([f"investment_analysis:{context_error}"] if context_error else []),
             'analysis_mode': 'technical_only' if not has_buy_price else 'full',
         }
@@ -265,7 +290,12 @@ async def should_i_sell(
         if analysis_context:
             payload['analysis_context'] = analysis_context
 
-        return ok(payload)
+        envelope = ok(payload)
+        if isinstance(envelope, dict):
+            meta = dict(envelope.get('meta') or {})
+            meta['pit_guard'] = pit_guard
+            envelope['meta'] = meta
+        return envelope
 
     except Exception as e:
         return fail(str(e))

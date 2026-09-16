@@ -388,6 +388,38 @@ def register(mcp):
                 detail={"skill": skill},
             )
 
+        # Surface the orchestrator's own verdict on the envelope. The inner
+        # result already records status/failed_steps, but the envelope used to
+        # report success=True / degraded=False / quality_flags=[] even when a
+        # step failed — so a caller reading only `success` saw a clean run.
+        inner = execution if isinstance(execution, dict) else {}
+        inner_payload = inner.get("data") if isinstance(inner.get("data"), dict) else inner
+        inner_status = str(inner_payload.get("status") or "").strip().lower()
+        inner_summary = inner_payload.get("summary") if isinstance(inner_payload.get("summary"), dict) else {}
+        failed_steps = [str(item) for item in (inner_summary.get("failed_steps") or []) if str(item).strip()]
+        degraded_run = bool(failed_steps) or inner_status in {"partial_failed", "unsupported_task"}
+
+        fallback_reasons_out: list[str] = []
+        if source != "codex_registry":
+            fallback_reasons_out.append("skills_registry_unavailable")
+        if inner_status:
+            if inner_status == "partial_failed":
+                fallback_reasons_out.append(
+                    "skill_steps_failed:" + ",".join(failed_steps) if failed_steps else "skill_steps_failed"
+                )
+            elif inner_status == "unsupported_task":
+                fallback_reasons_out.append("skill_task_unsupported")
+
+        message = "Skill executed via built-in orchestrator"
+        if inner_status == "partial_failed":
+            message = (
+                "Skill ran but "
+                f"{len(failed_steps) or inner_summary.get('failed_count') or 'some'}"
+                " step(s) failed; see result.summary.failed_steps"
+            )
+        elif inner_status == "unsupported_task":
+            message = "Skill has no orchestrated task for this request; nothing was executed"
+
         return _skill_ok(
             {
                 "skill": skill,
@@ -400,12 +432,14 @@ def register(mcp):
                 # 现仅保留 result 为权威键，execution 改为指针说明，避免 payload 翻倍。
                 "result": execution,
                 "execution_ref": "result",
-                "message": "Skill executed via built-in orchestrator",
+                "execution_status": inner_status or None,
+                "failed_steps": failed_steps,
+                "message": message,
                 "source": source,
             },
             backend_requested="skill_executor",
             backend_used="built_in_orchestrator",
-            fallback_used=source != "codex_registry",
-            fallback_reason=None if source == "codex_registry" else ["skills_registry_unavailable"],
+            fallback_used=source != "codex_registry" or degraded_run,
+            fallback_reason=fallback_reasons_out or None,
             started_at=started_at,
         )
