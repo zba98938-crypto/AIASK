@@ -671,37 +671,74 @@ class FactorValidationPipeline:
         }
 
     @staticmethod
+    def _resolve_expected_direction(
+        wf: ValidationSummary,
+        kf: ValidationSummary,
+    ) -> float:
+        """因子的期望方向，取样本内 IC 的符号。
+
+        A factor whose in-sample IC is negative is a legitimate inverse factor:
+        it predicts, it just predicts with the opposite sign. What is *not*
+        legitimate is a factor whose out-of-sample IC flips relative to its
+        in-sample IC — that is the signature of overfitting, and it is exactly
+        what ``abs()`` used to hide.
+
+        Falls back to +1.0 when in-sample IC is unavailable (both summaries at
+        their 0.0 default), which keeps the conventional "higher factor value
+        predicts higher return" reading.
+        """
+        is_signal = (wf.is_ic_mean or 0.0) + (kf.is_ic_mean or 0.0)
+        if is_signal > 1e-12:
+            return 1.0
+        if is_signal < -1e-12:
+            return -1.0
+        return 1.0
+
+    @staticmethod
     def _compute_rating(
         wf: ValidationSummary,
         kf: ValidationSummary,
         boot_ci: Dict[str, Any],
     ) -> Dict[str, Any]:
-        """综合评级"""
+        """综合评级。
+
+        Every component is evaluated *in the factor's expected direction*.
+        Predictive power pointing the wrong way scores zero rather than scoring
+        the same as power pointing the right way: previously ``abs()`` meant an
+        OOS rank-IC of -0.05 with a confidence interval entirely below zero
+        collected 30 + 25 + 15 = 70 points and graded "A / 表现稳健".
+        """
         scores = {}
+        direction = FactorValidationPipeline._resolve_expected_direction(wf, kf)
 
-        # OOS IC 均值得分（0-30分）
-        avg_oos_ic = (abs(wf.oos_rank_ic_mean) + abs(kf.oos_rank_ic_mean)) / 2
-        scores["oos_ic"] = min(30.0, avg_oos_ic * 600)
+        # OOS IC 均值得分（0-30分）——只有方向一致的 IC 计分
+        avg_oos_ic = direction * (wf.oos_rank_ic_mean + kf.oos_rank_ic_mean) / 2
+        scores["oos_ic"] = min(30.0, max(0.0, avg_oos_ic * 600))
 
-        # OOS IC IR 得分（0-25分）
-        avg_ir = (abs(wf.oos_rank_ic_ir) + abs(kf.oos_rank_ic_ir)) / 2
-        scores["oos_ir"] = min(25.0, avg_ir * 50)
+        # OOS IC IR 得分（0-25分）——同样按方向计分
+        avg_ir = direction * (wf.oos_rank_ic_ir + kf.oos_rank_ic_ir) / 2
+        scores["oos_ir"] = min(25.0, max(0.0, avg_ir * 50))
 
-        # 稳定性得分（0-20分）
+        # 稳定性得分（0-20分）。stability_ratio 是 OOS/IS 之比，符号翻转时为负，
+        # 已经天然地表达了方向失配，无需再乘 direction。
         avg_stability = (wf.stability_ratio + kf.stability_ratio) / 2
         scores["stability"] = min(20.0, max(0.0, avg_stability * 20))
 
-        # CI 不含零得分（0-15分）
-        ci_lower = boot_ci.get("ci_lower", 0.0)
-        ci_upper = boot_ci.get("ci_upper", 0.0)
-        if ci_lower > 0 or ci_upper < 0:
-            scores["ci_significance"] = 15.0
+        # CI 不含零得分（0-15分）——必须在期望方向的那一侧排除零
+        ci_lower = boot_ci.get("ci_lower", 0.0) or 0.0
+        ci_upper = boot_ci.get("ci_upper", 0.0) or 0.0
+        if direction > 0:
+            significant = ci_lower > 0
         else:
-            scores["ci_significance"] = 0.0
+            significant = ci_upper < 0
+        scores["ci_significance"] = 15.0 if significant else 0.0
 
-        # OOS 正比率得分（0-10分）
-        avg_pos = (wf.oos_positive_ratio + kf.oos_positive_ratio) / 2
-        scores["positive_ratio"] = avg_pos * 10
+        # OOS 正比率得分（0-10分）——反向因子按 IC 为负的折数计分
+        if direction > 0:
+            avg_pos = (wf.oos_positive_ratio + kf.oos_positive_ratio) / 2
+        else:
+            avg_pos = ((1.0 - wf.oos_positive_ratio) + (1.0 - kf.oos_positive_ratio)) / 2
+        scores["positive_ratio"] = max(0.0, min(1.0, avg_pos)) * 10
 
         total = sum(scores.values())
 
@@ -724,6 +761,7 @@ class FactorValidationPipeline:
             "grade": grade,
             "total_score": float(total),
             "scores": {k: float(v) for k, v in scores.items()},
+            "expected_direction": float(direction),
             "recommendation": (
                 "Strong — 因子样本外表现稳健" if grade in ("SSS", "SS", "S", "A", "B")
                 else "Weak — 因子泛化能力不足，建议审慎使用"

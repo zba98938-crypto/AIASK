@@ -133,137 +133,159 @@ class RiskModel:
             'factor_names': factor_names,
         }
     
+    # Market shock applied to each named scenario, as a fraction of position value.
+    # These are the scenario *definition* — the shock a caller asks to be applied.
+    # They are not a result: what the portfolio actually loses depends on how
+    # sensitive each holding is to that shock, which is what stress_test computes.
+    _SCENARIO_MARKET_SHOCKS = {
+        'market_crash': -0.20,
+        'black_swan': -0.30,
+        'interest_rate_hike': -0.10,
+        'sector_rotation': -0.05,
+        'liquidity_crisis': -0.15,
+    }
+
+    _SCENARIO_DESCRIPTIONS = {
+        'market_crash': '市场崩盘：市场下跌20%',
+        'black_swan': '黑天鹅事件：市场下跌30%',
+        'interest_rate_hike': '利率上升：市场下跌10%',
+        'sector_rotation': '板块轮动：市场下跌5%',
+        'liquidity_crisis': '流动性危机：市场下跌15%',
+    }
+
+    _SCENARIO_ALIASES = {
+        'rate_hike': 'interest_rate_hike',
+        'crash': 'market_crash',
+        'rate': 'interest_rate_hike',
+        'swan': 'black_swan',
+        'rotation': 'sector_rotation',
+    }
+
     @staticmethod
     def stress_test(
         holdings: List[Dict[str, Any]],
         scenario: str = 'market_crash',
         custom_shocks: Optional[Dict[str, float]] = None
     ) -> Dict[str, Any]:
-        """
-        压力测试 - 4种场景
-        
-        Scenarios:
-            - market_crash: 市场崩盘 (-20%)
-            - sector_rotation: 板块轮动
-            - interest_rate_hike: 利率上升
-            - black_swan: 黑天鹅事件 (-30%)
-        """
-        # Scenario alias mapping for caller convenience
-        _SCENARIO_ALIASES = {
-            'rate_hike': 'interest_rate_hike',
-            'liquidity_crisis': 'market_crash',
-            'crash': 'market_crash',
-            'rate': 'interest_rate_hike',
-            'swan': 'black_swan',
-            'rotation': 'sector_rotation',
-        }
-        scenario = _SCENARIO_ALIASES.get(scenario, scenario)
+        """压力测试：按每笔持仓对市场冲击的实际敏感度计算组合损失。
 
-        portfolio_value = sum(h.get('value', 0) for h in holdings)
-        
-        if scenario == 'market_crash':
-            # 市场整体下跌20%
-            shocked_value = portfolio_value * 0.8
-            loss = portfolio_value - shocked_value
-            
+        Each holding is shocked by ``market_shock * beta``, where beta comes from
+        the holding itself (``beta``, or ``sensitivity``). A holding without a
+        beta is *not* silently assumed to move with the market — it is reported
+        as unmeasurable, because assuming beta=1.0 is what made this function
+        return a constant regardless of what was held.
+
+        ``loss_percent`` is therefore ``None`` when no holding carries a
+        sensitivity, and the reason is named in ``reason``. Callers already
+        distinguish a missing metric from a measured one (the submission gate
+        hard-fails on ``missing_stress_loss_percent`` at incubation/live level),
+        so an honest absence is safe; a fabricated number is not.
+
+        ``custom_shocks`` maps a holding code to its own shock and takes
+        precedence over the scenario shock for that holding. A holding covered
+        by ``custom_shocks`` needs no beta — the shock is already position-level.
+        """
+        scenario_key = str(scenario or '').strip().lower()
+        scenario_key = RiskModel._SCENARIO_ALIASES.get(scenario_key, scenario_key)
+
+        market_shock = RiskModel._SCENARIO_MARKET_SHOCKS.get(scenario_key)
+        if market_shock is None and not custom_shocks:
             return {
-                'scenario': 'market_crash',
-                'description': '市场崩盘：整体下跌20%',
-                'original_value': float(portfolio_value),
-                'shocked_value': float(shocked_value),
-                'loss': float(loss),
-                'loss_percent': -20.0,
+                'scenario': scenario_key or None,
+                'error': f'Unknown scenario: {scenario}',
+                'loss_percent': None,
+                'measurable': False,
+                'reason': 'unknown_scenario',
             }
-        
-        elif scenario == 'sector_rotation':
-            # 板块轮动：科技-10%，金融+5%，其他-2%
-            sector_shocks = {
-                '科技': -0.10,
-                '金融': 0.05,
-                '消费': -0.02,
-                '医药': -0.02,
-                '其他': -0.02,
-            }
-            
-            shocked_value = 0.0
-            for holding in holdings:
-                sector = holding.get('sector', '其他')
-                shock = sector_shocks.get(sector, -0.02)
-                shocked_value += holding.get('value', 0) * (1 + shock)
-            
-            loss = portfolio_value - shocked_value
-            
+
+        if custom_shocks and market_shock is None:
+            scenario_key = 'custom'
+
+        rows = [h for h in (holdings or []) if isinstance(h, dict)]
+        portfolio_value = float(sum(float(h.get('value', 0) or 0) for h in rows))
+
+        base = {
+            'scenario': scenario_key,
+            'description': RiskModel._SCENARIO_DESCRIPTIONS.get(
+                scenario_key, f'自定义压力测试：{scenario_key}'
+            ),
+            'original_value': portfolio_value,
+            'market_shock': float(market_shock) if market_shock is not None else None,
+        }
+        if custom_shocks:
+            base['custom_shocks'] = dict(custom_shocks)
+
+        if not rows or portfolio_value <= 0:
             return {
-                'scenario': 'sector_rotation',
-                'description': '板块轮动：科技-10%，金融+5%',
-                'original_value': float(portfolio_value),
-                'shocked_value': float(shocked_value),
-                'loss': float(loss),
-                'loss_percent': float(loss / portfolio_value * 100),
-                'sector_shocks': sector_shocks,
+                **base,
+                'shocked_value': None,
+                'loss': None,
+                'loss_percent': None,
+                'measurable': False,
+                'reason': 'no_positions',
             }
-        
-        elif scenario == 'interest_rate_hike':
-            # 利率上升：高估值股票-15%，低估值-5%
-            shocked_value = 0.0
-            for holding in holdings:
-                pe = holding.get('pe_ratio', 20)
-                if pe > 30:
-                    shock = -0.15
-                elif pe > 20:
-                    shock = -0.10
-                else:
-                    shock = -0.05
-                shocked_value += holding.get('value', 0) * (1 + shock)
-            
-            loss = portfolio_value - shocked_value
-            
+
+        shocked_value = 0.0
+        covered_value = 0.0
+        missing_sensitivity: List[str] = []
+
+        for holding in rows:
+            value = float(holding.get('value', 0) or 0)
+            code = str(holding.get('code') or '').strip()
+
+            own_shock = None
+            if custom_shocks and code in custom_shocks:
+                own_shock = float(custom_shocks[code])
+            else:
+                beta = holding.get('beta', holding.get('sensitivity'))
+                if beta is not None and market_shock is not None:
+                    try:
+                        own_shock = float(market_shock) * float(beta)
+                    except (TypeError, ValueError):
+                        own_shock = None
+
+            if own_shock is None:
+                missing_sensitivity.append(code or '<unnamed>')
+                # Carry the position through unshocked so shocked_value stays a
+                # real sum, and report it as uncovered rather than shocking it
+                # by an assumed beta.
+                shocked_value += value
+                continue
+
+            shocked_value += value * (1.0 + own_shock)
+            covered_value += value
+
+        coverage = covered_value / portfolio_value if portfolio_value > 0 else 0.0
+
+        if covered_value <= 0:
             return {
-                'scenario': 'interest_rate_hike',
-                'description': '利率上升：高估值股票受冲击',
-                'original_value': float(portfolio_value),
-                'shocked_value': float(shocked_value),
-                'loss': float(loss),
-                'loss_percent': float(loss / portfolio_value * 100),
+                **base,
+                'shocked_value': None,
+                'loss': None,
+                'loss_percent': None,
+                'measurable': False,
+                'reason': 'no_position_sensitivity',
+                'coverage': 0.0,
+                'missing_sensitivity': missing_sensitivity,
             }
-        
-        elif scenario == 'black_swan':
-            # 黑天鹅事件：极端下跌30%
-            shocked_value = portfolio_value * 0.7
-            loss = portfolio_value - shocked_value
-            
-            return {
-                'scenario': 'black_swan',
-                'description': '黑天鹅事件：极端下跌30%',
-                'original_value': float(portfolio_value),
-                'shocked_value': float(shocked_value),
-                'loss': float(loss),
-                'loss_percent': -30.0,
-            }
-        
-        elif custom_shocks:
-            # 自定义冲击
-            shocked_value = 0.0
-            for holding in holdings:
-                code = holding['code']
-                shock = custom_shocks.get(code, 0)
-                shocked_value += holding.get('value', 0) * (1 + shock)
-            
-            loss = portfolio_value - shocked_value
-            
-            return {
-                'scenario': 'custom',
-                'description': '自定义压力测试',
-                'original_value': float(portfolio_value),
-                'shocked_value': float(shocked_value),
-                'loss': float(loss),
-                'loss_percent': float(loss / portfolio_value * 100),
-                'custom_shocks': custom_shocks,
-            }
-        
-        else:
-            return {'error': f'Unknown scenario: {scenario}'}
-    
+
+        loss = portfolio_value - shocked_value
+        result = {
+            **base,
+            'shocked_value': float(shocked_value),
+            'loss': float(loss),
+            # Negative means the portfolio lost value, matching the gate
+            # comparison `stress_loss_percent <= -25.0`.
+            'loss_percent': float(-loss / portfolio_value * 100),
+            'measurable': True,
+            'coverage': float(coverage),
+        }
+        if missing_sensitivity:
+            result['missing_sensitivity'] = missing_sensitivity
+            result['reason'] = 'partial_position_sensitivity'
+        return result
+
+
     @staticmethod
     def calculate_beta(
         stock_returns: np.ndarray,
