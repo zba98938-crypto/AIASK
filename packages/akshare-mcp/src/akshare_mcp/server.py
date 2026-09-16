@@ -42,7 +42,10 @@ warnings.filterwarnings("ignore", message=".*invalid escape sequence.*")
 for _log_name in ("mcp", "mcp.server", "mcp.server.server", "fastmcp", "uvicorn"):
     logging.getLogger(_log_name).setLevel(logging.WARNING)
 
-from mcp.server.fastmcp import FastMCP
+try:
+    from mcp.server.fastmcp import FastMCP
+except ModuleNotFoundError:  # MCP 2.x moved the low-level server into MCPServer.
+    from mcp.server.mcpserver import MCPServer as FastMCP
 
 # --- Core lightweight tools: import eagerly (essential for all profiles) ---
 _core_tool_names = (
@@ -316,11 +319,8 @@ _mcp_auth, _mcp_token_verifier, _mcp_transport_security, _mcp_auth_mode = build_
 
 mcp = FastMCP(
     "AKShare Stock Data Server v2",
-    host=_mcp_host,
-    port=_mcp_port,
     auth=_mcp_auth,
     token_verifier=_mcp_token_verifier,
-    transport_security=_mcp_transport_security,
 )
 
 def _register_market_block_tools(app: FastMCP) -> None:
@@ -469,9 +469,22 @@ def _enforce_http_security_baseline() -> None:
 
 def _build_http_asgi_app(transport: str, mount_path: str | None):
     if transport == "sse":
-        app = mcp.sse_app(mount_path)
+        try:
+            app = mcp.sse_app(
+                sse_path=mount_path or "/sse",
+                transport_security=_mcp_transport_security,
+                host=_mcp_host,
+            )
+        except TypeError:  # FastMCP 1.x positional mount-path signature.
+            app = mcp.sse_app(mount_path)
     elif transport == "streamable-http":
-        app = mcp.streamable_http_app()
+        try:
+            app = mcp.streamable_http_app(
+                transport_security=_mcp_transport_security,
+                host=_mcp_host,
+            )
+        except TypeError:  # FastMCP 1.x keeps transport settings on the object.
+            app = mcp.streamable_http_app()
     else:  # pragma: no cover - defensive guard
         raise RuntimeError(f"Unsupported HTTP transport: {transport}")
     return wrap_http_auth_app(app, auth_mode=_mcp_auth_mode)
@@ -488,9 +501,9 @@ async def _run_mcp_transport_async(transport: str, mount_path: str | None) -> No
         server = uvicorn.Server(
             uvicorn.Config(
                 app,
-                host=mcp.settings.host,
-                port=mcp.settings.port,
-                log_level=mcp.settings.log_level.lower(),
+                host=_mcp_host,
+                port=_mcp_port,
+                log_level=str(os.getenv("MCP_LOG_LEVEL", "INFO")).lower(),
             )
         )
         await server.serve()
@@ -502,9 +515,9 @@ async def _run_mcp_transport_async(transport: str, mount_path: str | None) -> No
         server = uvicorn.Server(
             uvicorn.Config(
                 app,
-                host=mcp.settings.host,
-                port=mcp.settings.port,
-                log_level=mcp.settings.log_level.lower(),
+                host=_mcp_host,
+                port=_mcp_port,
+                log_level=str(os.getenv("MCP_LOG_LEVEL", "INFO")).lower(),
             )
         )
         await server.serve()

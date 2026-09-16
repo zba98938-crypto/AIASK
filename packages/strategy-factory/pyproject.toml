@@ -7,11 +7,14 @@ dependencies = [
     "aiask-quant-core",
     "numpy==2.2.6",
     "pandas==2.3.3",
-    "mcp==1.26.0",
+    "mcp>=2.0,<3.0",
 ]
 
 [project.optional-dependencies]
 test = ["pytest==9.0.2", "pytest-asyncio==1.3.0"]
+
+[project.scripts]
+aiask-factories = "strategy_factory.mcp_server:main"
 
 [build-system]
 requires = ["hatchling==1.29.0"]

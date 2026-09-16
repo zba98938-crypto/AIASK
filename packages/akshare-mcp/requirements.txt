@@ -3,7 +3,7 @@
 # - legacy: akshare, baostock, efinance
 # - parallel: ray[default]
 
-mcp>=1.0.0
+mcp>=2.0,<3.0
 pandas>=2.0.0
 tushare>=1.4.0
 pydantic>=2.0.0

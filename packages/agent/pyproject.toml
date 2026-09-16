@@ -7,7 +7,7 @@ dependencies = [
     "akshare-mcp",
     "strategy-factory",
     "openai==2.24.0",
-    "mcp==1.26.0",
+    "mcp>=2.0,<3.0",
     "pydantic==2.13.4",
     "fastapi==0.133.1",
     "starlette==1.0.1",

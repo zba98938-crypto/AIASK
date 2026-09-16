@@ -6,7 +6,10 @@ import asyncio
 import logging
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+try:
+    from mcp.server.fastmcp import FastMCP
+except ModuleNotFoundError:  # MCP 2.x
+    from mcp.server.mcpserver import MCPServer as FastMCP
 
 from .mcp_control import (
     factory_readiness,
@@ -20,7 +23,7 @@ from .mcp_control import (
 logging.getLogger("mcp").setLevel(logging.WARNING)
 logging.getLogger("mcp.server").setLevel(logging.WARNING)
 
-mcp = FastMCP("aiask-factories", json_response=True)
+mcp = FastMCP("aiask-factories")
 
 READ_ONLY_META = {
     "contract_version": "aiask.factory_run.v1",
