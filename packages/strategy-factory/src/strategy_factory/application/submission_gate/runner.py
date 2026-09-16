@@ -2969,22 +2969,64 @@ def _with_gate_protocol(gate: dict[str, Any], protocol: str) -> dict[str, Any]:
     return normalize_quality_gate_result({**dict(gate or {}), "gate_protocol": protocol})
 
 
+def _supplemental_statistical_binding_mode(
+    *,
+    incubation_budget_track: Optional[str] = None,
+    submission_lane: Optional[str] = None,
+) -> str:
+    """Whether Gate-3 statistical evidence can block a trade-primary candidate.
+
+    Same lane/track split as ``_trade_validation_audit_mode``: promotion tracks
+    that lead to capital ("formal_incubation", "live_ready_review") require the
+    statistical evidence to hold, while research lanes keep it advisory so
+    exploratory candidates can still be recorded.
+
+    This exists because the merged gate used to fold every supplemental reason
+    into a single ``supplemental_statistical_gate_failed`` warning and take
+    ``passed`` from the trade gate alone — walk-forward IC/IR, purged-k-fold IC,
+    bootstrap CI lower bound and parameter sensitivity were computed carefully
+    and then discarded on the main path.
+    """
+    track = str(incubation_budget_track or "").strip().lower()
+    lane = str(submission_lane or "").strip().lower()
+    if lane == "live_ready_review" or track in {"formal_incubation", "live_ready_review"}:
+        return "binding"
+    return "advisory"
+
+
 def _merge_trade_primary_gate(
     trade_gate: dict[str, Any],
     supplemental_statistical_gate: Optional[dict[str, Any]],
+    *,
+    binding_mode: str = "advisory",
 ) -> dict[str, Any]:
     supplemental = normalize_quality_gate_result(supplemental_statistical_gate)
     trade_gate_payload = normalize_quality_gate_result(trade_gate)
     warnings = _merge_text_items(trade_gate.get("warnings"), supplemental.get("warnings"))
-    if supplemental.get("reasons"):
-        warnings = _merge_text_items(warnings, ["supplemental_statistical_gate_failed"])
+    supplemental_reasons = list(supplemental.get("reasons") or [])
+    reasons = list(trade_gate_payload.get("reasons") or [])
+    binding = str(binding_mode or "advisory").strip().lower() == "binding"
+
+    if supplemental_reasons:
+        if binding:
+            # Promote the supplemental verdict into the merged result: on a
+            # capital-bound track, missing or weak statistical evidence blocks.
+            reasons = _merge_text_items(
+                reasons,
+                ["supplemental_statistical_gate_failed"],
+                supplemental_reasons,
+            )
+        else:
+            warnings = _merge_text_items(warnings, ["supplemental_statistical_gate_failed"])
+
     base_protocol = str(trade_gate_payload.get("gate_protocol") or "").strip().lower()
     profile_name = base_protocol.split(":", 1)[0] if ":" in base_protocol else base_protocol
-    merged_protocol = (
-        f"{profile_name}:trade_primary_with_supplemental_audit"
-        if profile_name
+    suffix = (
+        "trade_primary_with_binding_supplemental_audit"
+        if binding
         else "trade_primary_with_supplemental_audit"
     )
+    merged_protocol = f"{profile_name}:{suffix}" if profile_name else suffix
     merged = {
         **dict(trade_gate_payload or {}),
         **{
@@ -2992,13 +3034,16 @@ def _merge_trade_primary_gate(
             for key, value in supplemental.items()
             if key in _SUPPLEMENTAL_STATISTICAL_FIELDS
         },
+        "reasons": reasons,
         "warnings": warnings,
+        "passed": bool(trade_gate_payload.get("passed")) and not reasons,
         "primary_gate_protocol": trade_gate_payload.get("gate_protocol"),
         "supplemental_gate_protocol": "supplemental_statistical_audit",
+        "supplemental_statistical_binding_mode": "binding" if binding else "advisory",
         "gate_protocol": merged_protocol,
         "supplemental_statistical_gate": {
             "passed": bool(supplemental.get("passed")),
-            "reasons": list(supplemental.get("reasons") or []),
+            "reasons": supplemental_reasons,
             "warnings": list(supplemental.get("warnings") or []),
         },
     }
@@ -3935,7 +3980,14 @@ async def run_submission_quality_gate(
                             "warnings": [f"supplemental_statistical_gate_error:{type(exc).__name__}"],
                         }
                     )
-                normalized = _merge_trade_primary_gate(trade_gate, supplemental_gate)
+                normalized = _merge_trade_primary_gate(
+                    trade_gate,
+                    supplemental_gate,
+                    binding_mode=_supplemental_statistical_binding_mode(
+                        incubation_budget_track=incubation_budget_track,
+                        submission_lane=submission_lane,
+                    ),
+                )
             else:
                 audit_mode = _trade_validation_audit_mode(
                     incubation_budget_track=incubation_budget_track,
