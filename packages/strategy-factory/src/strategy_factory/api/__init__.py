@@ -44,6 +44,15 @@ _FACTORY_RUN_EXPORTS = {
     "validate_factory_run_transition",
 }
 
+_CONTROL_EXPORTS = {
+    "FACTORY_DESCRIPTORS",
+    "factory_readiness",
+    "factory_run_detail",
+    "factory_runs",
+    "factory_status",
+    "list_factories",
+}
+
 _FACADE_EXPORTS = {
     "BACKTEST_AI_PROTOTYPE_THRESHOLDS",
     "BacktestFilter",
@@ -152,6 +161,7 @@ __all__ = [
     "extract_event_context",
     "get_factory_constants",
     *_FACTORY_RUN_EXPORTS,
+    *_CONTROL_EXPORTS,
 ]
 
 
@@ -171,6 +181,15 @@ def __getattr__(name: str) -> Any:
         value = getattr(module, name)
         globals()[name] = value
         return value
+    if name in _CONTROL_EXPORTS:
+        # Imported from the sibling mcp_control module rather than a
+        # relative `.mcp_control` — the control-plane views live next to
+        # mcp_server, not under api/. Lazy so mcp_control can keep importing
+        # FactoryName from this package without a load-time cycle.
+        module = import_module("strategy_factory.mcp_control")
+        value = getattr(module, name)
+        globals()[name] = value
+        return value
     if name not in _FACADE_EXPORTS:
         raise AttributeError(name)
     facade = import_module(".facade", __name__)
@@ -181,5 +200,10 @@ def __getattr__(name: str) -> Any:
 
 def __dir__() -> list[str]:
     return sorted(
-        set(globals()) | _CONTRACT_EXPORTS | _DTO_EXPORTS | _FACTORY_RUN_EXPORTS | _FACADE_EXPORTS
+        set(globals())
+        | _CONTRACT_EXPORTS
+        | _DTO_EXPORTS
+        | _FACTORY_RUN_EXPORTS
+        | _CONTROL_EXPORTS
+        | _FACADE_EXPORTS
     )

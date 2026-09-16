@@ -18,6 +18,27 @@ ROOT = Path(__file__).resolve().parents[3]
 SCRIPT_DIR = ROOT / "scripts" / "factories"
 
 
+def _source_env(*, extra_paths: tuple[Path, ...] = ()) -> dict[str, str]:
+    """Environment for a child process that must import the packages from source.
+
+    Tests further down this file already do this by hand. The two subprocess
+    launches that did not pass ``env`` only worked when the packages happened to
+    be pip-installed; from a source checkout (the pytest.ini pythonpath layout)
+    the child died with ModuleNotFoundError before reaching the assertion it was
+    meant to exercise.
+    """
+    env = os.environ.copy()
+    roots = [
+        ROOT / "packages" / "strategy-factory" / "src",
+        ROOT / "packages" / "aiask-quant-core" / "src",
+        ROOT / "packages" / "akshare-mcp" / "src",
+        *extra_paths,
+    ]
+    existing = [item for item in str(env.get("PYTHONPATH") or "").split(os.pathsep) if item]
+    env["PYTHONPATH"] = os.pathsep.join([*existing, *(str(path) for path in roots)])
+    return env
+
+
 def test_maintained_runner_no_longer_dispatches_through_strategy_manager() -> None:
     text = (SCRIPT_DIR / "run_strategy_factory.py").read_text(encoding="utf-8", errors="ignore")
 
@@ -134,6 +155,7 @@ def test_runner_runtime_bootstrap_does_not_require_risk_model() -> None:
     completed = subprocess.run(
         [sys.executable, "-c", code],
         cwd=ROOT,
+        env=_source_env(),
         capture_output=True,
         text=True,
         timeout=60,
@@ -203,6 +225,7 @@ def test_runner_uses_preconfigured_runtime_services_without_akshare_imports() ->
     completed = subprocess.run(
         [sys.executable, "-c", code],
         cwd=ROOT,
+        env=_source_env(),
         capture_output=True,
         text=True,
         timeout=60,

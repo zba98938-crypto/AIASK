@@ -37,13 +37,13 @@ async def _call(
 
 async def catalog(arguments: dict[str, Any]) -> dict[str, Any]:
     del arguments
-    from akshare_mcp.services.factory_control import list_factories
+    from strategy_factory.api import list_factories
 
     return await _call("agent_factory_catalog", list_factories)
 
 
 async def status(arguments: dict[str, Any]) -> dict[str, Any]:
-    from akshare_mcp.services.factory_control import factory_status
+    from strategy_factory.api import factory_status
 
     return await _call(
         "agent_factory_control_status",
@@ -53,7 +53,7 @@ async def status(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 async def runs(arguments: dict[str, Any]) -> dict[str, Any]:
-    from akshare_mcp.services.factory_control import factory_runs
+    from strategy_factory.api import factory_runs
 
     return await _call(
         "agent_factory_control_runs",
@@ -65,7 +65,7 @@ async def runs(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 async def run_detail(arguments: dict[str, Any]) -> dict[str, Any]:
-    from akshare_mcp.services.factory_control import factory_run_detail
+    from strategy_factory.api import factory_run_detail
 
     return await _call(
         "agent_factory_run_detail",
@@ -75,7 +75,7 @@ async def run_detail(arguments: dict[str, Any]) -> dict[str, Any]:
 
 
 async def readiness(arguments: dict[str, Any]) -> dict[str, Any]:
-    from akshare_mcp.services.factory_control import factory_readiness
+    from strategy_factory.api import factory_readiness
 
     return await _call(
         "agent_factory_readiness",

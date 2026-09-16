@@ -19,7 +19,7 @@ from .intents import ActionIntentStore
 # How long to wait for an immediate startup crash before treating the worker as
 # launched. Import failures surface well inside this window.
 _STARTUP_GRACE_SECONDS = 2.0
-_STDERR_TAIL_CHARS = 4096
+_OUTPUT_TAIL_CHARS = 4096
 
 
 class FactoryDispatchRejected(PermissionError):
@@ -55,13 +55,16 @@ def _worker_env() -> dict[str, str]:
 
 
 def _startup_failure(process: subprocess.Popen[bytes]) -> tuple[int, str] | None:
-    """Return (exit_code, stderr_tail) when the worker died during startup.
+    """Return (exit_code, output_tail) when the worker died during startup.
+
+    The tail carries stdout and stderr merged, since the child is spawned with
+    ``stderr=STDOUT``.
 
     Returns None when the worker is still alive after the grace period, which is
     the normal case for a run that is actually executing.
     """
     try:
-        stderr_bytes = process.communicate(timeout=_STARTUP_GRACE_SECONDS)[1] or b""
+        output_bytes = process.communicate(timeout=_STARTUP_GRACE_SECONDS)[0] or b""
     except subprocess.TimeoutExpired:
         return None
     exit_code = int(process.returncode or 0)
@@ -69,7 +72,7 @@ def _startup_failure(process: subprocess.Popen[bytes]) -> tuple[int, str] | None
         # Exited cleanly and fast: the worker completed or found nothing to do
         # (e.g. the run was already claimed). Not a launch failure.
         return None
-    tail = stderr_bytes.decode("utf-8", errors="replace")[-_STDERR_TAIL_CHARS:]
+    tail = output_bytes.decode("utf-8", errors="replace")[-_OUTPUT_TAIL_CHARS:]
     return exit_code, tail
 
 
@@ -166,11 +169,14 @@ async def dispatch_factory_run(params: dict[str, Any]) -> dict[str, Any]:
             command,
             env=env,
             stdin=subprocess.DEVNULL,
-            # stderr used to go to DEVNULL, so a worker that died during import
-            # (e.g. ModuleNotFoundError) left no trace at all and the run sat in
-            # `queued` forever. Keep a pipe so startup failures are diagnosable.
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.PIPE,
+            # Both streams used to go to DEVNULL, so a worker that died during
+            # import (e.g. ModuleNotFoundError) left no trace at all and the run
+            # sat in `queued` forever. Merge them into one pipe: a startup crash
+            # can surface on either stream (traceback on stderr, a bare print or
+            # argparse message on stdout) and interleaved order is what makes the
+            # tail readable. The merged tail is persisted as `stderr_tail`.
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             start_new_session=os.name != "nt",
             close_fds=os.name != "nt",
         )
