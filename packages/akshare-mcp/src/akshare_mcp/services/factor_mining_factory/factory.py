@@ -29,10 +29,6 @@ def _strict_validation_candidate_limit() -> int:
     return max(0, _env_int("FACTOR_MINING_STRICT_VALIDATION_CANDIDATE_LIMIT", 0))
 
 
-def _quick_evidence_max_evaluations() -> int:
-    return max(1, _env_int("FACTOR_MINING_QUICK_EVIDENCE_MAX_EVALUATIONS", 4))
-
-
 class FactorMiningFactory:
     """Full factor mining cycle: search, evolve, validate, admit, persist."""
 
@@ -377,7 +373,7 @@ class FactorMiningFactory:
         db,
         context,
         *,
-        max_evaluations: int | None = None,
+        max_evaluations: int,
     ):
         from .quick_evidence import QuickEvidenceEvaluator
 
@@ -386,11 +382,7 @@ class FactorMiningFactory:
             codes=getattr(context, "validation_codes", None) or [],
             horizon_days=10,
             max_codes=120,
-            max_evaluations=(
-                _quick_evidence_max_evaluations()
-                if max_evaluations is None
-                else max_evaluations
-            ),
+            max_evaluations=max_evaluations,
         )
 
     def _install_quick_evidence_evaluators(

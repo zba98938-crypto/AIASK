@@ -5,7 +5,18 @@ from __future__ import annotations
 import inspect
 import json
 
-from mcp.server.fastmcp.prompts.base import AssistantMessage, UserMessage
+try:
+    from mcp.server.fastmcp.prompts.base import AssistantMessage, UserMessage
+except ModuleNotFoundError:  # MCP 2.x exposes prompt messages from mcp.types.
+    from mcp.types import PromptMessage, TextContent
+
+    class AssistantMessage(PromptMessage):
+        def __init__(self, *, content: str):
+            super().__init__(role="assistant", content=TextContent(type="text", text=content))
+
+    class UserMessage(PromptMessage):
+        def __init__(self, *, content: str):
+            super().__init__(role="user", content=TextContent(type="text", text=content))
 
 from ..services.stock_deep_analysis import get_analysis_run_summary, get_latest_analysis_summary_for_code
 from ..services.artifact_registry import get_artifact_async

@@ -23,6 +23,38 @@ from ._panels_normalizers import (
 from ._panels_policy import _apply_trade_quality_rating_adjustment
 
 
+def _estimate_beta(
+    own_returns: np.ndarray | None,
+    market_returns: np.ndarray | None,
+) -> float | None:
+    """Beta of one holding against the sampled panel's equal-weighted return.
+
+    Returns ``None`` rather than a default of 1.0 when it cannot be estimated:
+    a defaulted beta is what let the stress test report the same loss for every
+    portfolio regardless of what it held.
+    """
+    if own_returns is None or market_returns is None:
+        return None
+    length = min(len(own_returns), len(market_returns))
+    if length < 24:
+        return None
+    own = np.asarray(own_returns[-length:], dtype=np.float64)
+    market = np.asarray(market_returns[-length:], dtype=np.float64)
+    mask = np.isfinite(own) & np.isfinite(market)
+    if int(np.count_nonzero(mask)) < 24:
+        return None
+    own = own[mask]
+    market = market[mask]
+    market_variance = float(np.var(market))
+    if market_variance <= 1e-18:
+        return None
+    covariance = float(np.cov(own, market)[0, 1])
+    beta = covariance / market_variance
+    if not np.isfinite(beta):
+        return None
+    return float(beta)
+
+
 def _build_family_returns(
     strategy_registry,
     strategy_type: str,
@@ -108,6 +140,9 @@ async def _build_strategy_panels(strategy_type: str, params: dict, db, sample_si
         sample_size=sample_size,
     )
     sample_codes = list(sample_selection.get("sample_codes") or [])
+    holding_returns: List[np.ndarray] = []
+    skipped_codes: List[dict] = []
+    failed_codes: List[dict] = []
     for code in sample_codes:
         try:
             klines = await db.get_klines(code, limit=220)
@@ -115,6 +150,7 @@ async def _build_strategy_panels(strategy_type: str, params: dict, db, sample_si
             closes = np.array([float(k.get("close", 0) or 0) for k in ordered], dtype=np.float64)
             volumes = np.array([float(k.get("volume", 0) or 0) for k in ordered], dtype=np.float64)
             if len(closes) < 90:
+                skipped_codes.append({"code": code, "reason": f"insufficient_history:{len(closes)}"})
                 continue
             signals = _generate_strategy_signal_series(
                 strategy_registry,
@@ -127,6 +163,7 @@ async def _build_strategy_panels(strategy_type: str, params: dict, db, sample_si
             aligned_signals = signals[:-1]
             aligned_returns = np.diff(closes) / np.maximum(closes[:-1], 1e-12)
             if len(aligned_signals) < 60 or len(aligned_signals) != len(aligned_returns):
+                skipped_codes.append({"code": code, "reason": "signal_return_length_mismatch"})
                 continue
             factor_columns.append(aligned_signals[-120:])
             return_columns.append(aligned_returns[-120:])
@@ -137,7 +174,12 @@ async def _build_strategy_panels(strategy_type: str, params: dict, db, sample_si
             latest_signal = float(aligned_signals[-1]) if len(aligned_signals) else 0.0
             if latest_signal != 0:
                 holdings.append({"code": code, "weight": abs(latest_signal), "value": 100000.0 * abs(latest_signal)})
-        except Exception:
+                holding_returns.append(aligned_returns[-120:].astype(np.float64))
+        except Exception as exc:
+            # Record the drop instead of swallowing it: three surviving symbols
+            # are enough to produce a full validation report, so a silent
+            # `continue` here hid how much of the requested panel was missing.
+            failed_codes.append({"code": code, "error": f"{type(exc).__name__}: {exc}"})
             continue
     if len(factor_columns) < 3:
         return {}
@@ -154,11 +196,21 @@ async def _build_strategy_panels(strategy_type: str, params: dict, db, sample_si
         volume_histories,
         min_len=min_len,
     )
+    # An empty holdings list means no sampled code carries a live signal. It used
+    # to be replaced by a synthetic 100%-cash book, which was then stress-tested
+    # and reported a market-crash loss on pure cash. Stay empty instead: the risk
+    # report then reports the metric as unmeasurable rather than describing a
+    # position the strategy does not hold.
     total_weight = sum(item["weight"] for item in holdings) or 1.0
-    holdings = [
-        {**item, "weight": float(item["weight"] / total_weight)}
-        for item in holdings
-    ] or [{"code": "cash", "weight": 1.0, "value": 100000.0}]
+    market_returns = np.mean(return_panel, axis=1) if return_panel.size else None
+    priced_holdings: List[dict] = []
+    for item, own_returns in zip(holdings, holding_returns):
+        entry = {**item, "weight": float(item["weight"] / total_weight)}
+        beta = _estimate_beta(own_returns, market_returns)
+        if beta is not None:
+            entry["beta"] = beta
+        priced_holdings.append(entry)
+    holdings = priced_holdings
     return {
         "factor_panel": factor_panel,
         "return_panel": return_panel,
@@ -167,6 +219,12 @@ async def _build_strategy_panels(strategy_type: str, params: dict, db, sample_si
         "holdings": holdings,
         "sample_codes": list(sample_codes),
         "sample_selection": sample_selection,
+        "panel_coverage": {
+            "requested": int(len(sample_codes)),
+            "used": int(len(factor_columns)),
+            "skipped_codes": skipped_codes,
+            "failed_codes": failed_codes,
+        },
     }
 
 
@@ -252,9 +310,27 @@ async def _run_risk_report(strategy_type: str, params: dict, db) -> dict | None:
         return None
     var_report = risk_model.calculate_var(strategy_returns.tolist(), confidence=0.95, portfolio_value=1000000)
     stress_report = risk_model.stress_test(holdings, scenario="market_crash")
-    return {
+    # stress_loss_percent stays None when the scenario could not be measured
+    # (no live position, or no estimable beta). The submission gate treats a
+    # missing metric as missing evidence and hard-fails at incubation/live
+    # level, which is the correct outcome — the previous `or 0.0` turned an
+    # unmeasurable scenario into a measured 0% loss.
+    raw_stress_loss = stress_report.get("loss_percent")
+    stress_loss_percent = (
+        round(float(raw_stress_loss), 4) if raw_stress_loss is not None else None
+    )
+    report = {
         "var_percent": round(float(var_report.get("var_percent", 0.0)), 4),
         "cvar_percent": round(float(var_report.get("cvar_percent", 0.0)), 4),
-        "stress_loss_percent": round(float(stress_report.get("loss_percent", 0.0)), 4),
+        "stress_loss_percent": stress_loss_percent,
         "scenario": stress_report.get("scenario"),
+        "stress_measurable": bool(stress_report.get("measurable")),
     }
+    if stress_report.get("reason"):
+        report["stress_reason"] = stress_report.get("reason")
+    if stress_report.get("coverage") is not None:
+        report["stress_coverage"] = float(stress_report.get("coverage") or 0.0)
+    panel_coverage = panels.get("panel_coverage")
+    if panel_coverage:
+        report["panel_coverage"] = panel_coverage
+    return report

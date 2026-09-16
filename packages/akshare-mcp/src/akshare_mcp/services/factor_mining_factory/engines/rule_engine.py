@@ -388,7 +388,7 @@ class RuleSeedEngine:
                 return 9
             return order.get(family, 6)
 
-        def _score(candidate: FactorCandidate) -> tuple[int, int, float, float, int, float, float]:
+        def _score(candidate: FactorCandidate) -> tuple[int, int, int, float, float, int, float, float]:
             quick = dict(candidate.quick_evidence or {})
             summary = dict(quick.get("evidence_summary") or {})
             trace = dict(candidate.generation_trace or {})
@@ -404,8 +404,11 @@ class RuleSeedEngine:
                 "directional_inversion": 1,
                 "targeted_low_volatility_variant": 0,
             }.get(mode, 2)
+            # An injected blueprint is explicit caller intent, so it outranks the
+            # generic stable-family preference once quick evidence is tied.
             return (
                 1 if quick.get("passed") else 0,
+                1 if str(getattr(candidate, "blueprint_id", "") or "").strip() else 0,
                 mode_rank,
                 _float(quick.get("quality_score")),
                 abs(_float(summary.get("rank_ic_mean") or quick.get("rank_ic_mean"))),

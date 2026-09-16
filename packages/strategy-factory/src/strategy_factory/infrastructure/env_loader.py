@@ -12,7 +12,10 @@ LLM_ENV_KEYS = {
 }
 
 LLM_ENV_PREFIXES = (
-    "AI_VALIDATION_",
+    # AI_VALIDATION_* / STRATEGY_FACTORY_AI_VALIDATION_* were dropped with the
+    # ai_validation package: its three-layer validator was never reachable from
+    # any code path and its config defaulted to disabled, so the prefixes had no
+    # consumer left to configure.
     "ANTHROPIC_",
     "DASHSCOPE_",
     "DEEPSEEK_",
@@ -21,7 +24,6 @@ LLM_ENV_PREFIXES = (
     "MOONSHOT_",
     "OPENAI_",
     "QWEN_",
-    "STRATEGY_FACTORY_AI_VALIDATION_",
     "STRATEGY_FACTORY_LLM_",
     "STRATEGY_EMBEDDING_",
     "STRATEGY_LLM_",

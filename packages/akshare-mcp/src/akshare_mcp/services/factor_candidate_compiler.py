@@ -55,6 +55,15 @@ _ALLOWED_NODE_TYPES = (
     ast.Constant,
 )
 
+# Bound parser work as well as the final score.  The score gate is a product
+# quality signal; these hard limits prevent a syntactically valid but enormous
+# expression from consuming unbounded CPU or recursion during validation.
+MAX_NODE_COUNT = 200
+# Binary expressions are left-associated by Python's parser, so a legitimate
+# expression with roughly twenty terms already reaches depth 21.  Keep enough
+# headroom for normal factor formulas while still bounding pathological input.
+MAX_DEPTH = 64
+
 
 @dataclass
 class _CompilerStats:
@@ -214,6 +223,11 @@ def _validate_node(
     stats.node_count += 1
     stats.max_depth = max(stats.max_depth, depth)
 
+    if stats.node_count > MAX_NODE_COUNT:
+        raise ValueError(f"formula exceeds {MAX_NODE_COUNT} AST nodes")
+    if depth > MAX_DEPTH:
+        raise ValueError(f"formula nests deeper than {MAX_DEPTH}")
+
     if not isinstance(node, _ALLOWED_NODE_TYPES):
         raise ValueError(f"unsupported AST node: {type(node).__name__}")
 
@@ -255,6 +269,8 @@ def _validate_node(
         for arg in node.args:
             _validate_node(arg, stats=stats, fields=fields, calls=calls, unsupported_fields=unsupported_fields, unsupported_functions=unsupported_functions, depth=depth + 1)
         for kw in node.keywords:
+            if kw.arg is None:
+                raise ValueError("keyword expansion is not allowed")
             _validate_node(kw.value, stats=stats, fields=fields, calls=calls, unsupported_fields=unsupported_fields, unsupported_functions=unsupported_functions, depth=depth + 1)
         return
 

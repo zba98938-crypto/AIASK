@@ -13,7 +13,6 @@ from importlib import import_module
 from typing import Any
 
 __all__ = [
-    "AlphaResearchService",
     "CandidatePipeline",
     "StrategyLifecycleCoordinator",
     "ReadinessService",
@@ -22,7 +21,6 @@ __all__ = [
 ]
 
 _LAZY_EXPORTS = {
-    "AlphaResearchService": ".alpha_research_service",
     "CandidatePipeline": ".candidate_pipeline",
     "StrategyLifecycleCoordinator": ".lifecycle_coordinator",
     "ReadinessService": ".readiness_service",
