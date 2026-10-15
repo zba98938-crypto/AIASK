@@ -43,8 +43,10 @@ from _db_sync_common import (
     REPRESENTATIVE_STOCKS,
     TDX_LOCAL_ONLY,
     TUSHARE_TOKEN,
+    UNIVERSE_SOURCE_SEED,
     _get_all_stocks,
     _require_tushare,
+    resolve_stock_universe,
     _to_ts_code,
 )
 from _db_sync_tasks import (
@@ -266,8 +268,10 @@ async def main():
         await asyncio.sleep(0.2)
         await _do_calendar()
 
-        all_stocks = _get_all_stocks()
-        print(f"    → 全量股票池: {len(all_stocks)} 只")
+        all_stocks, universe_source = resolve_stock_universe()
+        print(f"    → 股票池: {len(all_stocks)} 只（来源: {universe_source}）")
+        if universe_source == UNIVERSE_SOURCE_SEED:
+            print("    ! 已降级到 30 只种子池，本次同步不是全市场；见上方 [universe] 原因")
         await _do_klines(all_stocks, args.days)
 
         if use_tushare:
@@ -323,8 +327,12 @@ async def main():
 
     elif args.type:
         if args.type == "kline":
-            # 不传 --codes 时走全量 A 股
-            kline_codes = codes if args.codes else _get_all_stocks()
+            # 不传 --codes 时用解析出的股票池（可能只是种子池，见上面打印的来源）。
+            if codes:
+                kline_codes = codes
+            else:
+                kline_codes, universe_source = resolve_stock_universe()
+                print(f"    → 股票池: {len(kline_codes)} 只（来源: {universe_source}）")
             await _do_klines(kline_codes, args.days)
         elif args.type == "stocks":
             await _do_stocks()
