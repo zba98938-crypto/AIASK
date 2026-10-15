@@ -1,0 +1,69 @@
+# AIASK 开发规则
+
+## Python 环境
+
+统一使用 conda 环境 `aiask`（Python 3.13），**不使用项目内 `.venv`，不使用 `uv run`**。
+
+conda 未加入 PATH，用全路径调用：
+
+```bash
+/opt/miniconda3/envs/aiask/bin/python -m pytest -q
+```
+
+各包的测试从该包目录执行（`pytest.ini` 的 `pythonpath` 是相对路径）：
+
+```bash
+cd packages/akshare-mcp && /opt/miniconda3/envs/aiask/bin/python -m pytest -q
+```
+
+依赖用 pip 直装到该环境（8 个本地包全部 editable 安装：aiask-quant-core、strategy-factory、akshare-mcp、data-mcp、finance-mcp-servers、aiask-skills、reference-host、agent）。新增依赖后同步更新对应 `pyproject.toml`。
+
+`reference-host` 曾长期漏装，它唯一的测试正是验证「能否独立导入」，未装时该测试以 `ModuleNotFoundError` 失败。装包后再改测试断言真实隔离属性（导入图不拉入 agent/provider），而不是断言解释器里没装。
+
+背景：此前 `.venv` 未安装 pytest，`uv run pytest` 会静默回落到 `/opt/miniconda3/bin/pytest`（base 环境），导致「全量测试通过」实际是在未锁定的解释器上验证的，`uv.lock` 形同虚设。统一到一个显式环境后不再有这种隐式回落。
+
+## 交付形态
+
+本项目最终形态是 **MCP 服务 + skills 能力**，不是面向固定用户行为的应用。无前端：`desktop/` 已随本树抽取移除，客户端直接用 Agent HTTP / MCP 接口。
+
+## 用户体系裁决
+
+**单机单用户，是负债，不新增。**
+
+实测事实（2026-09-07）：`packages/agent/src` 有 547 处 `user_id` 引用，但运行库里 `app_users` 2 行、`users` 1 行、`user_roles` 2 行、`strategy_subscriptions` **0 行**；`require_user_scope` 的默认身份是字面量 `"local"`，跨身份访问退化为「需要 control token」。所以这 547 处引用支撑的不是多租户，而是一个**已退化到单用户的载体**。
+
+由此产生的规则：
+
+- **不要**把 `user_id` / `X-AIASK-User-Id` 缺失当漏洞报。没有多租户，就没有跨租户越权。
+- **不要**为它新增 principal / scope / RBAC / 订阅层。方向是收敛，不是加固。
+- **不要**在触碰相邻代码时顺手删它。547 处引用横跨 session、memory、audit、learning_loop，整体拆除是独立任务，不是重构的副产品。
+- 新代码默认走单用户路径，不引入新的 `user_id` 参数。
+- `STRATEGY_METRIC_NOISE_ENABLED`（默认开）会给未订阅身份的 Sharpe/Calmar 加 ±0.1% 噪声并标 `approximate: True`。既然订阅表为空，它对所有读取都生效 —— 任何跨源核对指标的代码要么关掉它，要么读 `approximate` 标记。
+
+## 诚实优先于「永不报错」
+
+降级路径必须让「测不出来」区别于「测出来是 0」。返回一个看似合理的数字并附一个披露标记是不够的：消费方读的是 `loss_percent`、`intrinsic_value`、`fitness`，不是 `assessment_basis`。
+
+- 无法测量 → 返回 `None` + 稳定的 `reason` 原因码。上游门禁已经区分「缺失」与「弱」（`missing_*` vs `weak_*`），缺失在 incubation/live 级别会硬失败，这是正确结果。
+- 不要用默认值补位关键敏感度。`stress_test` 曾对 `beta` 缺失默认按 1.0 处理，结果 179/179 份质量报告的 `stress_loss_percent` 全是 −20.0，而门禁阈值是 −25.0 —— 这条检查从未、也不可能触发。
+- 评分不得符号盲。因子评级曾用 `abs()` 包裹 IC，且 `ci_lower > 0 or ci_upper < 0` 把「显著为负」也算满分，导致 OOS IC = −0.05 的因子拿 70 分评为 A 级。方向基准取样本内 IC 符号：合法的反向因子照常计分，样本外符号翻转的按 0 分。
+- 不要 `except Exception: continue` 静默丢样本。记下 `skipped_codes` / `failed_codes`，否则 3 个存活标的也能产出一份完整的验证报告。
+
+## 测试
+
+写**行为断言**：调用真实函数，验证返回值与错误码。
+
+不要读源码文本做字符串匹配（`Path(...).read_text()` + `assert "xxx" in src`）。这类断言在模块搬迁时产生假失败，且不验证行为正确性。
+
+实例：`prediction_diagnosis_workflow` 的 Platt 校准有最少 30 样本门槛，源码文本匹配对此完全无感，改成真实调用后立刻暴露。
+
+更坏的变体，都出现过：
+
+- 断言注释存在（`assert '# P0 FIX: 补偿逻辑默认禁用' in content`）—— 删掉守卫、留着注释即通过。
+- 断言字符偏移量顺序（`assert add_idx < validate_idx < insert_idx`）来验证下单前的输入校验 —— 等价重排即失败，语义变更却可能通过。
+- 断言含精确缩进的多行字符串不存在 —— 跑一次格式化工具即空过。
+- 用 `return True/False` 代替 `assert`。pytest 忽略返回值，`passed=False` 也算通过。
+
+诊断脚本命名为 `check_*.py`，不要叫 `test_*.py` —— 后者会被 pytest 收集，把「需要活库、空库时 return True」的运维检查伪装成单元测试。`scripts/factories/` 下 8 个文件（1603 行、近乎零断言）因此被改名。
+
+根 `pytest.ini` 的 `testpaths` 覆盖全部 8 个包；CI 里每个包都是阻塞门禁。曾经只列 2 个包、且最大的两个包设 `continue-on-error`，等于 1900+ 测试（含公式执行安全套件）的回归无法让构建失败。

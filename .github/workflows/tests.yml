@@ -36,19 +36,24 @@ jobs:
             "pydantic==2.13.4" \
             "fastapi==0.133.1" \
             "uvicorn==0.41.0" \
-            "mcp==1.26.0" \
+            "mcp>=2.0,<3.0" \
             "httpx" \
             "pandas" \
             "numpy"
-          # mcp is pinned to match every package's pyproject. mcp 2.x removed
-          # mcp.server.fastmcp, which the MCP server modules import at module
-          # scope, so an unpinned install turns ~20 tests red for an unrelated
-          # reason.
+          # The mcp range mirrors every package's pyproject. The server modules
+          # import 2.x APIs at module scope, so installing 1.x here turns ~20
+          # tests red for a reason that has nothing to do with the change under
+          # test.
 
       - name: Byte-compile every package
         run: |
           python -m compileall -q packages scripts tools
 
+      # Every package gates. strategy-factory and akshare-mcp used to run with
+      # `continue-on-error` on the grounds of a "known-red baseline"; both are
+      # green, so a non-blocking run only meant a regression in the two largest
+      # packages (1900+ tests, including the formula-execution security suite)
+      # could not fail the build.
       - name: agent
         run: python -m pytest -q tests
         working-directory: packages/agent
@@ -61,16 +66,26 @@ jobs:
         run: python -m pytest -q tests
         working-directory: packages/finance-mcp-servers
 
-      # akshare-mcp and strategy-factory carry pre-existing failures that predate
-      # the backend-only migration (missing optional deps such as numba). They are
-      # run with `continue-on-error` so regressions stay visible in the log without
-      # turning a known-red baseline into a permanently failing gate.
-      - name: strategy-factory (baseline, non-blocking)
-        continue-on-error: true
+      - name: strategy-factory
         run: python -m pytest -q tests
         working-directory: packages/strategy-factory
 
-      - name: akshare-mcp (baseline, non-blocking)
-        continue-on-error: true
+      - name: akshare-mcp
         run: python -m pytest -q tests
         working-directory: packages/akshare-mcp
+
+      - name: aiask-skills
+        run: python -m pytest -q tests
+        working-directory: packages/aiask-skills
+
+      - name: data-mcp
+        run: python -m pytest -q tests
+        working-directory: packages/data-mcp
+
+      - name: reference-host
+        # Installed so `import aiask_reference_host` resolves; its isolation test
+        # asserts the import graph stays narrow, not that the package is absent.
+        run: |
+          python -m pip install -e . --no-deps
+          python -m pytest -q tests
+        working-directory: packages/reference-host
