@@ -226,77 +226,134 @@ async def _load_valuation_snapshot(
     return {}
 
 
+def _finite_or_none(value: Any) -> Optional[float]:
+    """Return a finite float, or ``None`` when the value is absent or unusable.
+
+    ``_safe_float`` collapses both cases into a default, and that is what made a
+    missing input indistinguishable from a measured zero in the factor bundle.
+    """
+
+    if value is None:
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
+
+
 def _compute_scalar_factor_bundle(
     closes: list[float],
     *,
     financial_snapshot: Optional[dict[str, Any]] = None,
     valuation_snapshot: Optional[dict[str, Any]] = None,
     factors: Optional[list[str]] = None,
+    unmeasurable: Optional[dict[str, str]] = None,
 ) -> dict[str, float]:
+    """Compute scalar factors, omitting every one that cannot be measured.
+
+    The previous version wrote 0.0 for each missing input, which made three
+    different facts identical: "the factor is genuinely zero", "the input it
+    needs is absent", and "there is too little history to compute it". Momentum
+    was the worst case — between 20 and 59 bars it averaged a real m20 with a
+    fabricated m60, halving the signal, and below 20 bars it returned exactly
+    0.0, ranking a stock with no history as if it had been perfectly flat.
+
+    A factor now appears in the result only when it was measured. Callers that
+    pass ``unmeasurable`` receive the reason for each omission, so "not
+    measured" can be reported rather than silently read as zero.
+    """
+
     normalized_closes = [float(item) for item in list(closes or []) if item is not None]
     requested = set(factors or [])
     financial_snapshot = dict(financial_snapshot or {})
     valuation_snapshot = dict(valuation_snapshot or {})
     factor_values: dict[str, float] = {}
+    reasons: dict[str, str] = {} if unmeasurable is None else unmeasurable
 
     if "momentum" in requested:
-        m20 = (
-            (normalized_closes[-1] - normalized_closes[-20]) / normalized_closes[-20]
-            if len(normalized_closes) >= 20 and normalized_closes[-20]
-            else 0.0
-        )
-        m60 = (
-            (normalized_closes[-1] - normalized_closes[-60]) / normalized_closes[-60]
-            if len(normalized_closes) >= 60 and normalized_closes[-60]
-            else 0.0
-        )
-        factor_values["momentum"] = float((m20 + m60) / 2.0)
+        # Both windows are required. Averaging a real m20 with a fabricated or
+        # absent m60 would make this factor mean different things for different
+        # stocks inside one cross-sectional ranking.
+        if len(normalized_closes) < 60 or not normalized_closes[-20] or not normalized_closes[-60]:
+            reasons["momentum"] = "insufficient_history"
+        else:
+            m20 = (normalized_closes[-1] - normalized_closes[-20]) / normalized_closes[-20]
+            m60 = (normalized_closes[-1] - normalized_closes[-60]) / normalized_closes[-60]
+            factor_values["momentum"] = float((m20 + m60) / 2.0)
 
     if "value" in requested:
-        pe = _safe_float(
-            valuation_snapshot.get("pe_ratio", financial_snapshot.get("pe_ratio")),
-            default=0.0,
-        )
-        pb = _safe_float(
-            valuation_snapshot.get("pb_ratio", financial_snapshot.get("pb_ratio")),
-            default=0.0,
-        )
+        pe = _finite_or_none(valuation_snapshot.get("pe_ratio", financial_snapshot.get("pe_ratio")))
+        pb = _finite_or_none(valuation_snapshot.get("pb_ratio", financial_snapshot.get("pb_ratio")))
         components = []
-        if pe > 0:
+        if pe is not None and pe > 0:
             components.append(1.0 / pe)
-        if pb > 0:
+        if pb is not None and pb > 0:
             components.append(1.0 / pb)
-        factor_values["value"] = float(sum(components) / len(components)) if components else 0.0
+        if components:
+            factor_values["value"] = float(sum(components) / len(components))
+        else:
+            # No positive multiple at all. That covers a loss-making company whose
+            # book value is also negative, and a company with no valuation row;
+            # both are "not measured" here, not "measured as extremely cheap".
+            reasons["value"] = "no_positive_valuation_multiple"
 
     if "quality" in requested:
-        roe = _safe_float(financial_snapshot.get("roe"), default=0.0)
-        roa = _safe_float(financial_snapshot.get("roa"), default=0.0)
-        gross_margin = _safe_float(financial_snapshot.get("gross_margin"), default=0.0)
-        debt_ratio = _safe_float(financial_snapshot.get("debt_ratio"), default=1.0)
-        factor_values["quality"] = float(
-            (roe / 30.0 if roe > 0 else 0.0) * 0.4
-            + (roa / 15.0 if roa > 0 else 0.0) * 0.3
-            + (gross_margin / 50.0 if gross_margin > 0 else 0.0) * 0.2
-            + ((1.0 - debt_ratio) if 0 <= debt_ratio < 1 else 0.0) * 0.1
-        )
+        roe = _finite_or_none(financial_snapshot.get("roe"))
+        roa = _finite_or_none(financial_snapshot.get("roa"))
+        gross_margin = _finite_or_none(financial_snapshot.get("gross_margin"))
+        debt_ratio = _finite_or_none(financial_snapshot.get("debt_ratio"))
+        parts: list[float] = []
+        if roe is not None:
+            parts.append((roe / 30.0 if roe > 0 else 0.0) * 0.4)
+        if roa is not None:
+            parts.append((roa / 15.0 if roa > 0 else 0.0) * 0.3)
+        if gross_margin is not None:
+            parts.append((gross_margin / 50.0 if gross_margin > 0 else 0.0) * 0.2)
+        if debt_ratio is not None:
+            parts.append(((1.0 - debt_ratio) if 0 <= debt_ratio < 1 else 0.0) * 0.1)
+        if parts:
+            factor_values["quality"] = float(sum(parts))
+        else:
+            reasons["quality"] = "no_financial_snapshot"
 
     if "growth" in requested:
-        revenue_growth = _safe_float(financial_snapshot.get("revenue_growth"), default=0.0)
-        profit_growth = _safe_float(financial_snapshot.get("profit_growth"), default=0.0)
-        factor_values["growth"] = float(
-            max(min((revenue_growth + profit_growth) / 200.0, 1.0), -1.0)
-        )
+        components = [
+            value
+            for value in (
+                _finite_or_none(financial_snapshot.get("revenue_growth")),
+                _finite_or_none(financial_snapshot.get("profit_growth")),
+            )
+            if value is not None
+        ]
+        if components:
+            # With both present this is (revenue + profit) / 200, unchanged; with
+            # one present it is that one / 100 rather than halving it against a
+            # zero that was never reported.
+            factor_values["growth"] = float(
+                max(min(sum(components) / (100.0 * len(components)), 1.0), -1.0)
+            )
+        else:
+            reasons["growth"] = "no_growth_fields"
 
     if "volatility" in requested:
         prices = np.array(normalized_closes, dtype=float)
         returns = np.diff(prices) / prices[:-1] if len(prices) > 1 else np.array([], dtype=float)
         annual_vol = float(np.std(returns) * np.sqrt(252)) if len(returns) > 1 else 0.0
-        factor_values["volatility"] = float(1.0 / annual_vol) if annual_vol > 0 else 0.0
+        if annual_vol > 0:
+            factor_values["volatility"] = float(1.0 / annual_vol)
+        else:
+            # A flat or one-bar series has no volatility to invert. Writing 0.0
+            # here ranked it as the most volatile name in the cross-section.
+            reasons["volatility"] = "no_return_variation"
 
     if "reversal" in requested:
-        factor_values["reversal"] = float(
-            -((normalized_closes[-1] - normalized_closes[-6]) / normalized_closes[-6])
-        ) if len(normalized_closes) >= 6 and normalized_closes[-6] else 0.0
+        if len(normalized_closes) >= 6 and normalized_closes[-6]:
+            factor_values["reversal"] = float(
+                -((normalized_closes[-1] - normalized_closes[-6]) / normalized_closes[-6])
+            )
+        else:
+            reasons["reversal"] = "insufficient_history"
 
     return factor_values
 

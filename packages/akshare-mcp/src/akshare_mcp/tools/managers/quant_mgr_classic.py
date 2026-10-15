@@ -488,10 +488,16 @@ async def handle_batch_compute_factors(
     results = {}
     errors = []
     persist_buffer = []
+    # Factors this pass could not measure, by reason. Counted rather than
+    # dropped: an unmeasurable factor writes no row, and without this the run
+    # would report nothing about what it skipped.
+    factor_reasons: dict[str, str] = {}
+    unmeasurable_counts: dict[str, int] = {}
     today = datetime.now().date()
 
     for stock_code in codes[:int(kw.get("max_codes", 1000) or 1000)]:
         try:
+            factor_reasons.clear()
             klines, _source_chain = await _load_klines_with_fallback(db=db, code=stock_code, limit=252)
             if not klines:
                 errors.append({"code": stock_code, "error": "no kline data"})
@@ -511,7 +517,10 @@ async def handle_batch_compute_factors(
                 financial_snapshot=latest_fin,
                 valuation_snapshot=valuation_snapshot,
                 factors=factors,
+                unmeasurable=factor_reasons,
             )
+            for reason in factor_reasons.values():
+                unmeasurable_counts[reason] = unmeasurable_counts.get(reason, 0) + 1
 
             results[stock_code] = factor_values
             if persist and factor_values:
@@ -587,13 +596,19 @@ async def handle_batch_compute_factors(
                         financials = await db.get_financials(stock_code, limit=8)
                         lagged_fin = _select_financial_snapshot(financials, as_of_date=lagged_date)
                         lagged_valuation = await _load_valuation_snapshot(db, stock_code, as_of_date=lagged_date)
+                        lagged_reasons: dict[str, str] = {}
                         lagged_bundle = _compute_scalar_factor_bundle(
                             lagged_closes,
                             financial_snapshot=lagged_fin,
                             valuation_snapshot=lagged_valuation,
                             factors=[factor_name],
+                            unmeasurable=lagged_reasons,
                         )
                         if factor_name not in lagged_bundle:
+                            # Not measurable at the signal date, so it contributes
+                            # no observation rather than a zero.
+                            for reason in lagged_reasons.values():
+                                unmeasurable_counts[reason] = unmeasurable_counts.get(reason, 0) + 1
                             continue
                         lagged_fv = float(lagged_bundle[factor_name])
 
@@ -683,6 +698,7 @@ async def handle_batch_compute_factors(
             "ic": ic_results,
             "ic_skipped_count": len(skipped_ic),
             "ic_skipped": skipped_ic[:10],
+            "unmeasurable_counts": unmeasurable_counts,
             "persisted": persist,
             "store": persist,
         },
