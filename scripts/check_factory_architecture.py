@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Test runner for Signal Tracker with new architecture."""
+"""Readiness check for the Strategy Factory runtime split."""
 
 import asyncio
 import sys
@@ -9,6 +9,17 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent  # scripts/test_factory_ar
 sys.path.insert(0, str(PROJECT_ROOT / "packages" / "strategy-factory" / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "packages" / "akshare-mcp" / "src"))
 sys.path.insert(0, str(PROJECT_ROOT / "packages" / "aiask-quant-core" / "src"))
+
+
+def _assert_runtime_result(label: str, result: object) -> str:
+    """Fail the check when a runtime reports a failed/degraded contract result."""
+    if not isinstance(result, dict):
+        raise RuntimeError(f"{label} returned {type(result).__name__}, expected a mapping")
+    status = str(result.get("status") or "").strip().lower()
+    errors = result.get("errors")
+    if result.get("success") is False or status in {"failed", "blocked", "error"} or errors:
+        raise RuntimeError(f"{label} returned an unhealthy result: {result}")
+    return status or ("success" if result.get("success") is True else "ok")
 
 
 async def test_signal_tracker():
@@ -102,7 +113,8 @@ async def test_signal_tracker():
 
         # Test run_once
         result = await runtime.run_once()
-        print(f"[OK] Run result: success={result.get('success')}")
+        result_status = _assert_runtime_result("Signal Tracker", result)
+        print(f"[OK] Run result: status={result_status}")
         print(f"  Universe size: {result.get('universe_size', 0)}")
         print(f"  Elapsed: {result.get('elapsed_seconds', 0):.2f}s")
 
@@ -164,7 +176,8 @@ async def test_factor_mining():
         print(f"[OK] Preflight: {preflight}")
 
         result = await runtime.run_once()
-        print(f"[OK] Run result: success={result.get('success')}")
+        result_status = _assert_runtime_result("Factor Mining", result)
+        print(f"[OK] Run result: status={result_status}")
         print(f"  Factors mined: {result.get('factors_mined', 0)}")
 
         print("\n[PASS] Factor Mining test PASSED")
@@ -196,6 +209,12 @@ async def test_incubation():
             async def list_incubating_strategies(self, db, **kwargs):
                 return []
 
+            async def list_paper_observation_strategies(self, db, **kwargs):
+                return []
+
+            async def list_diagnostic_observation_strategies(self, db, **kwargs):
+                return []
+
             async def generate_signals(self, db, strategy, **kwargs):
                 return {"signals_generated": 0}
 
@@ -223,6 +242,18 @@ async def test_incubation():
             async def stop_paper_runtime(self):
                 pass
 
+            async def run_recompile_remediation(self, db):
+                return {"recompiled_count": 0, "promoted_count": 0}
+
+            async def verify_trade_predictions(self, db):
+                return {"verified_count": 0, "accuracy": None}
+
+            async def run_accelerator(self, db):
+                return {"accelerated_count": 0, "promoted_count": 0}
+
+            async def monitor_alerts(self, db):
+                return {"alerts_processed": 0, "critical_count": 0}
+
         provider = MockProvider()
         runtime = build_incubation_runtime(support=provider)
 
@@ -230,7 +261,8 @@ async def test_incubation():
         print(f"[OK] Preflight: {preflight}")
 
         result = await runtime.run_once()
-        print(f"[OK] Run result: success={result.get('success')}")
+        result_status = _assert_runtime_result("Incubation", result)
+        print(f"[OK] Run result: status={result_status}")
         print(f"  Intake accepted: {result.get('intake_accepted', 0)}")
         print(f"  Signals generated: {result.get('signals_generated', 0)}")
 
@@ -257,33 +289,35 @@ async def test_market_event_ingest():
             async def get_db(self):
                 return None
 
-            async def scan_event_sources(self, db, **kwargs):
-                return {"sources_scanned": 0, "events_ingested": 0, "raw_events": []}
+            async def fetch_official_market_events(self, db, **kwargs):
+                return []
 
-            async def normalize_events(self, db, events):
-                return {"normalized_count": 0, "normalized_events": []}
+            async def list_normalized_events(self, db, **kwargs):
+                return []
 
-            async def cluster_events(self, db, events):
-                return {"clusters_created": 0, "clusters": []}
+            async def save_normalized_event(self, db, event):
+                return {"saved": False, "event_id": event.get("event_id")}
 
-            async def generate_event_signals(self, db, clusters):
-                return {"signals_generated": 0, "signals": []}
+            async def save_factory_event_cluster(self, db, cluster):
+                return {"saved": False, "cluster_id": cluster.get("cluster_id")}
 
-            async def detect_theme_events(self, db, clusters):
-                return {"themes_detected": 0}
+            async def save_factory_event_signal(self, db, signal):
+                return {"saved": False, "signal_id": signal.get("event_id")}
 
-            async def persist_events(self, db, events, clusters, signals):
-                pass
 
         provider = MockProvider()
-        runtime = build_market_event_ingest_runtime(support=provider)
+        runtime = build_market_event_ingest_runtime(
+            support=provider,
+            db_provider=lambda: None,
+        )
 
         preflight = runtime.preflight()
         print(f"[OK] Preflight: {preflight}")
 
         result = await runtime.run_once()
-        print(f"[OK] Run result: success={result.get('success')}")
-        print(f"  Events ingested: {result.get('events_ingested', 0)}")
+        result_status = _assert_runtime_result("Market Event Ingest", result)
+        print(f"[OK] Run result: status={result_status}")
+        print(f"  Events fetched: {result.get('events_fetched', 0)}")
 
         print("\n[PASS] Market Event Ingest test PASSED")
         return True

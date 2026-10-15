@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -77,45 +78,93 @@ def test_p0_2_quality_session_compensation_disabled() -> bool:
     print("P0-2: Quality Session 补偿逻辑默认禁用")
     print("=" * 80)
 
+    # Call the real gate and observe the environment it produces. This used to
+    # grep the script for Chinese comment strings such as
+    # '# P0 FIX: 补偿逻辑默认禁用', which asserted a comment rather than the
+    # behaviour and would keep passing if the guard itself were deleted.
+    import argparse
+    import ast
+    import logging
+
+    env_key = "INCUBATION_FACTORY_PAPER_EXECUTION_BACKLOG_ENABLED"
     try:
-        # 读取 run_strategy_factory_quality_session.py 验证补偿逻辑默认禁用
-        quality_session_path = ROOT / "scripts" / "factories" / "run_strategy_factory_quality_session.py"
-        if not quality_session_path.exists():
-            print(f"❌ 找不到 {quality_session_path}")
+        module_path = ROOT / "scripts" / "factories" / "run_strategy_factory_quality_session.py"
+        if not module_path.exists():
+            print(f"[FAIL] 找不到 {module_path}")
             return False
 
-        content = quality_session_path.read_text(encoding="utf-8")
+        # Extract and execute just this function. Importing the whole session
+        # script pulls in its sibling modules and module-level side effects,
+        # which is more than this check needs — but the function body executed
+        # here is the real one, parsed from the file, not a copy.
+        tree = ast.parse(module_path.read_text(encoding="utf-8"), filename=str(module_path))
+        target = next(
+            (
+                node
+                for node in tree.body
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name == "_apply_compensation_logic_if_enabled"
+            ),
+            None,
+        )
+        if target is None:
+            print("[FAIL] _apply_compensation_logic_if_enabled 不存在")
+            return False
 
-        # 验证关键修复点
-        checks = [
-            ('# P0 FIX: 补偿逻辑默认禁用', '补偿逻辑禁用注释'),
-            ('def _apply_compensation_logic_if_enabled', '条件启用补偿逻辑的函数'),
-            ('enable_compensation', '显式启用补偿的参数'),
-            ('⚠️  补偿逻辑已启用', '补偿启用警告'),
-        ]
+        namespace: dict[str, object] = {
+            "os": os,
+            "argparse": argparse,
+            "LOGGER": logging.getLogger("_qs_probe"),
+        }
+        exec(  # noqa: S102 - executing a function definition read from our own tree
+            compile(ast.Module(body=[target], type_ignores=[]), str(module_path), "exec"),
+            namespace,
+        )
+        apply_gate = namespace.get("_apply_compensation_logic_if_enabled")
+        if not callable(apply_gate):
+            print("[FAIL] 无法求值 _apply_compensation_logic_if_enabled")
+            return False
 
         passed = True
-        for pattern, description in checks:
-            if pattern in content:
-                print(f"[OK] {description}: 已实现")
+        original = os.environ.pop(env_key, None)
+        try:
+            # Default: the flag must stay unset.
+            apply_gate(argparse.Namespace())
+            if os.environ.get(env_key) is None:
+                print(f"[OK] 默认未启用补偿：{env_key} 未设置")
             else:
-                print(f"[FAIL] {description}: 未找到")
+                print(f"[FAIL] 默认已启用补偿：{env_key}={os.environ.get(env_key)}")
                 passed = False
 
-        # 验证默认情况下不设置补偿环境变量
-        if "# os.environ.setdefault(\"INCUBATION_FACTORY_PAPER_EXECUTION_BACKLOG_ENABLED\"" in content:
-            print("[OK] 补偿逻辑默认被注释禁用")
-        else:
-            print("[WARN] 补偿逻辑默认设置可能已修改")
+            # Explicit opt-out must also stay unset.
+            os.environ.pop(env_key, None)
+            apply_gate(argparse.Namespace(enable_compensation=False))
+            if os.environ.get(env_key) is None:
+                print(f"[OK] enable_compensation=False 时 {env_key} 未设置")
+            else:
+                print(f"[FAIL] enable_compensation=False 仍设置了 {env_key}")
+                passed = False
+
+            # Explicit opt-in must actually arm it.
+            os.environ.pop(env_key, None)
+            apply_gate(argparse.Namespace(enable_compensation=True))
+            if os.environ.get(env_key) == "1":
+                print(f"[OK] enable_compensation=True 时 {env_key}=1")
+            else:
+                print(f"[FAIL] enable_compensation=True 未设置 {env_key}")
+                passed = False
+        finally:
+            os.environ.pop(env_key, None)
+            if original is not None:
+                os.environ[env_key] = original
 
         if passed:
             print("\n[PASS] P0-2 修复验证通过")
-            print("   Quality Session 现在默认不启用补偿逻辑")
-            print("   只能通过 --enable-compensation 显式启用")
+            print("   补偿逻辑默认关闭，只有显式 --enable-compensation 才会开启")
         return passed
 
     except Exception as exc:
-        print(f"[FAIL] P0-2 修复验证失败: {exc}")
+        print(f"[FAIL] P0-2 修复验证失败: {type(exc).__name__}: {exc}")
         return False
 
 
