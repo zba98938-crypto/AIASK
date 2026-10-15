@@ -108,16 +108,15 @@ check_existing_processes() {
 
 # 验证Python环境
 verify_python() {
+    # The project runs on the conda env `aiask`; per-package .venv trees were
+    # removed. `uv run` is deliberately not a fallback here because it would
+    # recreate one.
     if [ -n "${AIASK_FACTORY_PYTHON:-}" ]; then
         PYTHON_CMD=("$AIASK_FACTORY_PYTHON")
-    elif [ -f "packages/akshare-mcp/.venv/Scripts/python.exe" ]; then
-        PYTHON_CMD=("packages/akshare-mcp/.venv/Scripts/python.exe")
-    elif command -v uv >/dev/null 2>&1; then
-        PYTHON_CMD=(uv run --project packages/akshare-mcp python)
-    elif [ -f "F:/Python311/python.exe" ]; then
-        PYTHON_CMD=("F:/Python311/python.exe")
+    elif [ -x "/opt/miniconda3/envs/aiask/bin/python" ]; then
+        PYTHON_CMD=("/opt/miniconda3/envs/aiask/bin/python")
     else
-        log_error "No Python runtime found. Set AIASK_FACTORY_PYTHON or install uv."
+        log_error "No Python runtime found. Activate conda env 'aiask' or set AIASK_FACTORY_PYTHON."
         exit 1
     fi
     PYTHON_DISPLAY="${PYTHON_CMD[*]}"

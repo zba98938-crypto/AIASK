@@ -187,7 +187,7 @@ def run_smoke(
         access = payload.get("access") if isinstance(payload.get("access"), dict) else {}
         recent_sessions = list(payload.get("recent_sessions") or [])
         recent_runs = list(payload.get("recent_runs") or [])
-        structured = payload.get("object") == "aiask.desktop.workbench.summary" and isinstance(queues, dict) and isinstance(access, dict)
+        structured = payload.get("object") == "aiask.workbench.summary" and isinstance(queues, dict) and isinstance(access, dict)
         return CheckResult(
             "workbench_summary",
             structured,

@@ -4,6 +4,30 @@ This file is the **current-state** pointer for the Hermes + AIASK finance
 upgrade. Prefer it over June historical “100% complete” reports when those
 conflict with the tree.
 
+> ## Standalone-tree correction (2026-10-15)
+>
+> Everything below was written while this tree lived at `integrations/aiask/`
+> inside a Hermes checkout. That host tree no longer exists on the development
+> machine, this repository is standalone, and the measured baseline further down
+> is **history, not current state**. Read the rest with these corrections:
+>
+> - The `integrations/aiask/**` paths are now relative to this repository root.
+>   The readiness gate is `python scripts/aiask_readiness.py --json`; add
+>   `--strict` to exit non-zero on a critical failure.
+> - `docs/AIASK_HERMES_FINANCE_EDITION.md` and
+>   `AIASK_FINANCE_AGENT_COMPLETION_AUDIT.md` are host-owned files that are not
+>   in this tree. The Phase 1–3 gate tables below therefore have no local source
+>   and cannot be re-verified here.
+> - `$AIASK_RUNTIME_HOME/venv` no longer exists: the conda env its `bin/python`
+>   pointed at was deleted. AIASK now resolves its interpreter from
+>   `AIASK_VENV_PYTHON`, then that venv, then the conda env named by
+>   `AIASK_CONDA_ENV` (default `aiask`). See the README setup section.
+> - "Verified local baseline (2026-07-15)" records a state that has since
+>   changed. Current measured state — data freshness, the 165-symbol universe,
+>   task-run status — is the README section "Known state, honestly".
+> - Every `pass (code)` in the gate tables below is a host-era code claim. It is
+>   not a current result and was never a run.
+
 ## Hermes finance edition (2026-07-23)
 
 Edge productization work targets a Hermes “AIASK finance edition” skin without

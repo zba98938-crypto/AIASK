@@ -114,7 +114,8 @@ LLM_ENV_PREFIXES = (
     "AIASK_AGENT_VISION_",
     "AIASK_AGENT_TTS_",
     "AIASK_MOA_",
-    "AI_VALIDATION_",
+    # AI_VALIDATION_* / STRATEGY_FACTORY_AI_VALIDATION_* dropped with the
+    # ai_validation package (unreachable, config defaulted to disabled).
     "AIASK_VIDEO_",
     "AIASK_VOICE_",
     "ANTHROPIC_",
@@ -125,7 +126,6 @@ LLM_ENV_PREFIXES = (
     "MOONSHOT_",
     "OPENAI_",
     "QWEN_",
-    "STRATEGY_FACTORY_AI_VALIDATION_",
     "STRATEGY_FACTORY_LLM_",
     "STRATEGY_EMBEDDING_",
     "STRATEGY_LLM_",

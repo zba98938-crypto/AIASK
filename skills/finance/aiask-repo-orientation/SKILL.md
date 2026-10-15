@@ -17,11 +17,11 @@ side_effect: read_only
 2. Read [references/map-and-rules.md](references/map-and-rules.md) before cross-package planning, reviews, or edits.
 3. Read [references/test-commands.md](references/test-commands.md) before choosing verification commands.
 4. Keep changes inside package ownership boundaries unless the task explicitly crosses them.
-5. When updating Codex skills, update project-level `.codex/skills` first, then mirror AIASK skills to `C:\Users\walking\.codex\skills`.
+5. Skills live in two places that must stay identical: `skills/finance/<name>/SKILL.md` and `packages/aiask-skills/src/aiask_skills/bundle/<name>/SKILL.md`. Edit both. `packages/aiask-skills/tests/test_bundle.py` checks they agree.
 
 ## Hard Rules
 
-- Desktop talks to the Agent HTTP API only; it must not import Python packages, call MCP tools directly, or call managers directly.
+- This tree is backend-only: there is no `desktop/` directory and no frontend. Clients use the Agent HTTP API or MCP directly; they must not import Python packages or call managers directly.
 - Model-visible Agent tools must be named `agent_*`.
 - Direct manager names must not be exposed as model-visible Agent tools.
 - Stateful, external-platform, strategy-lifecycle, or trade-risk actions require explicit guardrails, usually ActionIntent plus control token.
