@@ -53,7 +53,20 @@ def load_pyproject_deps(pyproject: dict) -> list[str]:
 
 def load_requirements_deps() -> list[str]:
     lines = REQUIREMENTS.read_text(encoding="utf-8").splitlines()
-    return _normalize(lines)
+    dependencies: list[str] = []
+    for item in _normalize(lines):
+        if item.startswith(("-e ", "--editable ")):
+            _, _, raw_path = item.partition(" ")
+            manifest = (REQUIREMENTS.parent / raw_path.strip() / "pyproject.toml").resolve()
+            with manifest.open("rb") as f:
+                local_project = tomllib.load(f)
+            name = str(local_project.get("project", {}).get("name") or "").strip()
+            if not name:
+                raise ValueError(f"editable dependency has no project.name: {manifest}")
+            dependencies.append(name)
+        else:
+            dependencies.append(item)
+    return dependencies
 
 
 def extract_pkg_version() -> str | None:

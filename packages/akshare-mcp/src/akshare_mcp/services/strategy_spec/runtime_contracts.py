@@ -801,6 +801,7 @@ def _default_research_validation_contract_payload(
     candidate_family: Any = None,
     holding_bucket: str = "medium",
 ) -> dict[str, Any]:
+    fallback_reason: Optional[str] = None
     if _should_use_510300_default_research_protocol(
         strategy_type=strategy_type,
         target_symbols=target_symbols,
@@ -808,16 +809,30 @@ def _default_research_validation_contract_payload(
         candidate_family=candidate_family,
     ):
         try:
-            from .research_510300_v3 import build_default_research_validation_contract
+            # `from .research_510300_v3` resolved to a sibling inside
+            # `strategy_spec/`, where no such module exists — the implementation
+            # lives one level up, in `services/`. So this import always failed,
+            # the bare `except Exception: pass` swallowed it, and the generic
+            # protocol was always substituted: the 510300 branch was dead and its
+            # business-admission requirements were never applied.
+            from ..research_510300_v3 import build_default_research_validation_contract
 
-            return dict(build_default_research_validation_contract() or {})
-        except Exception:
-            pass
-    return _generic_default_research_validation_contract_payload(
+            payload = dict(build_default_research_validation_contract() or {})
+            payload.setdefault("research_protocol_source", "510300_default")
+            return payload
+        except Exception as exc:
+            fallback_reason = f"{type(exc).__name__}: {exc}"
+    payload = _generic_default_research_validation_contract_payload(
         validation_profile=validation_profile,
         family=str(candidate_family or "").strip().lower() or str(strategy_type or "").strip().lower(),
         holding_bucket=holding_bucket,
     )
+    # A silent fallback is indistinguishable from a deliberate choice, so the
+    # caller is told which protocol it received and why.
+    payload.setdefault("research_protocol_source", "generic_fallback")
+    if fallback_reason:
+        payload.setdefault("research_protocol_fallback_reason", fallback_reason)
+    return payload
 
 
 def _classify_holding_bucket(holding_horizon: dict[str, Any]) -> str:

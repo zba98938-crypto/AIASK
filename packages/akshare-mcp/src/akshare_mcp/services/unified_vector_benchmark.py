@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ..storage.sqlite.vector_unified import VectorUnifiedMixin
-from ..vector_collection_scope import resolve_vector_collection_name
+from aiask_quant_core.vector_collection_scope import resolve_vector_collection_name
 
 
 def _normalize_positive_int(value: Any, default: int, *, minimum: int = 1, maximum: int = 5000) -> int:

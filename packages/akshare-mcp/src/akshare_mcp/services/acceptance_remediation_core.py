@@ -22,7 +22,7 @@ from .incubation import (
     get_strategy_incubation_service,
 )
 from .signal_tracker import _build_signal_tracking_artifacts
-from .trade_audit_writer import record_trade_fill_from_order_and_trade
+from aiask_quant_core.storage.trade_audit_writer import record_trade_fill_from_order_and_trade
 
 from .acceptance_helpers import (
     _RoundTrip,

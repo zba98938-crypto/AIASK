@@ -230,13 +230,15 @@ def test_active_pool_rejects_too_simple_expression_and_records_admission_ic():
         )
     )
 
+    # grade A/B + evidence.passed 直接入 active；quarantine 现为显式淘汰态，
+    # 不再是「先隔离后升级」的待审态（见 active_pool 入池分支与淘汰注释）。
     record = admitted["record"]
     assert admitted["admitted"] is True
-    assert admitted["quarantined"] is True
-    assert record["status"] == "quarantine"
+    assert admitted["quarantined"] is False
+    assert record["status"] == "active"
     assert record["admission_ic"] == 0.052
     assert record["current_ic"] == 0.052
-    assert record["validation_summary"]["quality_status"] == "quarantine"
+    assert record["validation_summary"]["quality_status"] == "promoted"
     assert record["validation_summary"]["persisted_outputs"]["ic_history_rows"] == 60
 
 

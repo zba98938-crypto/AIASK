@@ -17,7 +17,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from ...storage import get_db
 from ...utils import ok, fail
-from ...vector_collection_scope import normalize_market_doc_types, resolve_vector_collection_name
+from aiask_quant_core.vector_collection_scope import normalize_market_doc_types, resolve_vector_collection_name
 from ..manager_protocol import normalize_manager_payload
 from ._data_sync_manager_support_core import (
     _as_bool,

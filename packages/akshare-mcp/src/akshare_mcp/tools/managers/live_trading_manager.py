@@ -409,7 +409,7 @@ async def _dispatch_action(action: str, kwargs: dict[str, Any]) -> dict:
                 return _with_meta(data, adapter)
 
             order = await adapter.submit_order(kwargs)
-            audit_event(
+            audit_id = audit_event(
                 "live_trading:submit_order",
                 {"symbol": preview["symbol"], "qty": preview["qty"], "side": preview["side"]},
                 {"success": True, "order_id": order.get("order_id")},
@@ -421,7 +421,15 @@ async def _dispatch_action(action: str, kwargs: dict[str, Any]) -> dict:
                 "message": "实盘订单已提交到经纪商网关",
                 "order": order,
                 "raw": order,
+                # The broker submission is real and is reported as such — it must
+                # not be downgraded to "failed" because a log write failed. The
+                # audit write is a separate fact: audit_event returns None when
+                # nothing was persisted, so an unaudited live order says so.
+                "audit_event_id": audit_id,
+                "audit_persisted": audit_id is not None,
             }
+            if audit_id is None:
+                data["audit_failure_reason"] = "audit_event_not_persisted"
             return _with_meta(data, adapter)
 
         if normalized_action == "cancel_order":
@@ -460,7 +468,7 @@ async def _dispatch_action(action: str, kwargs: dict[str, Any]) -> dict:
                 return _with_meta(data, adapter)
 
             cancelled = await adapter.cancel_order(order_id)
-            audit_event(
+            audit_id = audit_event(
                 "live_trading:cancel_order",
                 {"order_id": order_id},
                 {"success": bool(cancelled.get("cancelled", True))},
@@ -470,7 +478,11 @@ async def _dispatch_action(action: str, kwargs: dict[str, Any]) -> dict:
                 "message": "撤单请求已发送到经纪商网关",
                 "order": cancelled,
                 "raw": cancelled,
+                "audit_event_id": audit_id,
+                "audit_persisted": audit_id is not None,
             }
+            if audit_id is None:
+                data["audit_failure_reason"] = "audit_event_not_persisted"
             return _with_meta(data, adapter)
 
         if normalized_action == "mirror_to_paper":

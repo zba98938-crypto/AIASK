@@ -7,11 +7,34 @@
 - FIX-43 (F-N43-5): data_quality_workflow 空 records 返回 PARAM_ERROR（与 data_validation 一致）
 """
 
+import asyncio
 from pathlib import Path
 
 import pytest
 
+from akshare_mcp.tools import ai_workflows
+
 _SRC = Path(__file__).resolve().parents[1] / "src" / "akshare_mcp"
+
+
+class _FakeMcp:
+    """Collect @mcp.tool-registered coroutines so tests can call them directly."""
+
+    def __init__(self) -> None:
+        self.tools: dict = {}
+
+    def tool(self, *args, **kwargs):
+        def register(fn):
+            self.tools[fn.__name__] = fn
+            return fn
+
+        return register
+
+
+def _run_workflow(name: str, **kwargs) -> dict:
+    mcp = _FakeMcp()
+    ai_workflows.register(mcp)
+    return asyncio.run(mcp.tools[name](**kwargs))
 
 
 # ── FIX-39: sklearn 校准后端不再恒失败 ───────────────────────────────
@@ -93,9 +116,23 @@ def test_fix42_run_skill_no_duplicate_execution():
 # ── FIX-43: data_quality_workflow 空 records 一致拒绝 ────────────────
 
 def test_fix43_data_quality_empty_records_rejected_static():
-    src = (_SRC / "tools" / "ai_workflows_parts" / "formatters.py").read_text(encoding="utf-8")
-    assert "records is required and must be a non-empty array" in src
-    assert "empty_records" in src
+    """空 records 必须与 data_validation 一致返回 PARAM_ERROR，而非真空通过。
+
+    行为断言而非源码文本匹配：formatters.py 已并入 ai_workflows.py。
+    """
+    result = _run_workflow(
+        "data_quality_workflow",
+        dataset_id="dq_empty",
+        records=[],
+        required_fields=["close"],
+    )
+
+    assert result["success"] is False
+    assert result["error_code"] == "PARAM_ERROR"
+    assert "non-empty array" in str(result.get("error") or "")
+    assert result["meta"]["quality"]["reason"] == "empty_records"
+    # 关键：不得把空输入当作 100% 合格
+    assert result["meta"]["quality"]["status"] == "failed"
 
 
 if __name__ == "__main__":

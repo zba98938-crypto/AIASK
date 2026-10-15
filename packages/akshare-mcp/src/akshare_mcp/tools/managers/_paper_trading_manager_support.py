@@ -8,7 +8,7 @@ from datetime import datetime, timezone
 from ...storage import get_db
 from ...utils import ok, fail
 from ...services.cost_model import build_cost_model
-from ...services.trade_audit_writer import (
+from aiask_quant_core.storage.trade_audit_writer import (
     aggregate_trade_position as _aggregate_trade_position_shared,
     record_trade_position_fill as _record_trade_position_fill_shared,
 )

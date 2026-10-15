@@ -5,12 +5,16 @@ from __future__ import annotations
 import datetime as _dt
 import inspect
 import json
+import logging
 import os
 from pathlib import Path
 from functools import wraps
 from typing import Any, Callable
 
 from .manager_protocol import generate_audit_event_id
+
+
+logger = logging.getLogger(__name__)
 
 
 def _is_true(value: str | None, default: bool = False) -> bool:
@@ -45,7 +49,15 @@ def audit_event(
     reason: str | None = None,
     audit_event_id: str | None = None,
 ) -> str | None:
-    """最小审计：JSONL 追加写入。返回 audit_event_id。"""
+    """最小审计：JSONL 追加写入。
+
+    Returns the ``audit_event_id`` when the record was persisted, and ``None``
+    when it was not. Returning the id regardless — which is what this did — put
+    the same value in the payload whether the audit line existed or not, so a
+    failed write was indistinguishable from a successful one. Failing to audit
+    must not break the caller's main flow; claiming to have audited is a
+    different matter.
+    """
     resolved_id = audit_event_id or generate_audit_event_id("risk_guard", action)
     try:
         log_path = os.getenv("AKSHARE_AUDIT_LOG", "logs/risk_audit.jsonl")
@@ -64,9 +76,15 @@ def audit_event(
         }
         with path.open("a", encoding="utf-8") as f:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
-    except Exception:
-        # 审计不应影响主流程
-        pass
+    except Exception as exc:
+        logger.warning(
+            "risk audit event %s for %s was not persisted: %s: %s",
+            resolved_id,
+            action,
+            type(exc).__name__,
+            exc,
+        )
+        return None
     return resolved_id
 
 

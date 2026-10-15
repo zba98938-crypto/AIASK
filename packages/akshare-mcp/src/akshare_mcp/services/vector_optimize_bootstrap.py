@@ -6,7 +6,7 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
-from ..vector_collection_scope import KLINE_COLLECTION_SPECS
+from aiask_quant_core.vector_collection_scope import KLINE_COLLECTION_SPECS
 from .factor_candidate_seed import seed_factor_candidate_records
 from .factor_candidate_vector_backfill import backfill_factor_candidate_vectors
 from .pattern_embedding_pipeline import backfill_kline_pattern_vectors

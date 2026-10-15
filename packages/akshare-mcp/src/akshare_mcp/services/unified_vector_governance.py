@@ -6,7 +6,7 @@ import math
 from datetime import datetime, timezone
 from typing import Any, Optional
 
-from ..vector_collection_scope import LEGACY_MARKET_DOC_COLLECTION, normalize_profile_type, resolve_vector_collection_name
+from aiask_quant_core.vector_collection_scope import LEGACY_MARKET_DOC_COLLECTION, normalize_profile_type, resolve_vector_collection_name
 
 
 def _now_iso() -> str:

@@ -7,11 +7,34 @@
 - FIX-23 (F-N08-1): scenario_dcf 负内在价值标注 valuation_reliable=false + quality_flags（静态扫描）
 """
 
+import asyncio
 from pathlib import Path
 
 import pytest
 
+from akshare_mcp.tools import ai_workflows
+
 _SRC = Path(__file__).resolve().parents[1] / "src" / "akshare_mcp"
+
+
+class _FakeMcp:
+    """Collect @mcp.tool-registered coroutines so tests can call them directly."""
+
+    def __init__(self) -> None:
+        self.tools: dict = {}
+
+    def tool(self, *args, **kwargs):
+        def register(fn):
+            self.tools[fn.__name__] = fn
+            return fn
+
+        return register
+
+
+def _run_workflow(name: str, **kwargs) -> dict:
+    mcp = _FakeMcp()
+    ai_workflows.register(mcp)
+    return asyncio.run(mcp.tools[name](**kwargs))
 
 
 def _strategy_mgr_crud_source() -> str:
@@ -115,11 +138,40 @@ def test_fix22_platt_fixed_coefficients_differ():
 
 
 def test_fix22_formatter_honors_user_platt():
-    src = (_SRC / "tools" / "ai_workflows_parts" / "formatters.py").read_text(encoding="utf-8")
-    # 必须存在「用户显式传入 platt 系数走固定系数路径」的分支
-    assert "user_supplied_platt" in src
-    assert "platt_fixed_coefficients" in src
-    assert 'workflow_method == "platt" and user_supplied_platt' in src
+    """method='platt' + 用户显式系数 → 走固定系数路径，且不同系数产出不同概率。
+
+    行为断言而非源码文本匹配：formatters.py 已并入 ai_workflows.py，
+    静态扫描会在每次模块搬迁后产生假失败。
+    """
+    # Calibration refuses to run below 30 samples, so stay above that floor.
+    probs = [round(0.02 + idx * 0.02, 4) for idx in range(40)]
+    labels = [0 if idx < 20 else 1 for idx in range(40)]
+
+    def run(platt_a: float, platt_b: float) -> dict:
+        return _run_workflow(
+            "prediction_diagnosis_workflow",
+            probabilities=probs,
+            labels=labels,
+            method="platt",
+            platt_a=platt_a,
+            platt_b=platt_b,
+        )
+
+    first = run(1.2, -0.3)
+    second = run(3.0, -1.5)
+
+    assert first["success"] is True, first.get("error")
+    assert second["success"] is True, second.get("error")
+    # 用户系数被采纳 → 生效方法切到固定系数分支，而非 builtin 自拟 sigmoid
+    assert first["data"]["effective_method"] == "platt_fixed_coefficients"
+    assert second["data"]["effective_method"] == "platt_fixed_coefficients"
+    # 参数不是 no-op：不同 (a,b) 必须产出不同校准概率
+    assert first["data"]["probabilities"] != second["data"]["probabilities"]
+
+    # 默认系数 (1.0, 0.0) 不应被当作「用户显式传入」
+    default_run = run(1.0, 0.0)
+    assert default_run["success"] is True, default_run.get("error")
+    assert default_run["data"]["effective_method"] != "platt_fixed_coefficients"
 
 
 # ── FIX-23: scenario_dcf 负内在价值护栏 ──────────────────────────────
@@ -302,11 +354,20 @@ def test_fix30_builtin_validator_clean_data_passes():
     assert res.passed is True
 
 
-def test_fix29_formatter_empty_probabilities_standardized():
-    src = (_SRC / "tools" / "ai_workflows_parts" / "formatters.py").read_text(encoding="utf-8")
-    # probabilities 现为 Optional，且对空/缺失返回标准化 PARAM_ERROR
-    assert "probabilities: list[float] | None = None" in src
-    assert "probabilities is required and must be a non-empty array" in src
+@pytest.mark.parametrize("probabilities", [None, []], ids=["missing", "empty"])
+def test_fix29_formatter_empty_probabilities_standardized(probabilities):
+    """空/缺失 probabilities → 标准化 PARAM_ERROR，而非裸 Pydantic 校验栈。
+
+    行为断言而非源码文本匹配：formatters.py 已并入 ai_workflows.py。
+    """
+    result = _run_workflow("prediction_diagnosis_workflow", probabilities=probabilities)
+
+    assert result["success"] is False
+    assert result["error_code"] == "PARAM_ERROR"
+    assert "probabilities is required" in result["error"]
+    # 拒绝必须是「诚实降级」而非静默真空通过
+    assert result["meta"]["degraded"] is True
+    assert result["meta"]["quality"]["status"] == "failed"
 
 
 # ── FIX-31: should_i_buy 概率校准 + 一致性 + style 校验 (F-N22) ──────

@@ -16,6 +16,11 @@ from ._risk_manager_support import (
 from .risk_mgr_helpers import _empty_var_payload, _parse_codes_weights, _safe_portfolio_id
 
 
+# Fixed so that the Monte Carlo branch is reproducible: identical inputs must
+# yield an identical VaR, otherwise a gate reading it is deciding on noise.
+MONTE_CARLO_SEED = 20260101
+
+
 async def _handle_calculate_var(
     *,
     db: Any,
@@ -145,7 +150,11 @@ async def _handle_calculate_var(
     else:
         mean = float(np.mean(portfolio_returns))
         std = float(np.std(portfolio_returns))
-        simulations = np.random.normal(mean, std, 10000)
+        # Seeded on purpose. An unseeded draw made VaR a different number on
+        # every call with identical inputs, so any gate consuming it could pass
+        # or fail on run-to-run luck. `np.random.normal` also draws from the
+        # global legacy state, which is shared with anything else in-process.
+        simulations = np.random.default_rng(MONTE_CARLO_SEED).normal(mean, std, 10000)
         var = float(np.percentile(simulations, (1 - confidence) * 100))
 
     var_amount = abs(var * total_value)

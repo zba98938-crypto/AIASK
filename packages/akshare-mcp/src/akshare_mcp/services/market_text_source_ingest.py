@@ -17,7 +17,7 @@ from typing import Any
 
 import requests
 
-from ..vector_collection_scope import normalize_market_doc_types, resolve_vector_collection_name
+from aiask_quant_core.vector_collection_scope import normalize_market_doc_types, resolve_vector_collection_name
 from .market_event_sources import (
     bridge_normalized_events_to_strategy_factory,
     event_source_status,

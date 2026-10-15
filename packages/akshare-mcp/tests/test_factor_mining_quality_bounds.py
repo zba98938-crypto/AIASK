@@ -40,7 +40,7 @@ async def test_factor_mining_strict_validation_candidate_limit(monkeypatch) -> N
     monkeypatch.setattr(validation_pipeline, "validate_factor_candidate_pipeline", fake_validate)
     monkeypatch.setattr(
         "akshare_mcp.services.factor_mining_factory.factory.evaluate_validation_evidence",
-        lambda _result: {"passed": True},
+        lambda _result, **_kwargs: {"passed": True},
     )
 
     factory = FactorMiningFactory()
@@ -76,7 +76,7 @@ async def test_factor_mining_strict_validation_limit_prioritizes_quick_evidence(
     monkeypatch.setattr(validation_pipeline, "validate_factor_candidate_pipeline", fake_validate)
     monkeypatch.setattr(
         "akshare_mcp.services.factor_mining_factory.factory.evaluate_validation_evidence",
-        lambda _result: {"passed": True},
+        lambda _result, **_kwargs: {"passed": True},
     )
 
     weak = _Candidate(

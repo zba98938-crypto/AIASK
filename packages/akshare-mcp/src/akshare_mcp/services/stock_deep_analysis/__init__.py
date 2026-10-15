@@ -10,6 +10,13 @@ from ..analysis_integrity_validator import validate_analysis_integrity
 from ..artifact_registry import get_artifact_async
 from ...storage import get_db
 from ...tools.trade_plan import generate_plan
+# Referenced below and previously never imported here. The sibling
+# ``services/stock_deep_analysis.py`` — a separate 50 KB module shadowed by this
+# package, so never loaded — did import it, which is why reading that file
+# suggested the name was available. With a blank or unmatched code,
+# ``target["code"]`` is falsy and this raised NameError before the structured
+# unresolved-target result could be built.
+from ...utils import normalize_code
 from .artifacts import (
     _load_existing_analysis_input,
     _load_existing_run_summary,

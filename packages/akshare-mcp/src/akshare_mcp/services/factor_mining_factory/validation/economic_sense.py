@@ -28,7 +28,11 @@ class EconomicReport:
     decay_forecast: dict[str, Any] = field(default_factory=dict)
     tradability: dict[str, Any] = field(default_factory=dict)
     llm_judgment: dict[str, Any] = field(default_factory=dict)
-    overall_score: float = 0.0
+    # None means "no dimension could be measured". The previous 0.0 default
+    # read as a computed score of zero, which is a different claim.
+    overall_score: float | None = None
+    partial: bool = False
+    unmeasured_dimensions: list[str] = field(default_factory=list)
     passed: bool = False
 
     def to_dict(self) -> dict[str, Any]:
@@ -38,7 +42,13 @@ class EconomicReport:
             "decay_forecast": self.decay_forecast,
             "tradability": self.tradability,
             "llm_judgment": self.llm_judgment,
-            "overall_score": round(self.overall_score, 4),
+            "overall_score": (
+                round(self.overall_score, 4)
+                if self.overall_score is not None
+                else None
+            ),
+            "partial": self.partial,
+            "unmeasured_dimensions": list(self.unmeasured_dimensions),
             "passed": self.passed,
         }
 
@@ -68,16 +78,43 @@ class EconomicSenseValidator:
             factor_name, factor_hypothesis, factor_expression
         )
 
-        # 综合评分
-        scores = [
-            causality.get("score", 0.0) * 0.25,
-            capacity.get("score", 0.0) * 0.20,
-            decay_forecast.get("score", 0.0) * 0.20,
-            tradability.get("score", 0.0) * 0.15,
-            llm_judgment.get("score", 0.0) * 0.20,
+        # 综合评分：未测量的维度既不并入总分，也不按 0 计。
+        #
+        # 旧实现让每个 "测不出来" 的维度拿到 0.5 分（13 处），于是
+        #   有经济含义(p<0.05)=1.0  <  压根测不出来=0.5  >  测了不显著(p≥0.10)=0.3
+        # —— 测不出来比测了失败得分更高，抛异常还白送 0.5。
+        # 现在：未测量维度被排除，权重按已测量维度重新归一，并显式披露。
+        components = (
+            ("causality", causality, 0.25),
+            ("capacity", capacity, 0.20),
+            ("decay_forecast", decay_forecast, 0.20),
+            ("tradability", tradability, 0.15),
+            ("llm_judgment", llm_judgment, 0.20),
+        )
+        measured = [
+            (name, float(payload["score"]), weight)
+            for name, payload, weight in components
+            if payload.get("score") is not None
         ]
-        overall = sum(scores)
-        passed = overall >= self.PASS_THRESHOLD
+        unmeasured = [
+            name
+            for name, payload, _weight in components
+            if payload.get("score") is None
+        ]
+
+        if not measured:
+            overall: float | None = None
+            passed = False
+        else:
+            measured_weight = sum(weight for _name, _score, weight in measured)
+            overall = (
+                sum(score * weight for _name, score, weight in measured)
+                / measured_weight
+            )
+            # Partial evidence must not be reported as a pass. Passing on one
+            # low-weight dimension is the same defect as passing on a fabricated
+            # 0.5 — the gate would be satisfied by evidence that does not exist.
+            passed = overall >= self.PASS_THRESHOLD and not unmeasured
 
         return EconomicReport(
             causality=causality,
@@ -86,6 +123,8 @@ class EconomicSenseValidator:
             tradability=tradability,
             llm_judgment=llm_judgment,
             overall_score=overall,
+            partial=bool(unmeasured),
+            unmeasured_dimensions=unmeasured,
             passed=passed,
         )
 
@@ -103,7 +142,7 @@ class EconomicSenseValidator:
             ).dropna()
 
             if len(aligned) < 60:
-                return {"available": False, "reason": "insufficient_data", "score": 0.5}
+                return {"available": False, "reason": "insufficient_data", "score": None}
 
             from scipy import stats
 
@@ -130,7 +169,7 @@ class EconomicSenseValidator:
             y_clean = y_trimmed[mask]
 
             if len(y_clean) < 30:
-                return {"available": False, "reason": "insufficient_clean_data", "score": 0.5}
+                return {"available": False, "reason": "insufficient_clean_data", "score": None}
 
             # OLS
             try:
@@ -138,13 +177,13 @@ class EconomicSenseValidator:
                 residuals = y_clean - X_clean @ beta
                 rss_unrestricted = float(np.sum(residuals ** 2))
             except np.linalg.LinAlgError:
-                return {"available": False, "reason": "singular_matrix", "score": 0.5}
+                return {"available": False, "reason": "singular_matrix", "score": None}
 
             # F 统计量
             df1 = max_lag
             df2 = len(y_clean) - 2 * max_lag
             if df2 <= 0 or rss_unrestricted <= 0:
-                return {"available": False, "reason": "degenerate", "score": 0.5}
+                return {"available": False, "reason": "degenerate", "score": None}
 
             f_stat = ((rss_restricted - rss_unrestricted) / df1) / (rss_unrestricted / df2)
             p_value = 1.0 - stats.f.cdf(max(0, f_stat), df1, df2)
@@ -167,7 +206,7 @@ class EconomicSenseValidator:
             }
         except Exception as exc:
             logger.debug("Granger causality failed: %s", exc)
-            return {"available": False, "reason": str(exc), "score": 0.5}
+            return {"available": False, "reason": str(exc), "score": None}
 
     def _estimate_capacity(
         self,
@@ -180,13 +219,13 @@ class EconomicSenseValidator:
         基于因子换手率和市场流动性估算。
         """
         if amount_series is None or amount_series.empty:
-            return {"available": False, "reason": "no_amount_data", "score": 0.5}
+            return {"available": False, "reason": "no_amount_data", "score": None}
 
         try:
             # 日均成交额
             avg_daily_amount = float(amount_series.tail(60).mean())
             if avg_daily_amount <= 0:
-                return {"available": False, "reason": "zero_amount", "score": 0.3}
+                return {"available": False, "reason": "zero_amount", "score": None}
 
             # 假设因子策略占市场成交的 1%
             participation_rate = 0.01
@@ -220,7 +259,7 @@ class EconomicSenseValidator:
             }
         except Exception as exc:
             logger.debug("Capacity estimation failed: %s", exc)
-            return {"available": False, "reason": str(exc), "score": 0.5}
+            return {"available": False, "reason": str(exc), "score": None}
 
     def _forecast_decay(
         self,
@@ -236,7 +275,7 @@ class EconomicSenseValidator:
             ).dropna()
 
             if len(aligned) < window * 3:
-                return {"available": False, "reason": "insufficient_data", "score": 0.5}
+                return {"available": False, "reason": "insufficient_data", "score": None}
 
             # 计算滚动 IC
             rolling_ic = []
@@ -247,7 +286,7 @@ class EconomicSenseValidator:
                     rolling_ic.append(ic)
 
             if len(rolling_ic) < 10:
-                return {"available": False, "reason": "insufficient_ic_series", "score": 0.5}
+                return {"available": False, "reason": "insufficient_ic_series", "score": None}
 
             ic_series = np.array(rolling_ic)
 
@@ -283,13 +322,13 @@ class EconomicSenseValidator:
             }
         except Exception as exc:
             logger.debug("Decay forecast failed: %s", exc)
-            return {"available": False, "reason": str(exc), "score": 0.5}
+            return {"available": False, "reason": str(exc), "score": None}
 
     def _assess_tradability(self, factor_values: pd.Series) -> dict[str, Any]:
         """交易约束评估：换手率、涨跌停影响。"""
         try:
             if factor_values.empty:
-                return {"available": False, "score": 0.5}
+                return {"available": False, "reason": "unavailable", "score": None}
 
             # 因子值变化频率（代理换手率）
             changes = factor_values.diff().abs()
@@ -322,7 +361,7 @@ class EconomicSenseValidator:
             }
         except Exception as exc:
             logger.debug("Tradability assessment failed: %s", exc)
-            return {"available": False, "reason": str(exc), "score": 0.5}
+            return {"available": False, "reason": str(exc), "score": None}
 
     async def _llm_economic_judgment(
         self,
@@ -332,36 +371,38 @@ class EconomicSenseValidator:
     ) -> dict[str, Any]:
         """LLM-as-Judge：评估因子的经济学合理性。"""
         if not hypothesis and not expression:
-            return {"available": False, "reason": "no_hypothesis", "score": 0.5}
+            return {"available": False, "reason": "no_hypothesis", "score": None}
 
+        # The LLM is never consulted. The prompt below this point used to be
+        # built and then discarded — both branches fell through to the heuristic
+        # — so `provider.is_enabled()` decided nothing. Rather than present a
+        # rule-based guess as an LLM judgement, the result states which one it is.
         try:
             from ...factor_llm_provider import get_factor_llm_provider
-            provider = get_factor_llm_provider()
 
-            if not provider.is_enabled():
-                # LLM 不可用时，基于规则做简单判断
-                return self._rule_based_judgment(factor_name, hypothesis, expression)
-
-            # 构建判断 prompt
-            prompt_text = (
-                f"Factor: {factor_name}\n"
-                f"Hypothesis: {hypothesis}\n"
-                f"Expression: {expression}\n\n"
-                "As a quantitative finance expert, evaluate this factor's economic rationale. "
-                "Score from 0 to 1 where 1 means strong economic foundation. "
-                "Return JSON: {\"score\": float, \"rationale\": string, \"concerns\": [string]}"
-            )
-
-            # 简化调用（不做完整 LLM 调用以避免超时）
-            return self._rule_based_judgment(factor_name, hypothesis, expression)
-
+            llm_enabled = bool(get_factor_llm_provider().is_enabled())
         except Exception as exc:
-            logger.debug("LLM judgment failed: %s", exc)
-            return self._rule_based_judgment(factor_name, hypothesis, expression)
+            logger.debug("LLM provider unavailable: %s", exc)
+            llm_enabled = False
+
+        payload = self._rule_based_judgment(factor_name, hypothesis, expression)
+        payload["llm_consulted"] = False
+        payload["llm_provider_enabled"] = llm_enabled
+        if not llm_enabled and not payload.get("reason"):
+            payload["reason"] = "llm_not_enabled"
+        return payload
 
     @staticmethod
     def _rule_based_judgment(name: str, hypothesis: str, expression: str) -> dict[str, Any]:
-        """基于规则的经济学合理性判断（LLM 不可用时的降级）。"""
+        """基于规则的经济学合理性判断（LLM 不可用时的降级）。
+
+        The score starts from a neutral 0.5 prior and moves by at most ±0.25 on
+        observed signals, so its range is [0.35, 0.75]. An expression with no
+        hypothesis, no known family, excessive length and no temporal operators
+        still scores 0.35. That is a prior, not a measurement — ``basis`` names
+        it so a consumer can tell the two apart instead of reading 0.35 as
+        "measured economic sense".
+        """
         score = 0.5
         rationale = []
         concerns = []
@@ -396,6 +437,8 @@ class EconomicSenseValidator:
         return {
             "available": True,
             "mode": "rule_based",
+            "basis": "heuristic_prior",
+            "prior": 0.5,
             "score": round(score, 4),
             "rationale": rationale,
             "concerns": concerns,

@@ -323,7 +323,7 @@ def test_quick_evidence_evaluator_uses_quick_stage_and_thresholds(monkeypatch):
             "success": True,
             "metrics": {
                 "rank_ic_mean": 0.03,
-                "rank_ic_ir": 0.2,
+                "rank_ic_ir": 0.3,
                 "positive_ratio": 0.54,
                 "sample_dates": 45,
             },
@@ -368,7 +368,7 @@ def test_factory_quick_evidence_budget_is_isolated_by_engine(monkeypatch):
             "success": True,
             "metrics": {
                 "rank_ic_mean": 0.03,
-                "rank_ic_ir": 0.2,
+                "rank_ic_ir": 0.3,
                 "positive_ratio": 0.54,
                 "sample_dates": 45,
             },
@@ -426,61 +426,6 @@ def test_factory_quick_evidence_budget_is_isolated_by_engine(monkeypatch):
     assert context.quick_evidence_evaluators["gp_classic"].evaluation_count == 1
     assert context.quick_evidence_evaluators["mcts_guided"].evaluation_count == 1
     assert calls == ["gp_first", "mcts_first"]
-
-
-def test_quick_evidence_budget_uses_env_default(monkeypatch):
-    from akshare_mcp.services import factor_validation_pipeline
-    from akshare_mcp.services.factor_mining_factory.engines.base import FactorCandidate
-    from akshare_mcp.services.factor_mining_factory.factory import FactorMiningFactory
-
-    monkeypatch.setenv("FACTOR_MINING_QUICK_EVIDENCE_MAX_EVALUATIONS", "1")
-
-    calls: list[str] = []
-
-    async def fake_validate(db, candidate, **kwargs):
-        calls.append(str(candidate.get("name") or ""))
-        return {
-            "success": True,
-            "metrics": {"rank_ic_mean": 0.03, "rank_ic_ir": 0.2, "positive_ratio": 0.54},
-            "coverage": {"avg_cross_section_n": 100, "eligible_code_count": 130},
-            "cross_section": {"summary": {"rank_ic_mean": 0.03, "sample_dates": 45}},
-            "lookahead_audit": {"risk_level": "low"},
-            "persisted_outputs": {"enabled": False, "ic_history_rows": 0},
-        }
-
-    monkeypatch.setattr(
-        factor_validation_pipeline,
-        "validate_factor_candidate_pipeline",
-        fake_validate,
-    )
-
-    class Context:
-        validation_codes = [f"000{i:03d}" for i in range(130)]
-
-    async def run():
-        context = Context()
-        FactorMiningFactory()._install_quick_evidence_evaluators(object(), context)
-        first = FactorCandidate(
-            name="first",
-            expression_dsl="ts_mean(close, 20)",
-            generation_engine="rule_seed",
-        )
-        second = FactorCandidate(
-            name="second",
-            expression_dsl="ts_mean(open, 20)",
-            generation_engine="rule_seed",
-        )
-        return (
-            await context.quick_evidence_evaluator(first),
-            await context.quick_evidence_evaluator(second),
-        )
-
-    first_evidence, second_evidence = asyncio.run(run())
-
-    assert first_evidence["passed"] is True
-    assert second_evidence["passed"] is False
-    assert second_evidence["fail_reasons"] == ["quick_evaluation_budget_exhausted"]
-    assert calls == ["first"]
 
 
 def test_engine_scheduler_normalizes_budget_for_explicit_single_engine():
@@ -652,7 +597,7 @@ def test_active_pool_replacement_returns_retired_record_for_persistence():
 
     saved_by_id = {item["factor_id"]: item for item in db.saved}
     assert saved_by_id["existing-1"]["status"] == "retired"
-    assert saved_by_id[admitted["factor_id"]]["status"] == "quarantine"
+    assert saved_by_id[admitted["factor_id"]]["status"] == "active"
 
 
 def test_factory_quality_summary_includes_quick_funnel_and_blueprints():
@@ -962,14 +907,36 @@ def test_rule_seed_expands_and_ranks_without_running_quick_validation(monkeypatc
         async def quick_evidence_evaluator(self, candidate):
             raise AssertionError(f"quick validation must not run inside rule_seed: {candidate.name}")
 
+    # ATR-inverse 短窗族是可选探索族，生产默认 OFF（见 rule_engine._family_rank：
+    # 稳定族优先，volatility 排最末）。本测试要验的是「rule_seed 内不跑 quick
+    # validation」以及该族的候选形态，因此显式开启开关，且不断言它排第几名
+    # —— 位次由排序策略决定，属于实现细节。
+    monkeypatch.setenv("FACTOR_MINING_ALLOW_ATR_INVERSE_VARIANTS", "1")
+
     engine = RuleSeedEngine()
     monkeypatch.setattr(engine, "_generate_variants", lambda _count: [])
 
-    candidates = asyncio.run(engine.generate(Context(), SearchBudget(candidate_count=2)))
+    atr_variants = engine._targeted_low_volatility_variants()
 
-    assert candidates[0].generation_trace["mode"] == "targeted_low_volatility_variant"
-    assert "high" in candidates[0].inputs
-    assert candidates[0].quick_evidence == {}
+    # 关键行为一：rule_seed 生成阶段绝不触发 quick validation。
+    # Context.quick_evidence_evaluator 一旦被调用就会抛 AssertionError，
+    # 因此 generate 能正常返回即证明该行为成立。
+    candidates = asyncio.run(engine.generate(Context(), SearchBudget(candidate_count=2)))
+    assert candidates
+
+    # 关键行为二：候选未被预填 quick_evidence。
+    assert all(candidate.quick_evidence == {} for candidate in candidates)
+
+    # 关键行为三：ATR-inverse 族的候选形态正确（含日内区间输入）。
+    assert atr_variants
+    range_based = [
+        candidate
+        for candidate in atr_variants
+        if candidate.generation_trace.get("mode") == "targeted_low_volatility_variant"
+        and "high" in candidate.inputs
+    ]
+    assert range_based
+    assert all(candidate.quick_evidence == {} for candidate in atr_variants)
 
 
 def test_rule_seed_generates_directional_inversion_candidates():

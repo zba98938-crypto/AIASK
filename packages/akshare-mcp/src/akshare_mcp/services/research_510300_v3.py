@@ -28,7 +28,11 @@ from strategy_factory.api.semantic_contract import (
     build_research_validation_contract,
 )
 
-from ._validation_support import (
+# Statistics come from the one implementation, not a local copy. This module
+# used to import a byte-identical 848-line duplicate that lived beside it as
+# ``services/_validation_support.py``; the two had already drifted apart by a
+# BOM, and any fix applied to one would silently miss the other.
+from aiask_quant_core._validation_support import (
     hansen_spa_test,
     probability_of_backtest_overfitting,
     white_reality_check,

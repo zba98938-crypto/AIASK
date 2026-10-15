@@ -14,7 +14,7 @@ from uuid import NAMESPACE_URL, uuid4, uuid5
 from strategy_factory.api.semantic_contract import build_signal_evidence_records
 from aiask_quant_core.incubation_stages import normalize_incubation_stage
 
-from .trade_audit_writer import record_trade_fill_from_order_and_trade
+from aiask_quant_core.storage.trade_audit_writer import record_trade_fill_from_order_and_trade
 
 logger = logging.getLogger(__name__)
 

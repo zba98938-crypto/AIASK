@@ -7,7 +7,7 @@ import math
 from datetime import date, datetime
 from typing import Any, Iterable, Optional
 
-from ..vector_collection_scope import kline_collection_spec
+from aiask_quant_core.vector_collection_scope import kline_collection_spec
 from .vector_search import vector_search_engine
 
 

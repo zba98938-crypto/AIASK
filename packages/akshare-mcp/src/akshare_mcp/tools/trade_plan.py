@@ -916,7 +916,7 @@ async def _get_historical_hit_rate(
 ) -> float | None:
     """尝试获取当前信号组合的 10 日历史胜率。"""
     try:
-        from ..services.data_pipeline.condition_stats import compute_signal_hit_rate
+        from ..services.data_pipeline import compute_signal_hit_rate
 
         db = get_db()
         klines = await db.get_klines(code, limit=500)
@@ -938,7 +938,7 @@ async def _get_hit_rate_detail(
 ) -> dict | None:
     """P1: 深化信号命中率 — 分持有期、平均收益、regime 分层。"""
     try:
-        from ..services.data_pipeline.condition_stats import compute_signal_hit_rate
+        from ..services.data_pipeline import compute_signal_hit_rate
 
         db = get_db()
         klines = await db.get_klines(code, limit=500)
@@ -1211,7 +1211,7 @@ def _rolling_window_validation(
 ) -> dict | None:
     """将数据分为多个窗口，验证信号在不同时期的稳定性。"""
     try:
-        from ..services.data_pipeline.condition_stats import compute_signal_hit_rate
+        from ..services.data_pipeline import compute_signal_hit_rate
 
         n = len(klines)
         if n < window_size * 2:
@@ -1263,7 +1263,7 @@ def _detect_signal_decay(
 ) -> dict | None:
     """对比近期 vs 全样本的信号命中率，检测信号是否衰减。"""
     try:
-        from ..services.data_pipeline.condition_stats import compute_signal_hit_rate
+        from ..services.data_pipeline import compute_signal_hit_rate
 
         if len(klines) < recent_window + 30:
             return None

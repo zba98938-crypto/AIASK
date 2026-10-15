@@ -32,7 +32,7 @@ from akshare_mcp.services.unified_vector_governance import (  # noqa: E402
     build_vector_collection_snapshot,
 )
 from akshare_mcp.storage import close_db, get_db  # noqa: E402
-from akshare_mcp.vector_collection_scope import (  # noqa: E402
+from aiask_quant_core.vector_collection_scope import (  # noqa: E402
     normalize_market_doc_types,
     resolve_dimension_scoped_version,
     resolve_vector_collection_name,

@@ -539,7 +539,8 @@ def register(mcp):
     @mcp.tool()
     async def stress_test_portfolio(
         holdings: List[Dict[str, Any]],
-        scenarios: Optional[List[str]] = None
+        scenarios: Optional[List[str]] = None,
+        portfolio_value: Optional[float] = None,
     ):
         """
         组合压力测试（委托服务层 RiskModel.stress_test 执行 4 种场景 + 自定义冲击）
@@ -563,41 +564,38 @@ def register(mcp):
             if not scenarios:
                 scenarios = ['market_crash', 'sector_rotation', 'interest_rate_hike', 'black_swan']
 
-            # 如果 holdings 缺少 value 字段，用 weight * 1000000 估算
+            # Weights alone do not determine an absolute position size. The ratio
+            # metric (loss_percent) is scale-invariant and stays meaningful, but
+            # the absolute amounts become fictional — so the notional is named in
+            # the response instead of being assumed in silence.
+            assumed_notional = float(portfolio_value or 1_000_000.0)
+            notional_assumed = False
             for h in holdings:
                 if 'value' not in h:
-                    h['value'] = h.get('weight', 0) * 1_000_000
+                    h['value'] = h.get('weight', 0) * assumed_notional
+                    notional_assumed = True
 
             results = {}
             for scenario in scenarios:
-                result = risk_model.stress_test(holdings, scenario=scenario)
-                if isinstance(result, dict):
-                    for key in ("loss_percent", "loss_percentage", "return_percent", "total_return_pct"):
-                        if key not in result:
-                            continue
-                        try:
-                            raw = result.get(key)
-                            if isinstance(raw, str):
-                                raw_value = float(raw.strip().rstrip("%"))
-                            else:
-                                raw_value = float(raw)
-                            if abs(raw_value) <= 1:
-                                raw_value *= 100
-                            if key in {"loss_percent", "loss_percentage"}:
-                                result["loss_percent"] = abs(raw_value)
-                                result["signed_return_percent"] = -abs(raw_value)
-                            else:
-                                result.setdefault("signed_return_percent", raw_value)
-                                result.setdefault("loss_percent", abs(raw_value) if raw_value < 0 else 0.0)
-                            break
-                        except Exception:
-                            continue
-                results[scenario] = result
+                # Pass the upstream result through unchanged. This loop used to
+                # rewrite it: `abs()` flipped a -30% loss into +30, and
+                # `if abs(raw) <= 1: raw *= 100` turned a 0.6% loss into 60%.
+                # Both contradicted risk_model.stress_test, which documents
+                # "negative means the portfolio lost value, matching the gate
+                # comparison stress_loss_percent <= -25.0" — a gate that could
+                # therefore never fire on values this function produced. The
+                # `signed_return_percent` field it also wrote had no readers.
+                results[scenario] = risk_model.stress_test(holdings, scenario=scenario)
 
             return ok_with_meta(
                 {
                     'holdings_count': len(holdings),
                     'stress_tests': results,
+                    # Downstream gates compare `stress_loss_percent <= -25.0`, so
+                    # the convention is stated rather than left to inference.
+                    'loss_sign_convention': 'negative means loss',
+                    'notional_assumed': notional_assumed,
+                    'assumed_notional': assumed_notional if notional_assumed else None,
                 },
                 tool_name="stress_test_portfolio",
                 action="stress_test",

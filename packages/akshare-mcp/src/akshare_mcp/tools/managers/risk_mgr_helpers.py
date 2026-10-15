@@ -193,7 +193,14 @@ def _liquidity_level(days_to_exit: float | None) -> str:
 # ---------------------------------------------------------------------------
 
 def _empty_var_payload(portfolio_id: Any, input_mode: str, confidence: float, method: str) -> dict:
-    """Return a stable, parseable zero-risk payload for empty portfolios."""
+    """Return an explicitly-unmeasurable payload for an empty portfolio.
+
+    An empty portfolio has no risk *measurement*, which is not the same as a
+    measured risk of zero. The previous "zero-risk payload" reported
+    ``var.percentage = 0.0``, ``volatility = 0.0`` and ``max_drawdown = 0.0``,
+    each of which reads as a computed result. ``total_value`` stays 0.0 because
+    that one *is* a fact: there are no positions, so the value is zero.
+    """
     return {
         "portfolio_id": portfolio_id,
         "input_mode": input_mode,
@@ -202,18 +209,20 @@ def _empty_var_payload(portfolio_id: Any, input_mode: str, confidence: float, me
         "total_value": 0.0,
         "constituents": [],
         "empty_portfolio": True,
+        "measurable": False,
+        "reason": "empty_portfolio",
         "var": {
-            "percentage": 0.0,
-            "amount": 0.0,
-            "description": "empty portfolio",
+            "percentage": None,
+            "amount": None,
+            "description": "not measured: portfolio is empty",
         },
         "cvar": {
-            "percentage": 0.0,
-            "amount": 0.0,
-            "description": "empty portfolio",
+            "percentage": None,
+            "amount": None,
+            "description": "not measured: portfolio is empty",
         },
-        "volatility": 0.0,
-        "max_drawdown": 0.0,
+        "volatility": None,
+        "max_drawdown": None,
         "message": "empty portfolio, add holdings first",
         "quick_start": {
             "step1": 'portfolio_manager(action="add_holding", portfolio_id="xxx", code="600519", shares=100)',
@@ -223,25 +232,35 @@ def _empty_var_payload(portfolio_id: Any, input_mode: str, confidence: float, me
 
 
 def _empty_stress_payload(portfolio_id: Any, input_mode: str, scenario_name: str, description: str) -> dict:
+    """Return an explicitly-unmeasurable payload for an empty portfolio.
+
+    An empty portfolio has no stress *measurement*. The previous payload
+    reported ``loss_percentage = "0.00%"`` with ``severity = "low"``, which
+    reads as "this scenario was evaluated and the loss was zero". That is the
+    same conflation the VaR contract had to fix. ``current_value`` stays 0.0
+    because that is a real fact about an empty portfolio.
+    """
     return {
         "portfolio_id": portfolio_id,
         "input_mode": input_mode,
         "scenario": scenario_name,
         "description": description,
         "current_value": 0.0,
-        "stressed_value": 0.0,
-        "loss": 0.0,
-        "loss_percentage": "0.00%",
-        "severity": "low",
+        "stressed_value": None,
+        "loss": None,
+        "loss_percentage": None,
+        "severity": None,
         "recommendation": "add holdings first",
         "empty_portfolio": True,
+        "measurable": False,
+        "reason": "empty_portfolio",
         "message": "empty portfolio, add holdings first",
         "scenario_results": [],
         "summary": {
             "count": 0,
             "worst_scenario": scenario_name,
-            "worst_loss": 0.0,
-            "worst_loss_pct": "0.00%",
+            "worst_loss": None,
+            "worst_loss_pct": None,
         },
         "quick_start": {
             "step1": 'portfolio_manager(action="add_holding", portfolio_id="xxx", code="600519", shares=100)',

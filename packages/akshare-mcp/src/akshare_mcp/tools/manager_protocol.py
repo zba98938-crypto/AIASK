@@ -281,10 +281,19 @@ def build_manager_meta(
     extra: Optional[dict[str, Any]] = None,
 ) -> dict[str, Any]:
     normalized_extra = dict(extra or {})
-    audit_event_id = normalized_extra.pop("audit_event_id", None) or generate_audit_event_id(tool_name, action)
+    # Distinguish "the caller supplied the id of an audit record it actually
+    # wrote" from "this envelope generated a correlation id". Without the
+    # distinction, a field that reads like a persisted-record reference is
+    # synthesized on every response — so a failed audit write and a successful
+    # one produce the same envelope.
+    supplied_audit_id = normalized_extra.pop("audit_event_id", None)
+    audit_event_id = supplied_audit_id or generate_audit_event_id(tool_name, action)
     meta = {
         "trace_id": f"{tool_name}:{action}:{int(time.time() * 1000)}",
         "audit_event_id": audit_event_id,
+        "audit_event_id_source": (
+            "audit_record" if supplied_audit_id else "synthesized"
+        ),
         "tool_version": tool_version,
         "data_timestamp": data_timestamp or datetime.now().strftime("%Y-%m-%d"),
         "source_chain": [str(item).strip() for item in list(source_chain or [tool_name]) if str(item).strip()],
