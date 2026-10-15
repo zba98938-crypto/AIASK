@@ -112,10 +112,17 @@ root command above for the current result.
   factory has a `--once` mode and was last run as one manual four-factory cycle
   on 2026-10-15.
 - **The universe is the whole market, and no longer a curated residue.** 5,582
-  rows in `stocks`, 5,577 listed, 1,733,871 daily bars covering 100% of them,
-  latest bar 2026-10-15. `resolve_stock_universe()` still returns the source it
+  rows in `stocks`, 5,575 listed (2 delisted rows are marked `D`), 1,733,871
+  daily bars covering 100% of them, latest bar 2026-10-15.
+  `resolve_stock_universe()` still returns the source it
   used and warns on stderr when it degrades to the 30-code seed pool, so the old
   failure mode is reported rather than fixed by having been fixed once.
+- **Factors now cover the same universe as the prices.** `factor_values` held 157
+  symbols (the old seed pool) and stopped at 2026-09-23; it now holds 5,560 at
+  2026-10-16, and `factor_ic_history` carries 6 factors x 3 horizons over ~5,520
+  names. Read a single row as **one cross-sectional observation, not a factor
+  rating** — `volatility`'s +0.47 at h=10 was independently reproduced and is a
+  genuine one-date number, not a stable IC.
 - **Industry comes from East money's F10 report, not Sina's board list.** Sina
   classified 48% of the market and counted `次新股` — a listing-age bucket — as
   an industry. `stocks.industry` is East money `EM2016` level 1 (28 values) and

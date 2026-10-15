@@ -58,9 +58,9 @@ it, yet 26 modules imported it behind `except ImportError` and degraded to an
 empty list. Every one of those paths had been dead since the tree was extracted
 and nothing said so. **They have all been removed.**
 
-`scripts/remove_akshare.py` did it, and the reason it is a script rather than a
-commit message is that the shape was repetitive and the conditions had to be
-decided one at a time:
+The removal is commit `0ea53ef`. It was done with a one-shot codemod that has
+since been deleted — it referenced a pre-change state that no longer exists, and
+`CLAUDE.md` records what such a rewrite has to prove. The shape was:
 
 * 20 module-level `try: import akshare as ak / except: ak = None` guards deleted;
 * 15 `if ak is None:` bodies unwrapped, because those were the ones actually
@@ -74,6 +74,9 @@ decided one at a time:
   `_backfill_*` steps) replaced with stubs that return an explicit
   `source_removed` / `provider_unavailable` reason rather than an empty result;
 * `scripts/tdx_probe/probe_datasources.py` lost its akshare section.
+
+`grep` for the library now returns 0 imports and 0 uses of the `ak` name across
+`packages/` and `scripts/`.
 
 Behaviour is unchanged where it mattered: the guarded branches were already the
 live ones. Where akshare was the only implementation, the function now says so —
@@ -97,7 +100,8 @@ reason, `get_stock_info` falls back to the local reference table, and
 | Dragon-tiger 龙虎榜 | East money datacenter | `RPT_DAILYBILLBOARD_DETAILSNEW` | 269,446 rows, 2004-06 -> 2026-10-15 | ~2 min |
 | Fund flow 个股资金流 | East money datacenter | `RPT_DMSK_TS_STOCKNEW` | 5,200 rows, **one day only** | ~5 s |
 | Trading calendar | derived from `kline_1d` | — | 1,399 dates, 2021-01-13 -> 2026-10-15 | free |
-| Announcements, notices | project's own ingest | `run_market_event_ingest.py --once` | 283 documents, 253 events | seconds |
+| Announcements, notices | project's own ingest | `run_market_event_ingest.py --once` | 374 documents, 325 events | seconds |
+| Market temperature | derived from klines + industry | `refresh_market_temperature_snapshot_cache` | cached on first call | one request |
 | Minute klines | Sina | `scale=5/15/30/60` | **available, not wired** | — |
 | Balance-sheet ratios | East money datacenter | `RPT_DMSK_FN_BALANCE` | **available, not wired** | — |
 | Dividends | East money datacenter | `RPT_SHAREBONUS_DET` | **available, not wired** | — |
@@ -185,7 +189,7 @@ same rules, because the previous versions did not:
    used when East money fails; it is reported as a fallback, not as the
    classification.
 
-## 8. Verification snapshot (2026-10-15)
+## 8. Verification snapshot (2026-10-16)
 
 ```bash
 python scripts/aiask_readiness.py --strict                # ready: True, 0 critical
@@ -197,12 +201,25 @@ python scripts/sync_market_fundamentals.py                # per-category report
 | Table | Rows | Codes | Range |
 |---|---:|---:|---|
 | `kline_1d` | 1,733,871 | 5,582 | 2021-01-13 -> 2026-10-15 |
-| `stocks` | 5,582 | 5,582 | industry + sector 100% |
+| `factor_values` | 339,756 | 5,560 | full market, latest 2026-10-16 |
+| `factor_ic_history` | 2,007 | 18 rows/day | 6 factors x 3 horizons over ~5,520 names |
+| `stocks` | 5,582 | 5,575 listed | industry + sector 100%; 2 delisted rows marked `D` |
 | `financials` | 119,819 | 5,575 | 2021-03-31 -> 2026-09-30 |
 | `dragon_tiger` | 269,446 | 6,433 | 2004-06-25 -> 2026-10-15 |
 | `block_stocks` | 5,575 | 5,575 | 128 industry boards |
 | `trading_dates` | 1,399 | — | 2021-01-13 -> 2026-10-15 |
 | `stock_fund_flow` | 5,200 | 5,200 | 2026-10-15 only |
+| `market_temperature_snapshots` | 1 | — | warmed on demand, not a standing feed |
+
+11 of the 5,575 listed symbols have no bar for 2026-10-15. They are suspended
+(`*ST岭南`, `*ST萃华`, `*ST康佳A` and similar); a suspended stock having no bar
+for a day it did not trade is the correct result, not a sync failure.
+
+Four market-data tables are still empty and each has a reader: `margin_detail`
+and `margin_market_flow` (SSE endpoint proven reachable, 深交所 blocked),
+`kline_intraday` (Sina's `scale=5/15/30/60` proven reachable), and
+`market_temperature_snapshots` (fills on first call). Wiring them is separate
+work from a sync run; nothing here pretends they are current.
 
 `market_blocks` also holds 80 rows of `block_type='industry_legacy'`: a 2026-07-16
 snapshot from akshare sector-fund-flow that has no members in `block_stocks`, and
