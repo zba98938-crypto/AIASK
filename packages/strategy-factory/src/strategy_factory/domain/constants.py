@@ -286,6 +286,11 @@ TRADE_GATE_PROFILE_THRESHOLDS: Dict[str, dict[str, float]] = dict(
     INCUBATION_ADMISSION_THRESHOLDS["trade_profiles"]
 )
 
+# 基准 Sharpe 估算所用的假设年化波动率。它原先以字面量 0.15 出现在
+# quality_gates 的年化收益除法里，读者无从判断该数字从何而来——它是假设值
+# 而非观测量，因此命名并集中在此，以便被质疑和修改。
+BENCHMARK_ASSUMED_ANNUAL_VOLATILITY = 0.15
+
 # AI 原型策略临时孵化的风险报告阈值
 RISK_REPORT_THRESHOLDS = {
     "var_percent_max": 4.5,

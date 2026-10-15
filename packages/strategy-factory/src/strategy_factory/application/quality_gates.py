@@ -24,6 +24,7 @@ from typing import Any, Dict, List, Optional
 
 from ..domain.constants import (
     BACKTEST_CONCURRENCY,
+    BENCHMARK_ASSUMED_ANNUAL_VOLATILITY,
     FACTORY_PRE_GATE_ENABLED,
     GATE1_PASS_RATIO,
     GATE1_REPRESENTATIVE_COUNT,
@@ -1090,7 +1091,16 @@ def gate_0_structural(candidate: dict) -> GateResult:
                 if merged_defaults:
                     candidate["params"] = {**merged_defaults, **params}
             except Exception:
-                pass
+                # Not fatal: the candidate still runs, on a narrower parameter set
+                # than its research task asked for. Staying silent about that made
+                # "sampled the profile band" and "did not" look identical in the
+                # gate output.
+                logger.warning(
+                    "Gate-1 parameter backfill failed for candidate %s; running with the "
+                    "parameters it arrived with",
+                    candidate.get("strategy_id") or candidate.get("id") or "unknown",
+                    exc_info=True,
+                )
 
     missing_trade_fields = [
         key for key in sorted(_REQUIRED_TRADE_FIELDS)
@@ -1454,7 +1464,14 @@ async def gate_1_fast_screen(
                 # 写回 candidate 以便下游 Gate 使用
                 candidate["params"] = params
         except Exception:
-            pass
+            # Same disclosure as the Gate-1 backfill above: the candidate proceeds
+            # with the parameters it arrived with, and that fact is recorded.
+            logger.warning(
+                "Parameter backfill failed for candidate %s; running with the parameters "
+                "it arrived with",
+                candidate.get("strategy_id") or candidate.get("id") or "unknown",
+                exc_info=True,
+            )
     # ── End 参数补充 ──────────────────────────────────────────────────
 
     sharpe_min = float(_compat_setting("GATE1_SHARPE_MIN", GATE1_SHARPE_MIN) or GATE1_SHARPE_MIN)
@@ -1639,10 +1656,16 @@ async def gate_1_fast_screen(
             if first_close > 0:
                 benchmark_returns.append(last_close / first_close - 1.0)
     avg_benchmark_return = sum(benchmark_returns) / len(benchmark_returns) if benchmark_returns else 0.0
-    # 简化基准 Sharpe 估算：年化收益 / 假设波动率 15%
+    # 简化基准 Sharpe 估算：年化收益 / 假设波动率。
+    #
+    # 波动率是假设值而非观测量，故提取为命名常量。原式的 `else 0.0` 分支已删除：
+    # 分子为 0 时商本来就是 0.0，该分支与主表达式等价——是冗余，不是兜底。把它
+    # 当作"缺失时兜底"会误判严重度，所以这里按实际性质处理。
     trading_days = len(list(market_data.values())[0]) if market_data else 250
     annualization = 252.0 / max(trading_days, 1)
-    benchmark_sharpe = (avg_benchmark_return * annualization) / 0.15 if avg_benchmark_return != 0 else 0.0
+    benchmark_sharpe = (
+        avg_benchmark_return * annualization
+    ) / BENCHMARK_ASSUMED_ANNUAL_VOLATILITY
     excess_sharpe = avg_sharpe - benchmark_sharpe
     excess_sharpe_min = 0.10  # 策略需超越基准 0.10
 

@@ -319,13 +319,29 @@ async def _run_risk_report(strategy_type: str, params: dict, db) -> dict | None:
     stress_loss_percent = (
         round(float(raw_stress_loss), 4) if raw_stress_loss is not None else None
     )
+    # Same rule as stress_loss_percent above, and for the same reason: a missing
+    # measurement must stay missing. `var_report.get("var_percent", 0.0)` turned
+    # an unmeasurable VaR into a measured 0%, which passes
+    # RISK_REPORT_THRESHOLDS["var_percent_max"] = 4.5 without anything having been
+    # computed. Eight of the stored quality reports read 0.0 this way.
+    raw_var_percent = var_report.get("var_percent")
+    var_percent = (
+        round(float(raw_var_percent), 4) if raw_var_percent is not None else None
+    )
+    raw_cvar_percent = var_report.get("cvar_percent")
+    cvar_percent = (
+        round(float(raw_cvar_percent), 4) if raw_cvar_percent is not None else None
+    )
     report = {
-        "var_percent": round(float(var_report.get("var_percent", 0.0)), 4),
-        "cvar_percent": round(float(var_report.get("cvar_percent", 0.0)), 4),
+        "var_percent": var_percent,
+        "cvar_percent": cvar_percent,
         "stress_loss_percent": stress_loss_percent,
         "scenario": stress_report.get("scenario"),
         "stress_measurable": bool(stress_report.get("measurable")),
+        "var_measurable": bool(var_report.get("measurable")),
     }
+    if var_report.get("reason"):
+        report["var_reason"] = var_report.get("reason")
     if stress_report.get("reason"):
         report["stress_reason"] = stress_report.get("reason")
     if stress_report.get("coverage") is not None:

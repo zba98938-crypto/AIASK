@@ -392,11 +392,31 @@ async def init_strategy_tables(conn, sqlite_python_enabled: bool = False) -> Non
             dedup_report TEXT DEFAULT '{}',
             backtest_metrics TEXT DEFAULT '{}',
             snapshot TEXT DEFAULT '{}',
+            measurement_contract TEXT NOT NULL DEFAULT 'pre_fix_unverified',
             created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
             UNIQUE(strategy_id, report_type)
         );
     """)
+
+    # 兼容旧库：为质量报告补 provenance 列。
+    #
+    # 库里已有的 179 份报告由此后被修掉的代码产出，而数字仍以"测量值"呈现：
+    # 每一份的 stress_loss_percent 都是 -20.0（压力路径把缺失的 beta 默认成 1.0，
+    # 而门禁比较的是 <= -25.0，这条检查永不可能触发）；其中 8 份 var_percent 为
+    # 0.0（调用方把缺失的键读成了零，而 0.0 能静默通过 var_percent_max = 4.5）。
+    # 修代码不会修数据，schema 此前也无法区分这两者。默认值把既有行标记为未验证，
+    # 此后写入的行携带写入方所依据的契约 id，消费方据此判断手里是哪一种。
+    #
+    # 刻意不重算：底层行情数据停在 2026-07-23，重跑流水线需要先补三个月数据。
+    # 标记是当下诚实的一步。
+    #
+    # 放在这里而非 app_core_migrations/：那个迁移集在 _init_tables 中先于
+    # strategy_runtime 域 DDL 执行，彼时本表尚不存在（ALTER 会报 no such table）。
+    # app_core 迁移集的语义是自建自管，只 CREATE 自己的表。
+    await conn.execute(
+        "ALTER TABLE strategy_quality_reports ADD COLUMN IF NOT EXISTS measurement_contract TEXT NOT NULL DEFAULT 'pre_fix_unverified';"
+    )
 
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS strategy_execution_audit_snapshots (

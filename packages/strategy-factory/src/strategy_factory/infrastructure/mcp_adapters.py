@@ -137,6 +137,14 @@ class StrategyFactoryRepositoryAdapter:
     async def update_strategy_task_run(self, task_run_id: Any, **kwargs: Any):
         return await self._call("update_strategy_task_run", task_run_id, **kwargs)
 
+    async def reclaim_stale_strategy_task_runs(
+        self, max_age_seconds: int = 21600, task_name: str | None = None
+    ):
+        kwargs: dict[str, Any] = {"max_age_seconds": max_age_seconds}
+        if task_name is not None:
+            kwargs["task_name"] = task_name
+        return await self._call("reclaim_stale_strategy_task_runs", **kwargs)
+
     async def list_stock_universe(self, limit: int = 200, offset: int = 0):
         return await self._call("list_stock_universe", limit=limit, offset=offset)
 

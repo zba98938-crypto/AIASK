@@ -7,6 +7,7 @@ from __future__ import annotations
 
 # --- runner_parts/normalizers.py ---
 import math
+import logging
 from typing import Any, Dict, Optional
 
 import numpy as np
@@ -46,6 +47,8 @@ from ..research_protocol_contract import (
 )
 from ..quality_reporting import maybe_grant_provisional_incubation, normalize_quality_gate_result, safe_metric_value
 
+
+logger = logging.getLogger(__name__)
 
 _FACTOR_VALIDATION_TYPES = {"value_factor", "quality_factor", "growth_factor", "multi_factor"}
 _TRADE_PRIMARY_PROFILES = {"trade_rule_validation", "event_trade_validation", "macro_regime_validation"}
@@ -3927,7 +3930,15 @@ async def run_submission_quality_gate(
                 backtest_metrics=materialized_backtest_metrics,
             )
         except Exception:
-            pass
+            # The submission gate then evaluates a validation report without the
+            # robustness derivations it would otherwise carry. That is a weaker
+            # report, and until now nothing in the output said so.
+            logger.warning(
+                "Submission gate could not enrich the validation report with robustness "
+                "derivations for strategy %s; the report is evaluated without them",
+                (strategy or {}).get("strategy_id") or (strategy or {}).get("id") or "unknown",
+                exc_info=True,
+            )
         profile = _resolve_validation_profile(strategy)
         profile_name = str(profile.get("profile") or "").strip().lower()
         strategy_type = str(strategy.get("strategy_type", "") or "").strip().lower()

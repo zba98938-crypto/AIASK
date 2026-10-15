@@ -136,7 +136,18 @@ def maybe_grant_provisional_incubation(
         "passed_strict": False,
         "provisional_pass": True,
         "review_mode": "incubation_only",
-        "reasons": [],
+        # Not cleared. An empty `reasons` made a provisional pass indistinguishable
+        # from a clean one, so a consumer reading only `passed` could not tell that
+        # the statistical checks were skipped or that the validation report was
+        # degenerate — which is exactly the condition this branch fires on.
+        "reasons": (
+            [
+                "validation_report_degenerate",
+                "provisional_path:technical_validation_fallback",
+            ]
+            if technical_validation_fallback
+            else [f"provisional_skip:{name}" for name in failed_names]
+        ),
         "reason": "",
         "warnings": warnings,
         "original_reasons": gate.get("reasons") or [],

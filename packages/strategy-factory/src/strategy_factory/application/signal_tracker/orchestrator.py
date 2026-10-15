@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 from datetime import date, datetime
 import logging
+import os
 from typing import Any
 from uuid import uuid4
 
@@ -17,6 +18,21 @@ from .contracts import SignalTrackerResult
 from .provider import SignalTrackerProvider
 
 logger = logging.getLogger(__name__)
+
+#: How long a `running` task run may stay open before a later cycle reclaims it.
+#: Six hours is far longer than any real cycle and short enough that a crash is
+#: visible the same day.
+DEFAULT_STALE_TASK_RUN_SECONDS = 21600
+
+
+def _stale_task_run_seconds() -> int:
+    """Return the stale-run cutoff, from ``STRATEGY_TASK_RUN_STALE_SECONDS``."""
+
+    raw = str(os.getenv("STRATEGY_TASK_RUN_STALE_SECONDS") or "").strip()
+    try:
+        return max(60, int(raw))
+    except (TypeError, ValueError):
+        return DEFAULT_STALE_TASK_RUN_SECONDS
 
 
 class SignalTrackerOrchestrator:
@@ -41,6 +57,29 @@ class SignalTrackerOrchestrator:
         db = await self._provider.get_db()
         if hasattr(db, "initialize"):
             await db.initialize()
+
+        # Close runs from cycles that died before reaching their finaliser. They
+        # otherwise stay `running` forever, and a state that cannot be read is
+        # worse than a stale one: it made a crashed cycle indistinguishable from
+        # a live one. Reclaimed rows are marked `timed_out`, not `completed`,
+        # because the outcome of those runs is genuinely unknown.
+        if hasattr(db, "reclaim_stale_strategy_task_runs"):
+            try:
+                reclaimed = await db.reclaim_stale_strategy_task_runs(
+                    max_age_seconds=_stale_task_run_seconds(),
+                    task_name="strategy_runtime_cycle",
+                )
+            except Exception:
+                logger.warning(
+                    "SignalTracker: stale task-run reclaim failed; old runs stay marked running",
+                    exc_info=True,
+                )
+            else:
+                if reclaimed:
+                    logger.warning(
+                        "SignalTracker: reclaimed %d stale task run(s) left running by an earlier cycle",
+                        len(reclaimed),
+                    )
 
         today = as_of or date.today()
         start = datetime.now()
@@ -328,13 +367,15 @@ class SignalTrackerOrchestrator:
         # Finalize
         result.elapsed_seconds = (datetime.now() - start).total_seconds()
 
-        if hasattr(db, "save_strategy_task_run") and task_run.get("id"):
-            await db.save_strategy_task_run(
-                {
-                    "id": task_run["id"],
-                    "status": "completed" if not result.errors else "partial",
-                    "result": vars(result),
-                }
+        # This must be an UPDATE. It used to call ``save_strategy_task_run``,
+        # which is a plain INSERT whose column list has no ``id``: the id it was
+        # handed was dropped, so closing a run inserted a *second* row and left
+        # the original `running` one open for good.
+        if hasattr(db, "update_strategy_task_run") and task_run.get("id") is not None:
+            await db.update_strategy_task_run(
+                task_run["id"],
+                status="completed" if not result.errors else "partial",
+                result=vars(result),
             )
 
         logger.info(
