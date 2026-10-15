@@ -42,6 +42,9 @@ from akshare_mcp.data_source.sina_listing import (  # noqa: E402
     fetch_all_a_share_symbols,
     fetch_industry_membership,
 )
+from akshare_mcp.data_source.eastmoney_listing import (  # noqa: E402
+    fetch_industry_classification,
+)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -50,10 +53,66 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--with-industry",
         action="store_true",
-        help="also fetch Sina's industry classification (about 200 requests)",
+        help="also fetch the industry classification",
+    )
+    parser.add_argument(
+        "--industry-source",
+        choices=("auto", "eastmoney", "sina"),
+        default="auto",
+        help=(
+            "which classification to use. 'eastmoney' is the F10 report: 27 "
+            "level-1 industries over the whole market in about 50 requests. "
+            "'sina' is the 49-node board list, which classifies about half the "
+            "market and counts 次新股 as an industry. 'auto' prefers eastmoney "
+            "and says so when it falls back"
+        ),
     )
     parser.add_argument("--json", action="store_true", help="emit JSON")
     return parser.parse_args(argv)
+
+
+def _resolve_industry(source: str) -> dict:
+    """Return ``{code: {"industry", "sector"}}`` plus how it was obtained.
+
+    The two sources use different taxonomies. They are never merged into one
+    column silently: the result carries the source name, and a fallback is
+    reported rather than passed off as the preferred classification.
+    """
+
+    if source in ("auto", "eastmoney"):
+        try:
+            result = fetch_industry_classification()
+            return {
+                "by_code": result["by_code"],
+                "source": result["source"],
+                "rows": result["rows"],
+                "pages": result["pages"],
+                "missing": result["missing_industry"],
+                "complete": result["complete"],
+                "failed_pages": result["failed_pages"],
+                "fallback": False,
+            }
+        except Exception as exc:
+            if source == "eastmoney":
+                raise
+            print(
+                f"[industry] eastmoney F10 unavailable ({type(exc).__name__}: {exc}); "
+                f"falling back to Sina's board list, which covers part of the market",
+                file=sys.stderr,
+            )
+
+    result = fetch_industry_membership()
+    return {
+        "by_code": {code: {"industry": value.get("industry"), "sector": None}
+                    for code, value in result["by_code"].items()},
+        "source": "sina:Market_Center[industry nodes]",
+        "rows": len(result["by_code"]),
+        "pages": result["industries"],
+        "missing": 0,
+        "complete": not result["failed_industries"],
+        "failed_pages": result["failed_industries"],
+        "fallback": source == "auto",
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -61,10 +120,11 @@ def main(argv: list[str] | None = None) -> int:
 
     result = fetch_all_a_share_symbols()
     symbols = result["symbols"]
+    listed_codes = {item["code"] for item in symbols}
 
-    industry = {"by_code": {}, "industries": 0, "failed_industries": [], "empty_industries": []}
+    industry: dict = {"by_code": {}, "source": None}
     if args.with_industry:
-        industry = fetch_industry_membership()
+        industry = _resolve_industry(args.industry_source)
 
     inserted = updated = 0
     with contextlib.closing(sqlite3.connect(str(DB_PATH))) as conn:
@@ -80,8 +140,8 @@ def main(argv: list[str] | None = None) -> int:
                         """
                         INSERT INTO stocks
                             (stock_code, stock_name, market, market_cap, pe_ratio, pb_ratio,
-                             industry, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                             industry, sector, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                         """,
                         (
                             code,
@@ -91,6 +151,7 @@ def main(argv: list[str] | None = None) -> int:
                             item.get("pe_ratio"),
                             item.get("pb_ratio"),
                             (industry["by_code"].get(code) or {}).get("industry"),
+                            (industry["by_code"].get(code) or {}).get("sector"),
                         ),
                     )
                     inserted += 1
@@ -107,6 +168,7 @@ def main(argv: list[str] | None = None) -> int:
                             pe_ratio = COALESCE(?, pe_ratio),
                             pb_ratio = COALESCE(?, pb_ratio),
                             industry = COALESCE(?, industry),
+                            sector = COALESCE(?, sector),
                             updated_at = CURRENT_TIMESTAMP
                         WHERE stock_code = ?
                         """,
@@ -117,6 +179,7 @@ def main(argv: list[str] | None = None) -> int:
                             item.get("pe_ratio"),
                             item.get("pb_ratio"),
                             (industry["by_code"].get(code) or {}).get("industry"),
+                            (industry["by_code"].get(code) or {}).get("sector"),
                             code,
                         ),
                     )
@@ -137,10 +200,24 @@ def main(argv: list[str] | None = None) -> int:
         "updated": updated,
         "listed_but_absent_before": len({item["code"] for item in symbols} - before),
         "in_db_but_not_listed": sorted(before - {item["code"] for item in symbols})[:20],
-        "industry_industries": industry["industries"],
-        "industry_mapped": len(industry["by_code"]),
-        "industry_failed": industry["failed_industries"][:10],
-        "industry_empty": industry["empty_industries"],
+        "industry_source": industry.get("source"),
+        # Coverage is measured against this universe, not against the report's own
+        # row count: eastmoney returns every security it knows (24,812, including
+        # 新三板), so "24812 mapped" said 445% of a 5,575-code universe.
+        "industry_mapped": len(listed_codes & set(industry["by_code"])),
+        "industry_unclassified_in_universe": sum(
+            1 for code in listed_codes if (industry["by_code"].get(code) or {}).get("industry") is None
+        ),
+        "industry_covered_now": sum(
+            1 for code in listed_codes
+            if (industry["by_code"].get(code) or {}).get("industry") is not None
+        ),
+        "industry_rows": industry.get("rows"),
+        "industry_pages": industry.get("pages"),
+        "industry_unclassified": industry.get("missing"),
+        "industry_complete": industry.get("complete"),
+        "industry_failed": industry.get("failed_pages") or [],
+        "industry_fallback": industry.get("fallback", False),
         "applied": bool(args.apply),
     }
 
@@ -162,15 +239,18 @@ def main(argv: list[str] | None = None) -> int:
         print(f"in DB, not listed: {len(report['in_db_but_not_listed'])} "
               f"(e.g. {report['in_db_but_not_listed']})")
     if args.with_industry:
-        # Sina's 49 nodes do not cover the whole market; saying so is the point.
-        covered = report["industry_mapped"]
-        print(f"industry         : {covered}/{report['listed']} listed codes mapped "
-              f"({100 * covered / max(1, report['listed']):.1f}%) across "
-              f"{report['industry_industries']} Sina industries")
+        covered = report["industry_covered_now"]
+        universe_size = len(listed_codes)
+        print(f"industry source  : {report['industry_source']}"
+              + ("  (fallback)" if report["industry_fallback"] else ""))
+        print(f"industry coverage: {covered}/{universe_size} of this universe "
+              f"({100 * covered / max(1, universe_size):.1f}%); the report itself "
+              f"returned {report['industry_rows']} rows over {report['industry_pages']} page(s)")
+        if report["industry_unclassified_in_universe"]:
+            print(f"unclassified     : {report['industry_unclassified_in_universe']} of this "
+                  "universe have no classification in the source")
         if report["industry_failed"]:
             print(f"industry failures: {report['industry_failed']}")
-        if report["industry_empty"]:
-            print(f"industry nodes listing nobody: {report['industry_empty']}")
     return 0
 
 

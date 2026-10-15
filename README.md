@@ -100,22 +100,31 @@ root command above for the current result.
 
 ## Known state, honestly
 
-- **The four factories are not currently running.** Nothing is scheduled: no
-  process, no cron entry, no supervisor. Latest data in the runtime DB stops at
-  2026-09-04 (klines) / 2026-07-16 (factor values).
-- **The synced universe is 165 symbols, not the A-share market.** The seed pool
-  in `scripts/_db_sync_common.py` holds 30 index heavyweights; the `stocks` table
-  expands it to 165. `strategy_factory_full_market_scores` is the table's name,
-  not its coverage. `resolve_stock_universe()` returns the source it used, and
-  warns on stderr when it degrades to the seed pool.
+- **Nothing is scheduled.** No process, no cron entry, no supervisor. Each
+  factory has a `--once` mode and was last run as one manual four-factory cycle
+  on 2026-10-15.
+- **The universe is the whole market, and no longer a curated residue.** 5,582
+  rows in `stocks`, 5,577 listed, 1,733,871 daily bars covering 100% of them,
+  latest bar 2026-10-15. `resolve_stock_universe()` still returns the source it
+  used and warns on stderr when it degrades to the 30-code seed pool, so the old
+  failure mode is reported rather than fixed by having been fixed once.
+- **Industry comes from East money's F10 report, not Sina's board list.** Sina
+  classified 48% of the market and counted `次新股` — a listing-age bucket — as
+  an industry. `stocks.industry` is East money `EM2016` level 1 (28 values) and
+  `stocks.sector` is level 2 (104 values), both at 100% coverage, so the two
+  columns are one taxonomy at two depths rather than two taxonomies that cannot
+  be compared. `scripts/sync_market_universe.py --with-industry` refreshes them.
+- **`stocks` still holds 5 index rows** (`sh000001`, `sh000300`, `sz399001`,
+  `sz399006`, `sz399300`) alongside the companies. They are benchmarks, not
+  companies, and their industry/sector are left NULL so a `GROUP BY industry`
+  over this table returns companies only.
 - **15 `signal_tracker` task runs sat in `running` from 2026-07-16.** Their
   processes died before the finaliser ran, and the finaliser had been calling
   the INSERT helper with an `id`, so it could never close its own row. The
   finaliser now updates, cycles reclaim stale rows as `timed_out`, and the
   historical 15 have been reclaimed by `scripts/reclaim_stale_task_runs.py`.
-- **No strategy has been promoted.** Of 213 strategies, 175 are `rejected`, 20
-  `submitted`, 0 live. All 179 quality reports have `passed = 0`. Mean OOS IC is
-  −0.018. The gates reject; that is the system working, not a bug.
+- **No strategy has been promoted.** Of 240 strategies, 187 are `rejected`, 34
+  `submitted`, 0 live. The gates reject; that is the system working, not a bug.
 - Single-machine, single-user. See the user-system ruling in `CLAUDE.md` before
   touching anything `user_id`-shaped.
 - `docs/` contains historical reports whose "100% complete" claims predate this
