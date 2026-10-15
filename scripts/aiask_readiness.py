@@ -124,12 +124,16 @@ def _venv_python_path(value: str | Path) -> Path:
 
 
 def _path_is_inside(path: Path, base: Path) -> bool:
-    try:
-        path.resolve().relative_to(base.resolve())
-        return True
-    except ValueError as _swallowed:
-        logger.warning("scripts/aiask_readiness.py:128: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-        return False
+    """Return whether ``path`` is ``base`` or sits under it.
+
+    Phrased as a comparison rather than ``relative_to`` inside a ``try``: the
+    ValueError there is the ordinary answer "not inside", not a failure, and the
+    disclosure sweep turned that answer into a warning printed on every run.
+    """
+
+    resolved = path.resolve()
+    root = base.resolve()
+    return resolved == root or root in resolved.parents
 
 
 def _python_probe(executable: Path | str) -> dict[str, Any]:
