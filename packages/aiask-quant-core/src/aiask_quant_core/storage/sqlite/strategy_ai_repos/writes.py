@@ -571,6 +571,84 @@ class _WritesMixin:
             except Exception:
                 raise
 
+    @staticmethod
+    def _task_run_age_seconds(started_at: Any, now: datetime) -> Optional[float]:
+        """Return the age of a task run in seconds, or ``None`` if unparseable.
+
+        ``started_at`` is written either by ``CURRENT_TIMESTAMP`` (``YYYY-MM-DD
+        HH:MM:SS``, which SQLite evaluates in UTC) or by a caller passing an
+        ISO-8601 string with an offset. Both appear in the same column, so the
+        comparison cannot be left to SQL string ordering: a naive timestamp is
+        read as UTC, which is what ``CURRENT_TIMESTAMP`` means.
+        """
+
+        raw = str(started_at or "").strip()
+        if not raw:
+            return None
+        try:
+            parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return (now - parsed).total_seconds()
+
+    async def reclaim_stale_strategy_task_runs(
+        self,
+        max_age_seconds: int = 21600,
+        task_name: Optional[str] = None,
+    ) -> List[dict]:
+        """Close runs still marked ``running`` that cannot still be running.
+
+        A run whose process died mid-cycle never reaches its finaliser, so the
+        row stays ``running`` forever. Fifteen ``strategy_runtime_cycle`` rows
+        sat in that state from 2026-07-16 onward, which meant "running" no
+        longer distinguished an active cycle from a crashed one — the state was
+        unreadable, not merely stale.
+
+        Reclaimed rows are marked ``timed_out``, never ``completed``: the work
+        outcome is unknown, and ``timed_out`` is the honest word for that. An
+        operator reading the row afterwards can tell "this was reclaimed after
+        N seconds" from "this finished".
+        """
+
+        cutoff = max(60, int(max_age_seconds or 0))
+        now = datetime.now(timezone.utc)
+        async with self.acquire() as conn:
+            sql = "SELECT id, started_at FROM strategy_task_runs WHERE status = 'running'"
+            params: list = []
+            if task_name:
+                sql += " AND task_name = $1"
+                params.append(str(task_name))
+            rows = await conn.fetch(sql, *params)
+
+            stale_ids = [
+                int(row["id"])
+                for row in rows
+                if (age := self._task_run_age_seconds(row["started_at"], now)) is not None
+                and age > cutoff
+            ]
+            if not stale_ids:
+                return []
+
+            reason = f"reclaimed: still running after more than {cutoff}s with no finaliser"
+            await conn.execute(
+                """
+                UPDATE strategy_task_runs
+                SET status = 'timed_out',
+                    completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+                    error = COALESCE(error, $2)
+                WHERE id = ANY($1) AND status = 'running'
+                """,
+                stale_ids,
+                reason,
+            )
+            reclaimed = await conn.fetch(
+                "SELECT * FROM strategy_task_runs WHERE id = ANY($1) ORDER BY id",
+                stale_ids,
+            )
+        return [self._decode_task_run(dict(row)) for row in reclaimed]
+
     async def list_strategy_task_runs(
         self,
         strategy_id: Optional[str] = None,

@@ -177,6 +177,8 @@ def get_db() -> SQLiteAdapter:
 async def close_db() -> None:
     """Close the SQLite adapter for the current event loop/thread."""
 
+    global _db_instance
+
     try:
         current_loop = asyncio.get_running_loop()
     except RuntimeError:
@@ -189,10 +191,21 @@ async def close_db() -> None:
             instance = _db_instances_by_loop.pop(current_loop, None)
             if instance is not None:
                 instances.append(instance)
+            # ``get_db()`` may be called before an event loop exists. That
+            # adapter is kept in the thread registry and can later be used by
+            # code running on the same thread. Close it during loop cleanup as
+            # well, otherwise it leaks across tests/requests and keeps an old
+            # SQLite path alive after an environment override.
+            thread_instance = _db_instances_by_thread.pop(thread_id, None)
+            if thread_instance is not None and thread_instance not in instances:
+                instances.append(thread_instance)
         else:
             instance = _db_instances_by_thread.pop(thread_id, None)
             if instance is not None:
                 instances.append(instance)
+        closed_ids = {id(item) for item in instances}
+        if _db_instance is not None and id(_db_instance) in closed_ids:
+            _db_instance = None
         _refresh_legacy_alias_locked()
 
     for instance in instances:

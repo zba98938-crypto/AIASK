@@ -355,13 +355,21 @@ def deflated_sharpe_ratio(
     sharpe_trials: Optional[np.ndarray] = None,
     correlation_matrix: Optional[np.ndarray] = None,
     average_correlation: Optional[float] = None,
-    benchmark_sharpe: float = 0.0,
+    benchmark_sharpe: Optional[float] = None,
     sample_size: Optional[int] = None,
     skewness: Optional[float] = None,
     kurtosis: Optional[float] = None,
     periods_per_year: float = 252.0,
 ) -> Dict[str, Any]:
-    """Compute Bailey & Lopez de Prado's Deflated Sharpe Ratio."""
+    """Compute Bailey & Lopez de Prado's Deflated Sharpe Ratio.
+
+    ``benchmark_sharpe`` distinguishes "not supplied" (``None``) from an
+    explicit ``0.0``. It used to be typed ``float = 0.0`` and read back through
+    ``float(benchmark_sharpe or 0.0)``, which collapsed the two — so
+    ``psr_vs_benchmark`` always compared the strategy against a zero benchmark
+    that nobody had chosen, and reported the result as a measured probability.
+    When no benchmark is supplied that field is now ``None`` with a reason.
+    """
     arr = _coerce_return_series(returns)
     n_obs = int(sample_size or arr.size)
     if observed_sharpe is None:
@@ -388,7 +396,10 @@ def deflated_sharpe_ratio(
         sigma_trials = float(np.std(sharpe_arr, ddof=1))
         reference_mode = "family_sharpes"
     else:
-        mu_trials = float(benchmark_sharpe or 0.0)
+        # Fewer than two trial Sharpes: fall back to the DSR null reference.
+        # An explicit benchmark replaces that null; an absent one leaves it at
+        # zero, and `benchmark_supplied` records which happened.
+        mu_trials = float(benchmark_sharpe) if benchmark_sharpe is not None else 0.0
         sigma_trials = _estimated_sharpe_std(
             observed_sharpe,
             n_obs,
@@ -412,7 +423,10 @@ def deflated_sharpe_ratio(
         "available": bool(n_obs >= 3),
         "sample_size": int(n_obs),
         "observed_sharpe": float(observed_sharpe),
-        "benchmark_sharpe": float(benchmark_sharpe or 0.0),
+        "benchmark_sharpe": (
+            float(benchmark_sharpe) if benchmark_sharpe is not None else None
+        ),
+        "benchmark_supplied": benchmark_sharpe is not None,
         "reference_sharpe": float(sr_ref),
         "reference_mean": float(mu_trials),
         "reference_std": float(sigma_trials),
@@ -421,8 +435,21 @@ def deflated_sharpe_ratio(
         "kurtosis": float(kurtosis),
         "z_score": float(z_score),
         "dsr": dsr,
-        "psr_vs_benchmark": float(
-            stats.norm.cdf(((observed_sharpe - float(benchmark_sharpe or 0.0)) * math.sqrt(max(n_obs - 1, 1))) / denominator)
+        "psr_vs_benchmark": (
+            float(
+                stats.norm.cdf(
+                    (
+                        (observed_sharpe - float(benchmark_sharpe))
+                        * math.sqrt(max(n_obs - 1, 1))
+                    )
+                    / denominator
+                )
+            )
+            if benchmark_sharpe is not None
+            else None
+        ),
+        "psr_vs_benchmark_reason": (
+            None if benchmark_sharpe is not None else "benchmark_not_supplied"
         ),
         "reference_mode": reference_mode,
     }

@@ -12,6 +12,13 @@ logger = logging.getLogger(__name__)
 from .strategy_factory_json_budget import bounded_json_text, strategy_json_field_max_bytes
 
 
+# Bumped whenever a change alters what a stored measurement *means*. A consumer
+# that reads a row carrying an older contract must treat it as "produced by code
+# that no longer exists" rather than as evidence comparable with today's output.
+# The migration default is "pre_fix_unverified".
+QUALITY_REPORT_MEASUREMENT_CONTRACT = "2026-10-v1"
+
+
 class _StrategyCrudQualityMixin:
         @staticmethod
         def _quality_report_field_max_bytes() -> int:
@@ -114,9 +121,10 @@ class _StrategyCrudQualityMixin:
                     """
                     INSERT INTO strategy_quality_reports
                         (strategy_id, report_type, passed, summary, quality_gate, validation_report,
-                         risk_report, dedup_report, backtest_metrics, snapshot, created_at, updated_at)
+                         risk_report, dedup_report, backtest_metrics, snapshot, measurement_contract,
+                         created_at, updated_at)
                     VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
-                            $9, $10, $11, $11)
+                            $9, $10, $11, $12, $12)
                     ON CONFLICT (strategy_id, report_type) DO UPDATE SET
                         passed = EXCLUDED.passed,
                         summary = EXCLUDED.summary,
@@ -126,6 +134,7 @@ class _StrategyCrudQualityMixin:
                         dedup_report = EXCLUDED.dedup_report,
                         backtest_metrics = EXCLUDED.backtest_metrics,
                         snapshot = EXCLUDED.snapshot,
+                        measurement_contract = EXCLUDED.measurement_contract,
                         updated_at = EXCLUDED.updated_at
                     """,
                     strategy_id,
@@ -138,6 +147,10 @@ class _StrategyCrudQualityMixin:
                     self._encode_quality_report_json("dedup_report", report.get("dedup_report") or {}),
                     self._encode_quality_report_json("backtest_metrics", report.get("backtest_metrics") or {}),
                     self._encode_quality_report_json("snapshot", report.get("snapshot") or {}),
+                    str(
+                        report.get("measurement_contract")
+                        or QUALITY_REPORT_MEASUREMENT_CONTRACT
+                    ),
                     now,
                 )
 

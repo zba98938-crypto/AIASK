@@ -14,6 +14,12 @@ def _shrunk_cov(returns_matrix: np.ndarray) -> np.ndarray:
         return np.cov(returns_matrix)
 
 
+# Below this many observations a 95% historical percentile is the second-worst
+# day of a handful, not a risk estimate. The guard exists because the previous
+# code happily returned a number for two data points.
+MIN_VAR_SAMPLES = 30
+
+
 class RiskModel:
     """风险模型 - 完整实现"""
     
@@ -21,14 +27,51 @@ class RiskModel:
     def calculate_var(
         returns: List[float],
         confidence: float = 0.95,
-        portfolio_value: float = 1000000
+        portfolio_value: Optional[float] = None
     ) -> Dict[str, Any]:
-        """计算VaR（历史模拟法）"""
-        returns_arr = np.array(returns)
+        """计算VaR（历史模拟法）。
+
+        Three contracts this function now keeps, each of which it previously broke:
+
+        * **Unmeasurable is ``None`` + a stable ``reason``, never ``0.0``.** It used
+          to return ``{'var': 0, 'cvar': 0}`` for an empty series — a dict with no
+          ``var_percent`` key at all, which callers read as
+          ``var_report.get("var_percent", 0.0)`` and thereby turned into a measured
+          0% risk. Eight stored quality reports carry ``var_percent = 0.0`` for
+          exactly that reason, and 0.0 passes
+          ``RISK_REPORT_THRESHOLDS["var_percent_max"]`` without anything being
+          computed.
+        * **``var_percent`` is a non-negative loss magnitude, so it is ``0.0`` when
+          even the confidence tail is a gain.** The previous ``abs()`` reported such
+          a tail as a positive loss percentage — a number that looks like measured
+          downside risk and is its opposite.
+        * **No invented position size.** ``portfolio_value`` defaults to ``None``,
+          and the absolute ``var``/``cvar`` amounts are then ``None`` too, with
+          ``amounts_measurable`` False. The percentage does not depend on position
+          size, so it is still reported. Three call sites used to silently inherit a
+          fabricated 1,000,000 portfolio.
+        """
+        returns_arr = np.asarray(returns, dtype=float).ravel()
         returns_arr = returns_arr[~np.isnan(returns_arr)]
+        sample_size = int(returns_arr.size)
         
-        if len(returns_arr) == 0:
-            return {'var': 0, 'cvar': 0}
+        def _unmeasurable(reason: str) -> Dict[str, Any]:
+            return {
+                'var': None,
+                'cvar': None,
+                'var_percent': None,
+                'cvar_percent': None,
+                'confidence': confidence,
+                'sample_size': sample_size,
+                'measurable': False,
+                'reason': reason,
+                'amounts_measurable': False,
+            }
+
+        if sample_size == 0:
+            return _unmeasurable('no_returns')
+        if sample_size < MIN_VAR_SAMPLES:
+            return _unmeasurable('insufficient_samples')
         
         sorted_returns = np.sort(returns_arr)
         index = int((1 - confidence) * len(sorted_returns))
@@ -38,15 +81,21 @@ class RiskModel:
         tail_returns = sorted_returns[:index+1]
         cvar_return = np.mean(tail_returns) if len(tail_returns) > 0 else var_return
         
-        var_value = abs(var_return * portfolio_value)
-        cvar_value = abs(cvar_return * portfolio_value)
+        # Non-negative loss magnitude; the max() also stops an exactly-zero
+        # quantile from surfacing as -0.0.
+        var_loss = max(0.0, -float(var_return))
+        cvar_loss = max(0.0, -float(cvar_return))
         
         return {
-            'var': float(var_value),
-            'cvar': float(cvar_value),
-            'var_percent': float(abs(var_return) * 100),
-            'cvar_percent': float(abs(cvar_return) * 100),
+            'var': float(var_loss * portfolio_value) if portfolio_value is not None else None,
+            'cvar': float(cvar_loss * portfolio_value) if portfolio_value is not None else None,
+            'var_percent': float(var_loss * 100),
+            'cvar_percent': float(cvar_loss * 100),
             'confidence': confidence,
+            'sample_size': sample_size,
+            'measurable': True,
+            'reason': None,
+            'amounts_measurable': portfolio_value is not None,
         }
     
     @staticmethod
@@ -290,36 +339,64 @@ class RiskModel:
     def calculate_beta(
         stock_returns: np.ndarray,
         market_returns: np.ndarray
-    ) -> Dict[str, float]:
-        """计算Beta系数"""
-        if len(stock_returns) != len(market_returns):
-            return {'beta': 1.0, 'alpha': 0.0, 'r_squared': 0.0}
-        
+    ) -> Dict[str, Any]:
+        """计算Beta系数。
+
+        A beta that could not be estimated is ``None`` with a stable ``reason``,
+        never ``1.0``. Three failure paths used to return a confident
+        market-neutral beta — a length mismatch, a one-point sample, and a flat
+        market series. ``stress_test`` consumes ``beta`` from each holding, so a
+        fabricated 1.0 here becomes a fabricated stress loss there; that is the
+        exact coupling that made every stored quality report read the same
+        ``stress_loss_percent``.
+
+        This method currently has no callers, which is why the defaults were
+        cheap to overlook and would have been expensive to inherit.
+        """
+        stock_arr = np.asarray(stock_returns, dtype=float).ravel()
+        market_arr = np.asarray(market_returns, dtype=float).ravel()
+
+        def _unmeasurable(reason: str) -> Dict[str, Any]:
+            return {
+                'beta': None,
+                'alpha': None,
+                'r_squared': None,
+                'sample_size': int(min(stock_arr.size, market_arr.size)),
+                'measurable': False,
+                'reason': reason,
+            }
+
+        if stock_arr.size != market_arr.size:
+            return _unmeasurable('length_mismatch')
+
         # 移除NaN
-        mask = ~(np.isnan(stock_returns) | np.isnan(market_returns))
-        stock_returns = stock_returns[mask]
-        market_returns = market_returns[mask]
-        
-        if len(stock_returns) < 2:
-            return {'beta': 1.0, 'alpha': 0.0, 'r_squared': 0.0}
-        
-        # 计算协方差和方差
-        covariance = np.cov(stock_returns, market_returns)[0, 1]
-        market_variance = np.var(market_returns)
-        
-        beta = covariance / market_variance if market_variance > 0 else 1.0
-        
-        # 计算Alpha
-        alpha = np.mean(stock_returns) - beta * np.mean(market_returns)
-        
-        # R-squared
-        correlation = np.corrcoef(stock_returns, market_returns)[0, 1]
-        r_squared = correlation ** 2
-        
+        mask = ~(np.isnan(stock_arr) | np.isnan(market_arr))
+        stock_arr = stock_arr[mask]
+        market_arr = market_arr[mask]
+
+        if stock_arr.size < 2:
+            return _unmeasurable('insufficient_samples')
+
+        market_variance = float(np.var(market_arr))
+        if market_variance <= 0:
+            return _unmeasurable('zero_market_variance')
+
+        beta = float(np.cov(stock_arr, market_arr)[0, 1] / market_variance)
+        alpha = float(np.mean(stock_arr) - beta * np.mean(market_arr))
+
+        # corrcoef is nan when either series is constant, which the variance
+        # guard above does not exclude for the stock side.
+        with np.errstate(invalid="ignore", divide="ignore"):
+            correlation = float(np.corrcoef(stock_arr, market_arr)[0, 1])
+        r_squared = correlation ** 2 if np.isfinite(correlation) else None
+
         return {
-            'beta': float(beta),
-            'alpha': float(alpha),
-            'r_squared': float(r_squared),
+            'beta': beta,
+            'alpha': alpha,
+            'r_squared': r_squared,
+            'sample_size': int(stock_arr.size),
+            'measurable': True,
+            'reason': None,
         }
     
     @staticmethod

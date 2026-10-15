@@ -56,6 +56,7 @@ REQUIRED_REPOSITORY_METHODS: tuple[str, ...] = (
     "save_strategy_signal_evidence",
     "save_strategy_task_run",
     "update_strategy_task_run",
+    "reclaim_stale_strategy_task_runs",
     "list_stock_universe",
     "list_factory_event_clusters",
     "save_factory_theme_definition",
@@ -165,6 +166,10 @@ class StrategyFactoryRepository(Protocol):
     async def save_strategy_task_run(self, payload: Mapping[str, Any]) -> Any: ...
 
     async def update_strategy_task_run(self, task_run_id: Any, **kwargs: Any) -> Any: ...
+
+    async def reclaim_stale_strategy_task_runs(
+        self, max_age_seconds: int = 21600, task_name: Optional[str] = None
+    ) -> list[Mapping[str, Any]]: ...
 
     async def list_stock_universe(self, limit: int = 200, offset: int = 0) -> list[Mapping[str, Any]]: ...
 

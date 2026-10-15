@@ -544,7 +544,12 @@ class SQLiteConnection:
             return True
         if "no such table" in text and statement.lower().startswith("create index"):
             return True
-        if lowered.startswith("alter table") and "add constraint" in lowered:
+        # Match on statement shape, not the driver's error wording: SQLite phrases
+        # the same rejection differently across versions (3.51 says near "CONSTRAINT",
+        # 3.53 says near "EXISTS"), so a message whitelist silently stops working on
+        # upgrade. SQLite supports neither ADD nor DROP CONSTRAINT, so both are
+        # Postgres-only DDL this compat layer is meant to ignore.
+        if lowered.startswith("alter table") and ("add constraint" in lowered or "drop constraint" in lowered):
             return True
         if lowered.startswith("create index") and ("to_tsvector" in lowered or " using " in lowered):
             return True

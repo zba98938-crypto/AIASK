@@ -558,6 +558,15 @@ class FactorValidationPipeline:
                 dtype=np.float64,
             )
 
+        # Preserve "not supplied" as None. `float(x or 0.0)` turned an absent
+        # benchmark into a zero benchmark, which made psr_vs_benchmark a
+        # comparison against a reference nobody had chosen — reported, however,
+        # as a measured probability.
+        raw_benchmark_sharpe = mt_cfg.get("benchmark_sharpe")
+        benchmark_sharpe = (
+            float(raw_benchmark_sharpe) if raw_benchmark_sharpe is not None else None
+        )
+
         multiple_testing = {
             "available": False,
             "reason": "family_returns_not_provided",
@@ -567,7 +576,7 @@ class FactorValidationPipeline:
                 sharpe_trials=sharpe_trials,
                 correlation_matrix=mt_cfg.get("trial_correlation_matrix"),
                 average_correlation=mt_cfg.get("average_correlation"),
-                benchmark_sharpe=float(mt_cfg.get("benchmark_sharpe", 0.0) or 0.0),
+                benchmark_sharpe=benchmark_sharpe,
                 periods_per_year=float(mt_cfg.get("periods_per_year", 252.0) or 252.0),
             ),
         }
@@ -770,10 +779,19 @@ class FactorValidationPipeline:
 
     @staticmethod
     def _summary_to_dict(s: ValidationSummary) -> Dict[str, Any]:
-        """将 ValidationSummary 转为可序列化字典"""
+        """将 ValidationSummary 转为可序列化字典。
+
+        零折叠不是"测得 IC 为 0"，而是"没有测"。18 份存量报告带着
+        ``n_folds = 0`` 与 15 个全零字段被当作有效测量存储，下游无从分辨。
+        ``measurable`` / ``reason`` 把这一区别显式化；新增键是附加性的，不改变
+        既有键的含义。
+        """
+        measurable = s.n_folds > 0
         return {
             "method": s.method,
             "n_folds": s.n_folds,
+            "measurable": measurable,
+            "reason": None if measurable else "no_folds",
             "oos_ic_mean": s.oos_ic_mean,
             "oos_ic_std": s.oos_ic_std,
             "oos_ic_ir": s.oos_ic_ir,
