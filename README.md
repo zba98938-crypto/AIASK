@@ -62,6 +62,14 @@ manifest launches every shipped server this way.
 All configuration variables are documented in `env.example`. Do not put real
 secrets in this repository.
 
+## Data sources
+
+What the project reads, from where, and what was measured as reachable on this
+host, is in **`docs/DATA_SOURCES.md`**. Read it before adding a provider: this
+machine's proxy answers `datacenter-web.eastmoney.com` while blocking
+`push2.eastmoney.com`, which is the opposite of the usual assumption, and Tushare
+is a declared dependency with no token configured.
+
 ## Tests
 
 Per-package, from that package's directory (each `pytest.ini` / `pyproject.toml`

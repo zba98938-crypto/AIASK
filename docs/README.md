@@ -6,6 +6,7 @@
 
 - 根目录只保留少量长期入口和被明确要求放在根目录的权威主方案。
 - `docs/CURRENT_PRODUCT_TRUTH.md` 是 **Hermes 集成副本的当前产品真相**（双桌面、权威门禁、过期宣称清单）。与六月完成度报告冲突时，以它和 repo 根 `AIASK_FINANCE_AGENT_COMPLETION_AUDIT.md` 为准。
+- `docs/DATA_SOURCES.md` 是**数据源台账**：每一类数据来自哪个源、覆盖率、刷新成本、已验证不可用的路径，以及这些 provider 对调用方的约定。新增数据源前先读它。
 - `docs/factory-architecture/` 放四工厂 current-state 文档、运行规范、审计台账和附录报告。
 - `docs/archive/frontend/` 放 V1 前端专题流程、阶段性开发方案和完成度报告（**历史/上游口径**，不代表本 Hermes 树已包含完整前端）。
 - `frontend-screenshots/AIASK标准化功能规范-2026-06-20/` 继续放前端专项功能规范与细分文档。
