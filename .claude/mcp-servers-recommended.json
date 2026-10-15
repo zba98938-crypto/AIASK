@@ -1,25 +1,50 @@
 {
   "$schema": "https://anthropic.com/claude-code/mcp.schema.json",
+  "_comment": [
+    "Reference stdio configuration for the MCP servers this tree actually ships.",
+    "The AIASK packages live in a conda env named by AIASK_CONDA_ENV (default",
+    "'aiask'); scripts/run_mcp_stdio.py resolves that env and re-execs its",
+    "interpreter. Set AIASK_VENV_PYTHON only to override the choice outright.",
+    "AIASK_PROJECT_ROOT should be this repository root. Broker servers are",
+    "disabled by default: live trading stays off until explicitly armed."
+  ],
   "mcpServers": {
-    "fastapi-mcp": {
-      "command": "uvx",
-      "args": ["fastapi-mcp"],
-      "description": "自动将 FastAPI endpoints 转换为 MCP 工具",
+    "aiask-akshare": {
+      "command": "python",
+      "args": ["scripts/run_mcp_stdio.py", "akshare_mcp.server"],
+      "description": "AKShare MCP: market/finance data, valuation, research, quant, strategy (144 tools in the tool-only profile set here; 179 in the full profile)",
       "env": {
-        "FASTAPI_BASE_URL": "http://localhost:8000"
+        "AKSHARE_MCP_STARTUP_PROFILE": "tool-only"
       }
     },
-    "tauri-plugin-mcp": {
-      "command": "npx",
-      "args": ["-y", "tauri-plugin-mcp"],
-      "description": "Tauri 应用 AI 调试（截图、DOM、窗口管理）",
-      "disabled": false
+    "aiask-strategy-factory": {
+      "command": "python",
+      "args": ["scripts/run_mcp_stdio.py", "strategy_factory.mcp_server"],
+      "description": "Strategy factory control plane: catalog, status, runs, readiness (read-only)"
     },
-    "python-repl-mcp": {
-      "command": "uvx",
-      "args": ["mcp-server-py3repl"],
-      "description": "Python REPL 交互式开发",
-      "disabled": false
+    "aiask-tongdaxin": {
+      "command": "python",
+      "args": ["scripts/run_mcp_stdio.py", "aiask_finance_mcp.tongdaxin.server"],
+      "description": "Tongdaxin local market data",
+      "disabled": true
+    },
+    "aiask-eastmoney": {
+      "command": "python",
+      "args": ["scripts/run_mcp_stdio.py", "aiask_finance_mcp.eastmoney.server"],
+      "description": "Eastmoney market data",
+      "disabled": true
+    },
+    "aiask-tonghuashun": {
+      "command": "python",
+      "args": ["scripts/run_mcp_stdio.py", "aiask_finance_mcp.tonghuashun.server"],
+      "description": "Tonghuashun; order paths are token- and confirmation-guarded",
+      "disabled": true
+    },
+    "aiask-qmt": {
+      "command": "python",
+      "args": ["scripts/run_mcp_stdio.py", "aiask_finance_mcp.qmt.server"],
+      "description": "QMT; live trading path, disabled by default",
+      "disabled": true
     }
   }
 }

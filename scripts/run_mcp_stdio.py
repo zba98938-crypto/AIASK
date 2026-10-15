@@ -1,7 +1,10 @@
-"""Launch copied AIASK MCP modules through an optional isolated venv.
+"""Launch AIASK MCP modules through the configured AIASK interpreter.
 
-This wrapper is stdlib-only. Hermes can call it with any Python, and it will
-re-exec the configured AIASK venv Python before importing heavy finance deps.
+This wrapper is stdlib-only. A host can call it with any Python, and it re-execs
+the AIASK interpreter before importing heavy finance deps. Resolution order is
+``AIASK_VENV_PYTHON`` -> an isolated venv under the runtime home -> the conda
+env named by ``AIASK_CONDA_ENV`` (default ``aiask``). See
+``_integration_paths.resolve_python_interpreter``.
 """
 
 from __future__ import annotations
@@ -12,8 +15,8 @@ from pathlib import Path
 
 from _integration_paths import (
     default_sqlite_path,
-    default_venv_python,
     ensure_runtime_dirs,
+    resolve_python_interpreter,
     runtime_home,
 )
 
@@ -27,11 +30,6 @@ def _integration_root() -> Path:
     if override:
         return Path(override).expanduser().resolve()
     return Path(__file__).resolve().parents[1]
-
-
-def _default_venv_python(root: Path) -> Path:
-    del root
-    return default_venv_python()
 
 
 def _truthy(value: str | None) -> bool:
@@ -52,7 +50,8 @@ def _require_supported_python() -> None:
     raise SystemExit(
         "AIASK MCP requires Python >=3.12,<3.14. "
         f"Current interpreter is Python {_python_label()} at {sys.executable}. "
-        "Set AIASK_VENV_PYTHON to an isolated AIASK venv Python."
+        "Set AIASK_VENV_PYTHON to the AIASK interpreter, or create the conda "
+        "env named by AIASK_CONDA_ENV."
     )
 
 
@@ -75,8 +74,7 @@ def main() -> None:
     os.environ.setdefault("AIASK_SQLITE_PATH", str(sqlite_path))
     os.environ.setdefault("AKSHARE_MCP_SQLITE_PATH", os.environ["AIASK_SQLITE_PATH"])
 
-    configured = os.getenv("AIASK_VENV_PYTHON")
-    venv_python = Path(configured).expanduser() if configured else _default_venv_python(root)
+    venv_python, source = resolve_python_interpreter()
     # Do not resolve either path: venv entrypoints commonly symlink to the base
     # interpreter, but invoking the symlink is what activates pyvenv.cfg and the
     # isolated site-packages. Comparing resolved targets silently skips re-exec.
@@ -85,10 +83,10 @@ def main() -> None:
     if venv_python.exists() and current != expected:
         os.execv(str(venv_python), [str(venv_python), "-m", module, *module_args])
     if not venv_python.exists() and not _allow_current_python():
-        source = "AIASK_VENV_PYTHON" if configured else "default AIASK venv"
         raise SystemExit(
             f"{source} not found: {venv_python}. "
-            "Create a Python 3.12 isolated venv and set AIASK_VENV_PYTHON. "
+            "Set AIASK_VENV_PYTHON, create the conda env named by "
+            "AIASK_CONDA_ENV, or create the isolated runtime venv. "
             "For local development only, set AIASK_ALLOW_CURRENT_PYTHON=1 with Python >=3.12,<3.14."
         )
     _require_supported_python()

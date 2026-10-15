@@ -14,13 +14,13 @@ Execution order (fail-closed on the first failure):
    (``py -3.12`` on Windows, ``python3.12`` on POSIX, then the currently
    running interpreter only if it already satisfies the version gate).
 2. Create the venv at the resolved target path if it does not exist.
-3. Install the five AIASK packages in the order pinned by
-   ``integrations/aiask/pyproject.toml`` ``[tool.hermes-aiask].package_order``.
+3. Install the AIASK packages in the order pinned by the repository root
+   ``pyproject.toml`` ``[tool.hermes-aiask].package_order``.
 
    The install is a two-pass sequence:
 
-   - Pass 1 uses ``pip install --no-deps -e <package>`` so the in-tree
-     editable relationships between the five packages are established first
+    - Pass 1 uses ``pip install --no-deps -e <package>`` so the in-tree
+      editable relationships between the packages are established first
      without letting PyPI-published versions shadow them.
    - Pass 2 re-runs ``pip install -e <package>`` (without ``--no-deps``) so
      each package pulls the remaining third-party wheels it needs.
@@ -29,9 +29,10 @@ Execution order (fail-closed on the first failure):
    the response so ``hermes aiask bootstrap --execute`` can report the
    post-bootstrap readiness in a single machine-readable envelope.
 
-The exit code is ``0`` when every step succeeds and readiness reports
-``summary.ready is True`` (or when ``--dry-run`` is used); non-zero
-otherwise.
+By default, the exit code reflects whether venv creation and package
+installation succeeded. With ``--strict``, readiness must also report
+``summary.ready is True``; ``--skip-readiness`` explicitly omits that check
+and ``--dry-run`` never performs installation.
 """
 
 from __future__ import annotations
@@ -91,7 +92,10 @@ def _read_package_order(aiask_root: Path) -> list[str]:
             "packages/aiask-quant-core",
             "packages/strategy-factory",
             "packages/akshare-mcp",
+            "packages/data-mcp",
             "packages/finance-mcp-servers",
+            "packages/aiask-skills",
+            "packages/reference-host",
             "packages/agent",
         ]
 
@@ -106,7 +110,10 @@ def _read_package_order(aiask_root: Path) -> list[str]:
         "packages/aiask-quant-core",
         "packages/strategy-factory",
         "packages/akshare-mcp",
+        "packages/data-mcp",
         "packages/finance-mcp-servers",
+        "packages/aiask-skills",
+        "packages/reference-host",
         "packages/agent",
     ]
 
@@ -278,6 +285,22 @@ def _run_step(cmd: list[str], *, timeout: int = 1800) -> dict[str, Any]:
     }
 
 
+def _venv_state(venv_dir: Path, venv_python: Path) -> str:
+    """Describe the target venv as ``absent``, ``incomplete`` or ``present``.
+
+    ``incomplete`` is the state that used to be invisible: the directory exists
+    so a directory check reports a usable venv, while the interpreter inside it
+    is gone. Observed on this machine at ``~/.aiask/venv``, where ``bin/`` held
+    console scripts and activate scripts but no ``python`` at all.
+    """
+
+    if not venv_dir.exists():
+        return "absent"
+    if not venv_python.exists():
+        return "incomplete"
+    return "present"
+
+
 def _plan_commands(
     *,
     aiask_root: Path,
@@ -289,7 +312,14 @@ def _plan_commands(
     """Return the ordered command list this bootstrap will execute."""
 
     commands: list[list[str]] = []
-    if not venv_dir.exists():
+    # Decide on the interpreter, not the directory. A half-created venv
+    # (directory present, interpreter missing) previously skipped creation and
+    # went straight to `[missing_python, "-m", "pip", ...]` — a sequence
+    # guaranteed to fail, for a reason the resulting report never named.
+    # `python -m venv` over an existing directory repairs the missing
+    # interpreter, and the `pip install -e` steps below rewrite the stale
+    # editable `.pth` files that point at vanished checkouts.
+    if not venv_python.exists():
         commands.append(list(base_launcher) + ["-m", "venv", str(venv_dir)])
 
     commands.append([str(venv_python), "-m", "pip", "install", "--upgrade", "pip"])
@@ -420,6 +450,7 @@ def bootstrap(
     venv_python = _venv_python(target_venv)
     packages = _read_package_order(aiask_root)
 
+    venv_state = _venv_state(target_venv, venv_python)
     existing_venv = _resolve_existing_venv_python(venv_python)
     resolution = existing_venv or _resolve_base_python(base_python)
     if "error" in resolution:
@@ -461,6 +492,7 @@ def bootstrap(
             "aiask_root": str(aiask_root),
             "venv_dir": str(target_venv),
             "venv_python": str(venv_python),
+            "venv_state": venv_state,
             "base_python_version": ".".join(str(part) for part in base_version),
             "base_python_launcher": base_launcher,
             "base_python_source": base_python_source,
@@ -487,6 +519,7 @@ def bootstrap(
         "aiask_root": str(aiask_root),
         "venv_dir": str(target_venv),
         "venv_python": str(venv_python),
+        "venv_state": venv_state,
         "base_python_version": ".".join(str(part) for part in base_version),
         "base_python_launcher": base_launcher,
         "base_python_source": base_python_source,

@@ -20,7 +20,12 @@ import time
 from pathlib import Path
 from typing import Any
 
-from _integration_paths import default_sqlite_path, default_venv_python, runtime_home
+from _integration_paths import (
+    default_sqlite_path,
+    default_venv_python,
+    resolve_python_interpreter,
+    runtime_home,
+)
 
 
 MIN_PYTHON = (3, 12)
@@ -291,18 +296,23 @@ def collect_readiness() -> dict[str, Any]:
     manifest_python_probe = _python_probe(manifest_python) if manifest_python else {"ok": False}
 
     configured_venv = os.getenv("AIASK_VENV_PYTHON")
-    venv_python = (
-        _venv_python_path(configured_venv) if configured_venv else _venv_python_path(_default_venv_python(root))
-    )
+    venv_python, venv_source = resolve_python_interpreter()
+    venv_python = _venv_python_path(venv_python)
     venv_exists = venv_python.exists()
     _check(
         checks,
         "aiask_venv_python_exists",
         "pass" if venv_exists else "fail",
         "critical",
-        "AIASK venv Python exists" if venv_exists else "AIASK venv Python is missing; set AIASK_VENV_PYTHON or create the default venv",
+        (
+            f"AIASK Python exists (source: {venv_source})"
+            if venv_exists
+            else "AIASK Python is missing; set AIASK_VENV_PYTHON, create the "
+            "conda env named by AIASK_CONDA_ENV, or create the isolated runtime venv"
+        ),
         path=str(venv_python),
         configured=bool(configured_venv),
+        source=venv_source,
     )
     venv_probe = _python_probe(venv_python) if venv_exists else {"ok": False}
     venv_version = tuple(int(part) for part in (venv_probe.get("version") or [])[:3])
@@ -312,10 +322,11 @@ def collect_readiness() -> dict[str, Any]:
         "aiask_venv_python_version",
         "pass" if venv_supported else "fail",
         "critical",
-        "AIASK venv Python is >=3.12,<3.14" if venv_supported else "AIASK venv Python must be >=3.12,<3.14",
+        f"AIASK Python is >=3.12,<3.14 (source: {venv_source})" if venv_supported else "AIASK Python must be >=3.12,<3.14",
         version=_version_label(venv_version if len(venv_version) == 3 else None),
         executable=venv_probe.get("executable"),
         probe_error=venv_probe.get("error") or venv_probe.get("stderr"),
+        source=venv_source,
     )
 
     allow_current = _truthy(os.getenv("AIASK_ALLOW_CURRENT_PYTHON"))
@@ -368,16 +379,36 @@ def collect_readiness() -> dict[str, Any]:
     for rel in OPTIONAL_MCP_BRIDGES:
         path = optional_root / rel
         bridges[rel] = {"path": str(path), "exists": path.is_file()}
+
+    # The manifests and launch bridges are Hermes-owned: the host tree ships
+    # them, this repository does not. When no host is installed the gate has
+    # nothing to inspect, and failing it would make `ready` permanently False on
+    # a standalone checkout that serves MCP perfectly well. Absence of a host is
+    # reported, not scored.
+    host_present = optional_root.is_dir()
+    every_optional_present = all(item["exists"] for item in manifests.values()) and all(
+        item["exists"] for item in bridges.values()
+    )
+    if not host_present:
+        optional_status, optional_severity = "skip", "info"
+        optional_message = (
+            f"No Hermes host at {hermes_root}; optional MCP manifests are host-owned "
+            "and do not apply to a standalone checkout"
+        )
+    elif every_optional_present:
+        optional_status, optional_severity = "pass", "critical"
+        optional_message = "AIASK optional MCP manifests and launch bridges are present"
+    else:
+        optional_status, optional_severity = "fail", "critical"
+        optional_message = "One or more AIASK optional MCP manifests or launch bridges are missing"
     _check(
         checks,
         "optional_mcp_manifests",
-        "pass"
-        if all(item["exists"] for item in manifests.values()) and all(item["exists"] for item in bridges.values())
-        else "fail",
-        "critical",
-        "AIASK optional MCP manifests and launch bridges are present"
-        if all(item["exists"] for item in manifests.values()) and all(item["exists"] for item in bridges.values())
-        else "One or more AIASK optional MCP manifests or launch bridges are missing",
+        optional_status,
+        optional_severity,
+        optional_message,
+        host_root=str(hermes_root),
+        host_present=host_present,
         manifests=manifests,
         bridges=bridges,
     )
@@ -436,12 +467,15 @@ def collect_readiness() -> dict[str, Any]:
             "runtime_home": str(home),
             "sqlite_path": str(sqlite_path),
             "default_venv_python": str(_default_venv_python(root)),
+            "resolved_python": str(venv_python),
+            "resolved_python_source": venv_source,
         },
         "python": {
             "manifest_command": "python",
             "manifest_python": manifest_python_probe,
             "aiask_venv_python": str(venv_python),
             "aiask_venv_configured": bool(configured_venv),
+            "aiask_venv_source": venv_source,
             "aiask_venv_probe": venv_probe,
             "allow_current_python": allow_current,
         },
