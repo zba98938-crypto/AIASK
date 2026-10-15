@@ -47,7 +47,6 @@ def test_the_surface_covers_data_provider_concerns() -> None:
         "storage",
         "env_loader",
         "server",
-        "factory_server",
     }
 
 

@@ -25,7 +25,7 @@ side_effect: read_only
 - Respect `TDX_LOCAL_ONLY`, `AKSHARE_MCP_SQLITE_PATH`, and `AIASK_SQLITE_PATH`.
 - Do not make Tushare or online providers unconditional startup dependencies.
 - HTTP MCP transports must keep loopback/auth/origin safeguards.
-- Runtime AKShare skill tools are not the same as Codex skills in `.codex/skills`.
+- Runtime AKShare skill tools (`list_skills` / `run_skill`) are not the same as the repository skills under `skills/finance/`.
 - Do not silently hide stale, empty, fallback, or optional-source failures.
 
 ## Key Files

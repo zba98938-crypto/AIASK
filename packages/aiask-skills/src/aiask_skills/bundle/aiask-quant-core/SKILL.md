@@ -33,6 +33,5 @@ side_effect: read_only
 - `packages/aiask-quant-core/src/aiask_quant_core/factor_calculator/`
 - `packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/`
 - `packages/aiask-quant-core/src/aiask_quant_core/strategy_dsl.py`
-- `packages/aiask-quant-core/src/aiask_quant_core/strategy_dsl_parts/`
 - `packages/aiask-quant-core/src/aiask_quant_core/storage/trade_audit_writer.py`
 - `packages/aiask-quant-core/tests/`

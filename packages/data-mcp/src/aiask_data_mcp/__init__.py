@@ -40,7 +40,6 @@ NEUTRAL_SUBMODULES: tuple[str, ...] = (
     "storage",
     "env_loader",
     "server",
-    "factory_server",
 )
 
 

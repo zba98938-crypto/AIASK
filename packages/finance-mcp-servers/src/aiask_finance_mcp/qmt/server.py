@@ -131,7 +131,18 @@ class QmtClient:
         self.ensure_connected()
         from xtquant.xtconstant import STOCK_BUY, STOCK_SELL
 
-        order_type = STOCK_BUY if direction == "buy" else STOCK_SELL
+        # Everything that was not exactly "buy" used to become a sell. Refuse
+        # instead: which side to trade is the caller's decision, and a typo must
+        # never place the opposite order.
+        normalized = str(direction).strip().lower()
+        if normalized == "buy":
+            order_type = STOCK_BUY
+        elif normalized == "sell":
+            order_type = STOCK_SELL
+        else:
+            raise ValueError(
+                f"Invalid direction: {direction!r}. Use 'buy' or 'sell'."
+            )
         order_id = self._trader.order_stock(
             self._account, code, order_type, volume, 0, price
         )
@@ -218,9 +229,15 @@ def handle_place_order(arguments: dict[str, Any]) -> dict[str, Any]:
     code = str(arguments.get("code") or "").strip()
     price = float(arguments.get("price") or 0)
     volume = int(arguments.get("volume") or 0)
-    direction = str(arguments.get("direction") or "buy").lower()
+    direction = str(arguments.get("direction") or "buy").strip().lower()
     if not code or price <= 0 or volume <= 0:
         return _envelope(False, error="code, price (>0), volume (>0) are required", tool="qmt_place_order")
+    # Validate before the client picks a side. The client read
+    # `STOCK_BUY if direction == "buy" else STOCK_SELL`, so "buy " (trailing
+    # space), a misspelling, or any unknown word silently became a SELL order.
+    # Tonghuashun already rejects this; QMT must reject it too.
+    if direction not in ("buy", "sell"):
+        return _envelope(False, error="direction must be 'buy' or 'sell'", tool="qmt_place_order")
     try:
         result = _get_client().place_order(code=code, price=price, volume=volume, direction=direction)
         return _envelope(True, data=result, tool="qmt_place_order")

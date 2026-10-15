@@ -24,7 +24,7 @@ side_effect: read_only
 - `packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/`
 - `packages/akshare-mcp/src/akshare_mcp/services/incubation.py`
 - `packages/akshare-mcp/src/akshare_mcp/services/incubation_pipeline.py`
-- `packages/akshare-mcp/src/akshare_mcp/services/signal_tracker_parts/`
+- `packages/akshare-mcp/src/akshare_mcp/services/signal_tracker.py`
 - `packages/strategy-factory/src/strategy_factory/runtime/incubation.py`
 - `packages/agent/src/aiask_agent/adapters/strategy_factory.py`
-- `packages/agent/src/aiask_agent/adapters/desktop_ops.py`
+- `packages/agent/src/aiask_agent/adapters/confirmed_actions.py`

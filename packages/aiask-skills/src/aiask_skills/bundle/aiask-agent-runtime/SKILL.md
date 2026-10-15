@@ -35,4 +35,4 @@ side_effect: read_only
 - `packages/agent/src/aiask_agent/tools/schemas.py`
 - `packages/agent/src/aiask_agent/intents.py`
 - `packages/agent/src/aiask_agent/session_store.py`
-- `packages/agent/src/aiask_agent/adapters/desktop_ops.py`
+- `packages/agent/src/aiask_agent/adapters/confirmed_actions.py`

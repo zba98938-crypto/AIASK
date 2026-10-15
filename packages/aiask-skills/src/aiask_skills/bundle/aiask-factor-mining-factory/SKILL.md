@@ -27,5 +27,5 @@ side_effect: read_only
 - `packages/akshare-mcp/src/akshare_mcp/tools/quant.py`
 - `packages/akshare-mcp/src/akshare_mcp/tools/managers/quant_mgr_classic.py`
 - `packages/strategy-factory/src/strategy_factory/runtime/factor_mining.py`
-- `packages/agent/src/aiask_agent/adapters/desktop_ops.py`
-- `packages/agent/src/aiask_agent/routes/desktop_finance.py`
+- `packages/agent/src/aiask_agent/adapters/confirmed_actions.py`
+- `packages/agent/src/aiask_agent/routes/finance.py`
