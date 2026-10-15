@@ -14,7 +14,17 @@ be a number nobody could defend. The signal is the trend, and the ``--risky``
 view, which narrows to the paths where a swallowed error can change a judgment:
 risk, gates, scoring, valuation and quality reporting.
 
-Expect false positives, and do not "fix" them:
+Handlers are counted in four kinds, because they are not equally bad:
+
+    pass / continue        the error disappears and execution carries on
+    return_zeroish         returns 0 / 0.0 / False / "" — a caller reads that as
+                           a measurement, which is how "could not measure"
+                           becomes "measured zero"
+    return_none            returns None, i.e. "this input is absent or
+                           unparseable". This is the contract the project asks
+                           for, and it is reported but kept out of the totals
+
+Expect false positives beyond that, and do not "fix" them:
 
 * A helper that returns ``None`` for unparseable input, such as
   ``_quality_reporting_policy._first_float`` or ``promotion_gate._finite_float``,
@@ -59,7 +69,17 @@ RISKY_MARKERS = (
     "stress",
 )
 
-EMPTY_RETURNS = (None, False, 0, 0.0, "")
+#: A handler whose whole body is one of these discards the error. They are not
+#: equally bad, so they are counted separately:
+#:
+#: ``return_none``     — "this input is absent or unparseable", which is the
+#:                       contract the project asks for. Reported, not flagged.
+#: ``return_zeroish``  — ``0`` / ``0.0`` / ``False`` / ``""``. A caller reads
+#:                       these as measurements, which is how "could not measure"
+#:                       becomes "measured zero".
+#: ``pass`` / ``continue`` — the error disappears and the loop or function
+#:                       carries on as though nothing happened.
+ZEROISH_RETURNS = (False, 0, 0.0, "")
 
 
 def _swallow_kind(handler: ast.ExceptHandler) -> str | None:
@@ -75,10 +95,21 @@ def _swallow_kind(handler: ast.ExceptHandler) -> str | None:
         return "continue"
     if isinstance(statement, ast.Return):
         value = statement.value
+        # A bare `return` has no value node at all.
         if value is None:
-            return "return_empty"
-        if isinstance(value, ast.Constant) and value.value in EMPTY_RETURNS:
-            return "return_empty"
+            return "return_none"
+        if isinstance(value, ast.Constant):
+            # `return None` parses to `Constant(None)`, not to a missing value.
+            if value.value is None:
+                return "return_none"
+            # `False == 0 == 0.0` and `""` is falsy, so compare types as well —
+            # otherwise `return False` and `return 0` collapse into one bucket and
+            # so would any constant that happens to compare equal.
+            if any(
+                type(value.value) is type(candidate) and value.value == candidate
+                for candidate in ZEROISH_RETURNS
+            ):
+                return "return_zeroish"
     return None
 
 
@@ -129,17 +160,24 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps({"total": len(findings), "shown": shown}, indent=2))
         return 0
 
+    kinds = ("pass", "continue", "return_zeroish", "return_none")
+    by_kind = {kind: sum(1 for item in findings if item["kind"] == kind) for kind in kinds}
     by_package: dict[str, int] = {}
     for item in findings:
+        if item["kind"] == "return_none":
+            continue
         parts = Path(item["path"]).parts
         package = parts[1] if len(parts) > 1 and parts[0] == "packages" else parts[0]
         by_package[package] = by_package.get(package, 0) + 1
 
     print(f"scan root            : {root}")
     print(f"discarding handlers  : {len(findings)}")
-    print(f"on judgment paths    : {sum(1 for item in findings if item['risky'])}")
+    for kind in kinds:
+        note = "  (the honest parse-guard contract, not a defect)" if kind == "return_none" else ""
+        print(f"    {kind:16s} {by_kind[kind]:>5}{note}")
+    print(f"on judgment paths    : {sum(1 for item in findings if item['risky'] and item['kind'] != 'return_none')}")
     print()
-    print("by package")
+    print("by package (return_none excluded: it is the required contract)")
     for package, count in sorted(by_package.items(), key=lambda pair: -pair[1]):
         print(f"  {count:6d}  {package}")
 
