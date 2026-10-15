@@ -1,5 +1,8 @@
 """TDX/TQCenter provider facade (split into _core/info_queries/market_queries)."""
 
+import logging
+
+from . import _core
 from ._core import *  # noqa: F401,F403
 from ._core import (
     _TQ_PERIOD_MAP,
@@ -33,6 +36,27 @@ from .market_queries import (
     get_scjy_value_by_date,
 )
 
+logger = logging.getLogger(__name__)
+
+
+def _warn_unavailable(api: str, **context: Any) -> None:
+    """Say out loud that an empty result means "no provider", not "no data".
+
+    Every function in this module returns ``[]`` when the tqcenter SDK is
+    absent. That made "TDX is not installed on this host" and "TDX says the
+    market is empty" the same observable fact — the pattern CLAUDE.md forbids,
+    and the reason a full-market listing silently produced zero symbols.
+    """
+
+    detail = ", ".join(f"{key}={value}" for key, value in sorted(context.items()))
+    logger.warning(
+        "[TdxTQ] %s unavailable: tqcenter SDK is not loaded (TDX_PYPLUGINS_PATH=%s)%s",
+        api,
+        _resolve_pyplugins_path(),
+        f" [{detail}]" if detail else "",
+    )
+
+
 def get_stock_list(market: str = "5", list_type: int = 1) -> list[dict]:
     """市场代码 ``5`` 全 A，``23`` HS300，``24`` ZZ500，``25`` ZZ1000，``28`` A500，
     ``31`` ETF，``32`` 可转债，``51`` 创业板，``52`` 科创板，``53`` 北交所，
@@ -40,6 +64,7 @@ def get_stock_list(market: str = "5", list_type: int = 1) -> list[dict]:
     """
     tq = get_tq()
     if tq is None:
+        _warn_unavailable("get_stock_list", market=market, list_type=list_type)
         return []
     try:
         result = _call_with_retry(tq.get_stock_list, market=str(market), list_type=int(list_type))
@@ -67,6 +92,7 @@ def get_stock_list(market: str = "5", list_type: int = 1) -> list[dict]:
 def get_sector_list(list_type: int = 1) -> list[dict]:
     tq = get_tq()
     if tq is None:
+        _warn_unavailable("get_sector_list", list_type=list_type)
         return []
     try:
         result = _call_with_retry(tq.get_sector_list, list_type=int(list_type))
@@ -110,6 +136,7 @@ def get_stock_list_in_sector(
 ) -> list[Any]:
     tq = get_tq()
     if tq is None:
+        _warn_unavailable("get_trading_dates", start_time=start_time, end_time=end_time)
         return []
     if not block_code:
         return []
@@ -272,10 +299,16 @@ def download_tdx_file(
 # ---------------------------------------------------------------------------
 
 def status() -> dict:
-    """供运维 / 诊断使用。"""
+    """供运维 / 诊断使用。
+
+    ``_tq`` / ``_tq_initialized`` 通过模块对象读取，而不是 import 进来：
+    ``get_tq()`` 会重新绑定这两个全局名，按值导入只会永远报告 import 那一刻的
+    状态。此前这两个名字根本没被导入，``status()`` 直接抛 NameError —— 一个
+    健康检查自己坏掉，比没有健康检查更危险。
+    """
     return {
-        "initialized": _tq_initialized,
-        "tq_available": _tq is not None,
+        "initialized": _core._tq_initialized,
+        "tq_available": _core._tq is not None,
         "pyplugins": _resolve_pyplugins_path(),
         "required": _is_required(),
     }
