@@ -24,10 +24,6 @@ from ...utils import (
     safe_stderr_print,
     validate_int_range,
 )
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 import pandas as pd
 import logging
 
@@ -429,26 +425,6 @@ def get_order_book(
 
     # 1. Try AkShare (if available)
     df = None
-    if ak is not None:
-        for func_name, args in (
-            ("stock_bid_ask_em", {"symbol": code}),
-            ("stock_bid_ask_em", {"code": code}),
-            ("stock_bid_ask_sina", {"symbol": code}),
-        ):
-            func = getattr(ak, func_name, None)
-            if not func:
-                continue
-            try:
-                df = func(**args)
-            except Exception:
-                df = None
-            parsed = _parse_order_book_df(df, code)
-            if parsed:
-                parsed["source"] = f"akshare.{func_name}"
-                parsed["backend_requested"] = "live_only_explicit"
-                parsed["backend_used"] = parsed["source"]
-                parsed["source_chain"] = ["live_only_explicit", parsed["source"]]
-                return _respond(_ok_order_book(parsed))
 
     # 2. Try direct fetch
     for direct_fetch in (_get_order_book_sina_direct, _get_order_book_tencent_direct):
@@ -533,21 +509,6 @@ def get_trade_details(
         )
 
     df = None
-    if ak is not None:
-        for func_name, args in (
-            ("stock_intraday_em", {"symbol": code}),
-            ("stock_intraday_sina", {"symbol": code}),
-            ("stock_intraday_em", {"code": code}),
-        ):
-            func = getattr(ak, func_name, None)
-            if not func:
-                continue
-            try:
-                df = func(**args)
-            except Exception:
-                df = None
-            if df is not None and not df.empty:
-                break
 
     if df is None or df.empty:
         direct = _get_trade_details_tencent_direct(code, limit)

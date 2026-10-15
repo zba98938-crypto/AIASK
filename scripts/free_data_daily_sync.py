@@ -274,223 +274,35 @@ async def sync_index_klines() -> dict[str, Any]:
 
 
 def sync_sector_fund_flow() -> dict[str, Any]:
-    """Free industry fund-flow snapshot via AKShare, then cache + market_blocks."""
-    import sqlite3
+    """Unavailable: the akshare industry fund-flow source was removed.
 
-    import akshare as ak
-    import requests
-
-    # Force no-proxy for this process' requests used by akshare.
-    original = requests.Session.request
-
-    def _request(self, *args, **kwargs):
-        self.trust_env = False
-        kwargs["proxies"] = {"http": None, "https": None}
-        return original(self, *args, **kwargs)
-
-    requests.Session.request = _request  # type: ignore[method-assign]
-    try:
-        frame = ak.stock_fund_flow_industry()
-    finally:
-        requests.Session.request = original  # type: ignore[method-assign]
-
-    rows: list[dict[str, Any]] = []
-    for _, item in frame.iterrows():
-        name = str(item.get("行业") or "").strip()
-        if not name:
-            continue
-        try:
-            change = float(item.get("行业-涨跌幅")) / 100.0
-        except Exception:
-            change = None
-        try:
-            net = float(item.get("净额")) * 1e8
-        except Exception:
-            net = None
-        rows.append(
-            {
-                "name": name,
-                "changePercent": change,
-                "mainNetInflow": net,
-                "mainNetInflowPercent": None,
-                "superLargeNetInflow": None,
-                "largeNetInflow": None,
-                "mediumNetInflow": None,
-                "smallNetInflow": None,
-                "stock_count": item.get("公司家数"),
-                "leader_name": item.get("领涨股"),
-            }
-        )
-
-    from akshare_mcp.tools.fund_flow_sector import (
-        _save_sector_flow_cache,
-        _sector_flow_cache,
-    )
-
-    _sector_flow_cache["data"] = rows
-    _sector_flow_cache["ts"] = time.time()
-    _save_sector_flow_cache(rows)
-
-    db_path = Path(os.environ["AIASK_SQLITE_PATH"])
-    conn = sqlite3.connect(db_path)
-    now = datetime.now().isoformat()
-    inserted = 0
-    try:
-        for index, item in enumerate(rows[:80]):
-            conn.execute(
-                """
-                INSERT OR REPLACE INTO market_blocks
-                (id, block_code, block_name, block_type, stock_count, avg_change_pct,
-                 total_amount, leader_name, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    index + 1,
-                    f"IND{index:04d}",
-                    item["name"],
-                    "industry",
-                    int(item.get("stock_count") or 0),
-                    (
-                        item["changePercent"] * 100
-                        if item.get("changePercent") is not None
-                        else None
-                    ),
-                    item.get("mainNetInflow"),
-                    item.get("leader_name"),
-                    now,
-                ),
-            )
-            inserted += 1
-        conn.commit()
-        count = conn.execute("SELECT COUNT(*) FROM market_blocks").fetchone()[0]
-    finally:
-        conn.close()
-    return {"rows": len(rows), "market_blocks_inserted": inserted, "market_blocks_count": count}
+    akshare was never a declared dependency of this project, so this step never
+    ran. It returns the caller's shape with an explicit reason rather than zeros
+    that would read as "measured no flow".
+    """
+    return {
+        "rows": 0,
+        "market_blocks_inserted": 0,
+        "market_blocks_count": 0,
+        "ok": False,
+        "source": "none",
+        "reason": "akshare_removed",
+    }
 
 
 def sync_north_fund_best_effort() -> dict[str, Any]:
-    """Best-effort free north-bound history + completeness marker."""
-    import sqlite3
+    """Unavailable: the akshare north-bound history source was removed.
 
-    import akshare as ak
-    import requests
-
-    original = requests.Session.request
-
-    def _request(self, *args, **kwargs):
-        self.trust_env = False
-        kwargs["proxies"] = {"http": None, "https": None}
-        return original(self, *args, **kwargs)
-
-    requests.Session.request = _request  # type: ignore[method-assign]
-    try:
-        frame = ak.stock_hsgt_hist_em(symbol="北向资金")
-    finally:
-        requests.Session.request = original  # type: ignore[method-assign]
-
-    usable: list[tuple[str, float]] = []
-    for _, item in frame.iterrows():
-        day = str(item.get("日期") or "")[:10]
-        value = None
-        for key in ("当日成交净买额", "当日资金流入"):
-            try:
-                candidate = float(item.get(key))
-            except Exception as _swallowed:
-                logger.warning("scripts/free_data_daily_sync.py:365: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                continue
-            if not math.isnan(candidate):
-                value = candidate
-                break
-        if day and value is not None:
-            usable.append((day, value))
-
-    db_path = Path(os.environ["AIASK_SQLITE_PATH"])
-    conn = sqlite3.connect(db_path)
-    now = datetime.now().isoformat()
-    inserted = 0
-    try:
-        for day, net in usable[-120:]:
-            conn.execute(
-                """
-                INSERT INTO north_fund_flow
-                    (trade_date, net_amount, north_money, source, updated_at)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(trade_date) DO UPDATE SET
-                    net_amount=excluded.net_amount,
-                    north_money=excluded.north_money,
-                    source=excluded.source,
-                    updated_at=excluded.updated_at
-                """,
-                (day, net, net, "akshare.stock_hsgt_hist_em", now),
-            )
-            inserted += 1
-
-        # If the latest real point is older than ~10d, quality gate blocks.
-        # Carry-forward only recent business days for local free bootstrap.
-        row = conn.execute(
-            "SELECT net_amount, trade_date FROM north_fund_flow ORDER BY trade_date DESC LIMIT 1"
-        ).fetchone()
-        carry = 0
-        if row:
-            last_net, last_day = row
-            cursor = date.today()
-            while carry < 8:
-                if cursor.weekday() < 5:
-                    exists = conn.execute(
-                        "SELECT 1 FROM north_fund_flow WHERE trade_date = ?",
-                        (cursor.isoformat(),),
-                    ).fetchone()
-                    if not exists:
-                        conn.execute(
-                            """
-                            INSERT INTO north_fund_flow
-                                (trade_date, net_amount, north_money, source, updated_at)
-                            VALUES (?, ?, ?, ?, ?)
-                            """,
-                            (
-                                cursor.isoformat(),
-                                last_net,
-                                last_net,
-                                "carry_forward_free_bootstrap",
-                                now,
-                            ),
-                        )
-                        carry += 1
-                cursor -= timedelta(days=1)
-
-        count, max_day = conn.execute(
-            "SELECT COUNT(*), MAX(trade_date) FROM north_fund_flow"
-        ).fetchone()
-        conn.execute(
-            """
-            INSERT INTO tdx_data_completeness
-                (data_key, status, row_count, as_of_date, detail, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(data_key) DO UPDATE SET
-                status=excluded.status,
-                row_count=excluded.row_count,
-                as_of_date=excluded.as_of_date,
-                detail=excluded.detail,
-                updated_at=excluded.updated_at
-            """,
-            (
-                "north_fund_flow",
-                "ok",
-                int(count or 0),
-                max_day,
-                json.dumps({"source": "free_data_daily_sync"}, ensure_ascii=False),
-                now,
-            ),
-        )
-        conn.commit()
-    finally:
-        conn.close()
+    There is no working replacement on this host; 深交所's own endpoint is blocked
+    through the proxy. Reported as unavailable so an empty result cannot pass for
+    a measured zero.
+    """
     return {
-        "usable_history_points": len(usable),
-        "upserted": inserted,
-        "carry_forward_days": carry if row else 0,
-        "count": count,
-        "max_trade_date": max_day,
+        "rows": 0,
+        "written": 0,
+        "ok": False,
+        "source": "none",
+        "reason": "akshare_removed",
     }
 
 

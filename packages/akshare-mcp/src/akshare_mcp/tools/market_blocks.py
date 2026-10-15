@@ -20,10 +20,6 @@ from ..utils import (
 from ..core.normalize import normalize_block_list, normalize_block_stock_list
 from ..provider_contracts import attach_tool_provider_contract_meta
 
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 
 
 def _with_provider_contract(result: dict, tool_name: str, **kwargs: Any) -> dict:
@@ -34,74 +30,13 @@ def _with_provider_contract(result: dict, tool_name: str, **kwargs: Any) -> dict
     )
 
 def _fetch_from_sector_spot() -> list:
-    """通过 ak.stock_sector_spot() 获取行业板块数据（新浪接口，不受 Clash 代理影响）"""
-    if ak is None:
-        return []
-    try:
-        with suppress_stdout("[MarketBlocks] stock_sector_spot"):
-            df = ak.stock_sector_spot()
-        if df is None or df.empty:
-            return []
-        blocks = []
-        for _, row in df.iterrows():
-            label = str(row.get('label', '') or '')
-            name = str(row.get('板块', '') or '')
-            if not label or not name:
-                continue
-            blocks.append({
-                'block_code': label,
-                'block_name': name,
-                'block_type': 'industry',
-                'stock_count': int(row.get('公司家数', 0) or 0),
-                'avg_change_pct': float(row.get('涨跌幅', 0) or 0),
-                'total_amount': float(row.get('总成交额', 0) or 0),
-                'leader_code': str(row.get('股票代码', '') or '').replace('sh', '').replace('sz', '').replace('bj', ''),
-                'leader_name': str(row.get('股票名称', '') or ''),
-            })
-        blocks.sort(key=lambda b: b['avg_change_pct'], reverse=True)
-        return blocks
-    except Exception as e:
-        safe_stderr_print(f"[MarketBlocks] sector_spot失败: {e}")
-        return []
+    """Removed with akshare: this project has no Sina sector-spot provider."""
+    return []
 
 
 def _fetch_from_ths(block_type: str) -> list:
     """通过同花顺接口获取板块名称列表（无涨跌幅，仅名称/代码）"""
-    if ak is None:
-        return []
-    try:
-        if block_type == 'industry':
-            with suppress_stdout("[MarketBlocks] stock_board_industry_name_ths"):
-                df = ak.stock_board_industry_name_ths()
-        elif block_type == 'concept':
-            with suppress_stdout("[MarketBlocks] stock_board_concept_name_ths"):
-                df = ak.stock_board_concept_name_ths()
-        else:
-            return []
-        if df is None or df.empty:
-            return []
-        blocks = []
-        for _, row in df.iterrows():
-            name = str(row.get('name', '') or '')
-            code = str(row.get('code', '') or '')
-            if not name:
-                continue
-            blocks.append({
-                'block_code': code,
-                'block_name': name,
-                'block_type': block_type,
-                'stock_count': None,
-                'avg_change_pct': None,
-                'total_amount': None,
-                'leader_code': None,
-                'leader_name': None,
-                'degraded': True,
-                'fallback_reason': '同花顺名称列表不含实时统计字段，已降级为代码/名称摘要；如需成分股请调用 get_block_stocks',
-            })
-        return blocks
-    except Exception as e:
-        safe_stderr_print(f"[MarketBlocks] 同花顺{block_type}失败: {e}")
-        return []
+    return []
 
 
 from .block_helpers import (
@@ -111,39 +46,7 @@ from .block_helpers import (
 )
 def _fetch_region_area_summary() -> list:
     """地域板块降级：使用 AKShare 的地区成交汇总接口返回可用地区列表。"""
-    if ak is None or not hasattr(ak, "stock_szse_area_summary"):
-        return []
-    try:
-        df = ak.stock_szse_area_summary()
-        if df is None or df.empty:
-            return []
-
-        blocks = []
-        for _, row in df.iterrows():
-            name = str(row.get("地区", "") or "").strip()
-            if not name:
-                continue
-
-            total_amount = safe_float(row.get("总交易额"))
-            stock_amount = safe_float(row.get("股票交易额"))
-            blocks.append({
-                "block_code": f"region::{name}",
-                "block_name": name,
-                "block_type": "region",
-                "stock_count": 0,
-                "avg_change_pct": 0.0,
-                "total_amount": total_amount if total_amount is not None else stock_amount,
-                "leader_code": None,
-                "leader_name": None,
-                "degraded": True,
-                "fallback_reason": "当前环境缺少地域板块接口，已降级为地区成交汇总列表，不含涨跌幅与成分股",
-            })
-
-        blocks.sort(key=lambda item: item.get("total_amount") or 0, reverse=True)
-        return blocks
-    except Exception as e:
-        safe_stderr_print(f"[MarketBlocks] 地区汇总降级失败: {e}")
-        return []
+    return []
 
 
 async def _fetch_from_db(block_type: str, limit: Optional[int]) -> list:
@@ -258,33 +161,7 @@ async def _enrich_blocks_from_cache(blocks: list[dict]) -> list[dict]:
 
 def _fetch_from_akshare(block_type: str) -> list:
     """从AKShare获取(最后降级)"""
-    if ak is None:
-        return []
-    try:
-        fn = {'industry': ak.stock_board_industry_name_em,
-              'concept': ak.stock_board_concept_name_em,
-              'region': ak.stock_board_region_name_em}.get(block_type)
-        if not fn:
-            return []
-        df = fn()
-        if df is None or df.empty:
-            return []
-        blocks = []
-        for _, row in df.iterrows():
-            blocks.append({
-                'block_code': str(row.get('板块代码', '')),
-                'block_name': str(row.get('板块名称', '')),
-                'block_type': block_type,
-                'stock_count': int(row.get('公司数量', 0)),
-                'avg_change_pct': float(row.get('涨跌幅', 0)),
-                'total_amount': float(row.get('总成交额', 0)) if '总成交额' in row else None,
-                'leader_code': str(row.get('领涨股票代码', '')) if '领涨股票代码' in row else None,
-                'leader_name': str(row.get('领涨股票', '')) if '领涨股票' in row else None,
-            })
-        return blocks
-    except Exception as e:
-        safe_stderr_print(f"[MarketBlocks] AKShare失败: {e}")
-        return []
+    return []
 
 
 async def get_market_blocks(
@@ -603,98 +480,34 @@ async def get_block_stocks(block_code: str, limit: int | None = None) -> Dict[st
         if text and text not in candidate_symbols:
             candidate_symbols.append(text)
 
-    if ak is None:
-        attempted.append('db_cache')
-        stocks = await _load_cached_block_stocks(block_code, block_name)
-        if not stocks:
-            result = ok({
-                'block_code': block_code,
-                'block_name': block_name,
-                'block_type': block_type,
-                'stocks': [],
-                'count': 0,
-                'source': 'none',
-                'degraded': True,
-                'fallback_reason': 'akshare not available and db cache empty',
-            })
-            result["source"] = "none"
-            result["degraded"] = True
-            return _with_provider_contract(
-                result,
-                "get_block_stocks",
-                standard_model="BlockStocks",
-                provider_used="none",
-                source_chain=attempted,
-                fallback_reason="akshare not available and db cache empty",
-            )
+    attempted.append('db_cache')
+    stocks = await _load_cached_block_stocks(block_code, block_name)
+    if not stocks:
+        result = ok({
+            'block_code': block_code,
+            'block_name': block_name,
+            'block_type': block_type,
+            'stocks': [],
+            'count': 0,
+            'source': 'none',
+            'degraded': True,
+            'fallback_reason': 'akshare not available and db cache empty',
+        })
+        result["source"] = "none"
+        result["degraded"] = True
+        return _with_provider_contract(
+            result,
+            "get_block_stocks",
+            standard_model="BlockStocks",
+            provider_used="none",
+            source_chain=attempted,
+            fallback_reason="akshare not available and db cache empty",
+        )
 
-    # 路径0: BK 前缀（东财板块代码 → 从板块列表反查名称 → 拉成分股）
-    if block_code.upper().startswith('BK') and not stocks:
-        resolved_bk_name = block_name
-        if not resolved_bk_name:
-            for board_type, list_fn in [
-                ('concept', lambda: ak.stock_board_concept_name_em()),
-                ('industry', lambda: ak.stock_board_industry_name_em()),
-            ]:
-                try:
-                    df_boards = list_fn()
-                    if df_boards is not None and not df_boards.empty:
-                        code_col = '板块代码' if '板块代码' in df_boards.columns else None
-                        name_col = '板块名称' if '板块名称' in df_boards.columns else None
-                        if code_col and name_col:
-                            match = df_boards[df_boards[code_col].astype(str) == block_code.upper()]
-                            if not match.empty:
-                                resolved_bk_name = str(match.iloc[0][name_col])
-                                block_name = resolved_bk_name
-                                block_type = board_type
-                                break
-                except Exception as e:
-                    safe_stderr_print(f"[BlockStocks] BK板块列表查询失败({board_type}): {e}")
-        if resolved_bk_name:
-            for api_fn, tag in [
-                (lambda s: ak.stock_board_concept_cons_em(symbol=s), 'eastmoney_concept_cons'),
-                (lambda s: ak.stock_board_industry_cons_em(symbol=s), 'eastmoney_industry_cons'),
-            ]:
-                try:
-                    attempted.append(f'{tag}:{resolved_bk_name}')
-                    df = api_fn(resolved_bk_name)
-                    _append_from_df(df, tag)
-                    if stocks:
-                        break
-                except Exception as e:
-                    safe_stderr_print(f"[BlockStocks] {tag}失败({resolved_bk_name}): {e}")
-
-    # 路径1: 新浪 sector_detail（适用于 new_xxx 格式 label）
-    if not stocks and block_code.startswith('new_'):
-        try:
-            attempted.append(f'sina_sector_detail:{block_code}')
-            df = ak.stock_sector_detail(sector=block_code)
-            _append_from_df(df, 'sina_sector_detail')
-        except Exception as e:
-            safe_stderr_print(f"[BlockStocks] sector_detail失败: {e}")
-
-    if not stocks and block_type in (None, '', 'industry'):
-        for symbol in candidate_symbols:
-            try:
-                attempted.append(f'eastmoney_industry_cons:{symbol}')
-                df = ak.stock_board_industry_cons_em(symbol=symbol)
-                _append_from_df(df, 'eastmoney_industry_cons')
-                if stocks:
-                    break
-            except Exception as e:
-                safe_stderr_print(f"[BlockStocks] stock_board_industry_cons_em失败({symbol}): {e}")
-
-    if not stocks and block_type in (None, '', 'concept'):
-        for symbol in candidate_symbols:
-            try:
-                attempted.append(f'eastmoney_concept_cons:{symbol}')
-                df = ak.stock_board_concept_cons_em(symbol=symbol)
-                _append_from_df(df, 'eastmoney_concept_cons')
-                if stocks:
-                    break
-            except Exception as e:
-                safe_stderr_print(f"[BlockStocks] stock_board_concept_cons_em失败({symbol}): {e}")
-
+    # The akshare BK / Sina sector / East money constituent lookups were removed
+    # with the dependency. A BK code is served from `block_stocks`, which the
+    # market-universe sync fills from East money's own report; the Tushare path
+    # below remains for name-based lookups.
     if not stocks and block_type in (None, '', 'concept'):
         attempted.append('ths_concept_detail')
         stocks = _fetch_concept_stocks_from_ths(block_code, block_name)

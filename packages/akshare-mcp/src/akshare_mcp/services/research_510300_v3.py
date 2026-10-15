@@ -681,22 +681,9 @@ def resolve_if_futures(end_date: str) -> tuple[ResolvedInstrument, pd.DataFrame,
     except Exception as exc:
         history = pd.DataFrame(columns=["date", "open", "high", "low", "close", "volume", "amount"])
         attempted.append({"symbol": "IF0", "status": "history_error", "reason": str(exc)})
-    try:
-        with _ProxyBypass():
-            fees = ak.futures_fees_info()
-        filtered = fees.loc[fees["品种代码"].astype(str) == "IF"].copy()
-        if not filtered.empty:
-            row = filtered.iloc[0]
-            fee_info = {
-                "slippage_bps": FUTURES_FALLBACK_COST["slippage_bps"],
-                "fixed_fee_per_contract": _safe_float(row.get("1手开仓费用"), FUTURES_FALLBACK_COST["fixed_fee_per_contract"]),
-                "margin_rate": _safe_float(row.get("做多保证金率"), FUTURES_FALLBACK_COST["margin_rate"]),
-                "contract_multiplier": _safe_int(row.get("合约乘数"), FUTURES_FALLBACK_COST["contract_multiplier"]),
-                "fallback_triggered": False,
-            }
-    except Exception as _swallowed:
-        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/research_510300_v3.py:695: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-        pass
+    # The akshare futures-fee lookup was removed with the dependency, so
+    # `fee_info` keeps the FUTURES_FALLBACK_COST values set above and stays marked
+    # `fallback_triggered`.
     resolved = ResolvedInstrument(
         category="futures",
         keyword_group="IF0",

@@ -711,10 +711,18 @@ def _test_network_source(source: dict[str, Any], mode: str) -> dict[str, Any]:
 def _test_local_source(source: dict[str, Any], mode: str) -> dict[str, Any]:
     provider = str(source.get("provider") or "").strip()
     if provider == "akshare":
-        installed = importlib.util.find_spec("akshare") is not None
+        # "akshare" here names the AIASK AKShare MCP server this project ships, not
+        # the upstream akshare Python package. That package was never a declared
+        # dependency and is not installed; probing for it reported a data source
+        # as ready when what was being checked did not exist.
         mcp_installed = importlib.util.find_spec("akshare_mcp") is not None
-        ok = installed or mcp_installed
-        return {"success": ok, "status": "ready" if ok else "missing_dependency", "sample_count": 1 if ok else 0, "dependency": "akshare" if installed else "akshare_mcp" if mcp_installed else None, "error": None if ok else "Install akshare or start AKShare MCP/AKTools."}
+        return {
+            "success": mcp_installed,
+            "status": "ready" if mcp_installed else "missing_dependency",
+            "sample_count": 1 if mcp_installed else 0,
+            "dependency": "akshare_mcp" if mcp_installed else None,
+            "error": None if mcp_installed else "Install the akshare-mcp package (part of this project).",
+        }
     if provider == "baostock":
         installed = importlib.util.find_spec("baostock") is not None
         return {"success": installed, "status": "ready" if installed else "missing_dependency", "sample_count": 1 if installed and mode == "connectivity" else 0, "dependency": "baostock" if installed else None, "error": None if installed else "Install baostock Python package."}

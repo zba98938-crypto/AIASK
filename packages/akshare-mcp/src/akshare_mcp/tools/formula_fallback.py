@@ -2,10 +2,6 @@
 
 from __future__ import annotations
 
-try:
-    import akshare as ak
-except Exception:  # pragma: no cover - optional dependency
-    ak = None
 
 from ..data_source import data_source
 from ..utils import normalize_code, safe_float, safe_int
@@ -16,32 +12,8 @@ logger = logging.getLogger(__name__)
 
 def _get_kline_from_akshare(stock_code: str, period: str, count: int) -> list:
     """Use AkShare as a synchronous fallback for formula screening."""
-    if ak is None or period not in ("daily", "weekly", "monthly"):
-        return []
+    return []
 
-    try:
-        df = ak.stock_zh_a_hist(symbol=stock_code, period=period, adjust="qfq")
-        if df is None or df.empty:
-            return []
-
-        results = []
-        for _, row in df.tail(count).iterrows():
-            results.append(
-                {
-                    "date": str(row.get("日期") or row.get("date") or ""),
-                    "open": safe_float(row.get("开盘") or row.get("open")),
-                    "close": safe_float(row.get("收盘") or row.get("close")),
-                    "high": safe_float(row.get("最高") or row.get("high")),
-                    "low": safe_float(row.get("最低") or row.get("low")),
-                    "volume": safe_int(row.get("成交量") or row.get("volume")),
-                    "amount": safe_float(row.get("成交额") or row.get("amount")),
-                    "change_pct": safe_float(row.get("涨跌幅") or row.get("pct_chg")),
-                    "source": "akshare",
-                }
-            )
-        return results
-    except Exception:
-        return []
 
 
 def get_kline_for_formula_fallback(stock_code: str, period: str, count: int) -> list:
@@ -130,17 +102,8 @@ def get_default_formula_stock_pool() -> list[str]:
         logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/formula_fallback.py:127: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
-    try:
-        import akshare as ak
-
-        df = ak.index_stock_cons_csindex(symbol="000300")
-        if df is not None and not df.empty:
-            column = "成分券代码" if "成分券代码" in df.columns else df.columns[0]
-            return df[column].tolist()[:50]
-    except Exception as _swallowed:
-        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/formula_fallback.py:137: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-        pass
-
+    # The akshare index-constituent lookup was removed with the dependency; the
+    # static seed list below is the remaining source.
     return [
         "600519",
         "000001",

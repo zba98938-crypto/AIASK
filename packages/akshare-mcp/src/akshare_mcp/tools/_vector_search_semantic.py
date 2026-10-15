@@ -194,100 +194,6 @@ async def semantic_stock_search(
                         return True
                 return False
 
-            def _append_sector_candidates(match_text: str):
-                try:
-                    import akshare as ak_mod
-                    from .market_blocks import _fetch_concept_stocks_from_ths
-
-                    q_lower = match_text.lower()
-                    strong_sector_tokens = [
-                        token.lower()
-                        for token in sector_tokens
-                        if len(token) >= 2 and token not in _GENERIC_SEMANTIC_HINTS
-                    ]
-
-                    def _sector_match(name: str) -> bool:
-                        name_l = name.lower()
-                        if q_lower in name_l or name_l in q_lower:
-                            return True
-                        return any(token in name_l for token in strong_sector_tokens)
-
-                    matched_sectors = []
-                    seen_sector_keys = set()
-                    candidate_limit = min(max(limit * 5, 50), 120)
-
-                    def _append_sector(label: str, name: str):
-                        label_s = str(label or '').strip()
-                        name_s = str(name or '').strip()
-                        if not label_s or not name_s:
-                            return
-                        key = (label_s, name_s)
-                        if key in seen_sector_keys:
-                            return
-                        seen_sector_keys.add(key)
-                        matched_sectors.append((label_s, name_s))
-
-                    with suppress_stdout("[semantic_stock_search] stock_sector_spot"):
-                        df_spot = ak_mod.stock_sector_spot()
-                    if df_spot is not None and not df_spot.empty:
-                        for _, srow in df_spot.iterrows():
-                            bname = str(srow.get('板块', '') or '')
-                            blabel = str(srow.get('label', '') or '')
-                            if _sector_match(bname):
-                                _append_sector(blabel, bname)
-                    if len(matched_sectors) < 2:
-                        with suppress_stdout("[semantic_stock_search] stock_board_industry_name_ths"):
-                            df_ths = ak_mod.stock_board_industry_name_ths()
-                        if df_ths is not None and not df_ths.empty:
-                            for _, brow in df_ths.iterrows():
-                                bname = str(brow.get('name', '') or '')
-                                bcode = str(brow.get('code', '') or '')
-                                if _sector_match(bname):
-                                    _append_sector(bcode, bname)
-                    if len(matched_sectors) < 3:
-                        with suppress_stdout("[semantic_stock_search] stock_board_concept_name_ths"):
-                            df_concept_ths = ak_mod.stock_board_concept_name_ths()
-                        if df_concept_ths is not None and not df_concept_ths.empty:
-                            for _, crow in df_concept_ths.iterrows():
-                                bname = str(crow.get('name', '') or '')
-                                bcode = str(crow.get('code', '') or '')
-                                if _sector_match(bname):
-                                    _append_sector(bcode, bname)
-                    for blabel, bname in matched_sectors[:3]:
-                        try:
-                            if not blabel.startswith('new_'):
-                                if blabel.isdigit() and len(blabel) == 6:
-                                    with suppress_stdout("[semantic_stock_search] ths_concept_constituents"):
-                                        concept_rows = _fetch_concept_stocks_from_ths(blabel, bname)
-                                    for item in concept_rows[:candidate_limit]:
-                                        _append_row({
-                                            'code': str(item.get('stock_code', '') or ''),
-                                            'name': str(item.get('stock_name', '') or ''),
-                                            'industry': bname,
-                                            'market_cap': None,
-                                            'pe_ratio': None,
-                                            'pb_ratio': None,
-                                        })
-                                continue
-                            with suppress_stdout("[semantic_stock_search] stock_sector_detail"):
-                                df_cons = ak_mod.stock_sector_detail(sector=blabel)
-                            if df_cons is None or df_cons.empty:
-                                continue
-                            for _, crow in df_cons.head(candidate_limit).iterrows():
-                                _append_row({
-                                    'code': str(crow.get('code', '') or ''),
-                                    'name': str(crow.get('name', '') or ''),
-                                    'industry': bname,
-                                    'market_cap': None,
-                                    'pe_ratio': None,
-                                    'pb_ratio': None,
-                                })
-                        except Exception as _swallowed:
-                            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/_vector_search_semantic.py:283: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                            continue
-                except Exception as _swallowed:
-                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/_vector_search_semantic.py:285: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                    pass
 
             # 对每个token做搜索（全量token中最多取前6个）
             for token in tokens[:6]:
@@ -324,12 +230,7 @@ async def semantic_stock_search(
                     for row in _search_stocks_tushare_fallback(token, limit * 2):
                         _append_row(row)
 
-            if industry_query_tokens and not _has_industry_hits():
-                for token in industry_query_tokens[:2]:
-                    _append_sector_candidates(token)
 
-            if not all_rows:
-                _append_sector_candidates(query_stripped)
             query_lower = query_stripped.lower()
             for seed_key, seed_rows in _SEMANTIC_SECTOR_SEEDS.items():
                 if seed_key.lower() in query_lower or query_lower in seed_key.lower():

@@ -8,7 +8,6 @@ from akshare_mcp.tools.news import research as research_module
 
 def test_get_stock_research_returns_argument_contract_for_symbol_alias(monkeypatch):
     monkeypatch.setattr(research_module.data_source, "get_tushare_pro", lambda: None)
-    monkeypatch.setattr(research_module, "ak", None)
     monkeypatch.setattr(
         research_module,
         "_fetch_eastmoney_research",

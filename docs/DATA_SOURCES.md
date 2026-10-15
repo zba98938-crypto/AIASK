@@ -47,16 +47,41 @@ direct first and fall back to the proxy, recording which transport answered.
 | `tushare` | core dependency | yes, 1.4.29 | 2 files | no token -> every call fails |
 | `efinance` | `legacy` extra | yes, 0.5.8 | 2 files | `get_realtime_quotes` fails with JSONDecodeError (it uses `push2`) |
 | `pytdx` | not declared | yes, 1.72 | 0 files directly | used through `tdx_local`; see section 5 |
-| `akshare` | **not declared** | **no** | **27 files** | 27 modules take their `except ImportError` branch |
+| `akshare` | **not declared** | **no** | **was 26 files — now 0** | every reference was removed; see below |
 | `baostock` | `legacy` extra | no | 8 files | same |
 | `mootdx`, `tqcenter` | not declared | no | 1 file each | `tdx_tqcenter` returns `[]` for everything |
 
-`akshare` is the sharp edge: it is not a declared dependency, so installing the
-project never provided it, yet 27 modules import it defensively. Every one of
-those paths has been degrading silently since the tree was extracted. **Nothing in
-this document relies on it.** If those call sites are wanted, either install it
-(`pip install akshare`) or delete them; leaving them is the option that keeps
-producing "no data" with no explanation.
+### akshare: removed, not installed
+
+`akshare` was not a declared dependency, so installing the project never provided
+it, yet 26 modules imported it behind `except ImportError` and degraded to an
+empty list. Every one of those paths had been dead since the tree was extracted
+and nothing said so. **They have all been removed.**
+
+`scripts/remove_akshare.py` did it, and the reason it is a script rather than a
+commit message is that the shape was repetitive and the conditions had to be
+decided one at a time:
+
+* 20 module-level `try: import akshare as ak / except: ak = None` guards deleted;
+* 15 `if ak is None:` bodies unwrapped, because those were the ones actually
+  running;
+* 20 `if ak is not None:` blocks and 13 unreachable spans deleted — code that
+  could never execute;
+* 5 ternary expressions resolved to their live branch;
+* the akshare-only helpers (`_get_financials_akshare*`, `_get_minute_kline_from_akshare`,
+  `_build_akshare_client`, the three `sync_*_from_akshare` service methods,
+  `sync_sector_fund_flow`, `sync_north_fund_best_effort`, the three
+  `_backfill_*` steps) replaced with stubs that return an explicit
+  `source_removed` / `provider_unavailable` reason rather than an empty result;
+* `scripts/tdx_probe/probe_datasources.py` lost its akshare section.
+
+Behaviour is unchanged where it mattered: the guarded branches were already the
+live ones. Where akshare was the only implementation, the function now says so —
+`get_option_chain` still returns `success=true` with an empty chain plus the
+reason, `get_stock_info` falls back to the local reference table, and
+`get_margin_data` reports that East money's datacenter report returned nothing.
+
+`baostock` was left alone: it *is* declared, as an opt-in `legacy` extra.
 
 ## 3. What the project needs, and where it comes from
 

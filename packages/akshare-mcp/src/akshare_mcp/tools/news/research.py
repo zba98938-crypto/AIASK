@@ -2,10 +2,6 @@
 
 from datetime import date, timedelta
 
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 
 from ...services.db_first_market_context import load_db_first_document_context
 from ...storage import get_db
@@ -223,33 +219,6 @@ def get_stock_research(
             pass
 
         # 3. 降级: AkShare
-        if ak is not None:
-            try:
-                df = ak.stock_research_report_em(symbol=code)
-                if df is not None and not df.empty:
-                    reports = []
-                    for _, row in df.iterrows():
-                        report = {
-                            "title": str(pick_value(row, ["报告名称", "标题", "研报标题", "title"]) or "").strip(),
-                            "institution": str(pick_value(row, ["机构名称", "机构", "研究机构", "发布机构", "institution"]) or "").strip(),
-                            "author": str(pick_value(row, ["研究员", "作者", "分析师", "author"]) or "").strip(),
-                            "rating": str(pick_value(row, ["最新评级", "评级", "投资评级", "rating"]) or "").strip(),
-                            "targetPrice": safe_float(pick_value(row, ["目标价", "最高目标价", "目标价格", "targetPrice"])),
-                            "date": format_period(pick_value(row, ["发布日期", "日期", "发布时间", "date"])),
-                        }
-                        if report["title"] or report["institution"]:
-                            reports.append(report)
-                    reports = _dedup_reports(reports)[:resolved_limit]
-                    if reports:
-                        return attach_argument_contract_meta(
-                            ok({"stockCode": code, "reports": reports, "total": len(reports)}),
-                            canonical_tool="get_stock_research",
-                            canonical_args=canonical_args,
-                            alias_hits=alias_hits,
-                        )
-            except Exception as _swallowed:
-                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:246: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                pass
 
         return attach_argument_contract_meta(
             _empty_degraded_response(
@@ -383,91 +352,8 @@ def search_research(keyword: str = "", stock_code: str = "", days: int = 90) -> 
                 pass
 
         # 3. 降级: AkShare
-        if code and ak is not None:
-            try:
-                df = ak.stock_research_report_em(symbol=code)
-                if df is not None and not df.empty:
-                    if keyword:
-                        df = df[
-                            df.apply(
-                                lambda row: _keyword_match(pick_value(row, ["报告名称", "标题", "研报标题", "title"]), keyword)
-                                or _keyword_match(pick_value(row, ["机构名称", "机构", "研究机构", "institution"]), keyword),
-                                axis=1
-                            )
-                        ]
-                    reports = []
-                    for _, row in df.iterrows():
-                        reports.append({
-                            "stockCode": code,
-                            "title": str(pick_value(row, ["报告名称", "标题", "研报标题", "title"]) or "").strip(),
-                            "institution": str(pick_value(row, ["机构名称", "机构", "研究机构", "发布机构", "institution"]) or "").strip(),
-                            "rating": str(pick_value(row, ["最新评级", "评级", "投资评级", "rating"]) or "").strip(),
-                            "date": format_period(pick_value(row, ["发布日期", "日期", "发布时间", "date"])),
-                        })
-                    reports = _filter_recent_reports(reports, since)
-                    if reports:
-                        return ok({"keyword": keyword, "stockCode": code, "reports": reports, "total": len(reports)})
-            except Exception as _swallowed:
-                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:401: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                pass
-        elif keyword:
-            try:
-                candidate_codes = _search_research_candidate_codes(keyword, 5, _keyword_match)
-                fallback_reports = []
-                per_code_limit = max(3, min(6, 20 // max(len(candidate_codes), 1)))
-                for candidate in candidate_codes:
-                    items = _fetch_eastmoney_research(candidate["code"], per_code_limit)
-                    if not items and ak is not None:
-                        try:
-                            df = ak.stock_research_report_em(symbol=candidate["code"])
-                            if df is not None and not df.empty:
-                                items = []
-                                for _, row in df.head(per_code_limit).iterrows():
-                                    items.append({
-                                        "title": str(pick_value(row, ["报告名称", "标题", "研报标题", "title"]) or "").strip(),
-                                        "institution": str(pick_value(row, ["机构名称", "机构", "研究机构", "发布机构", "institution"]) or "").strip(),
-                                        "author": str(pick_value(row, ["研究员", "作者", "分析师", "author"]) or "").strip(),
-                                        "rating": str(pick_value(row, ["最新评级", "评级", "投资评级", "rating"]) or "").strip(),
-                                        "date": format_period(pick_value(row, ["发布日期", "日期", "发布时间", "date"])),
-                                    })
-                        except Exception:
-                            items = []
-                    for item in items:
-                        match_score = 2 if (
-                            _keyword_match(item.get("title", ""), keyword)
-                            or _keyword_match(item.get("institution", ""), keyword)
-                        ) else 1
-                        fallback_reports.append(
-                            {
-                                "stockCode": candidate["code"],
-                                "stockName": candidate["name"],
-                                "title": item.get("title", ""),
-                                "institution": item.get("institution", ""),
-                                "rating": item.get("rating", ""),
-                                "date": item.get("date", ""),
-                                "_match_score": match_score,
-                            }
-                        )
-
-                if fallback_reports:
-                    fallback_reports.sort(key=lambda item: item.get("_match_score", 0), reverse=True)
-                    reports = []
-                    for report in _filter_recent_reports(fallback_reports, since):
-                        report.pop("_match_score", None)
-                        reports.append(report)
-                    if reports:
-                        return ok(
-                            {
-                                "keyword": keyword,
-                                "stockCode": "",
-                                "reports": reports[:20],
-                                "total": len(reports[:20]),
-                                "message": "已使用候选股票研报作为关键词检索补充结果",
-                            }
-                        )
-            except Exception as _swallowed:
-                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:458: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                pass
+# The akshare research-report fallback was removed with the dependency;
+# callers fall through to their remaining sources.
 
         # 终极降级: 查 DB research_reports 表（与 search_research_db 同源）
         try:
@@ -682,34 +568,6 @@ def get_research_reports(
                 pass
 
         # 1. AkShare 东财研报（支持 per-stock 过滤，字段完整）
-        if ak is not None and code:
-            try:
-                df = ak.stock_research_report_em(symbol=code)
-                if df is not None and not df.empty:
-                    records = []
-                    for _, row in df.head(resolved_limit * 2).iterrows():
-                        rec_code = str(row.get("股票代码", "") or "").strip()
-                        if rec_code and normalize_code(rec_code) != code:
-                            continue
-                        records.append({
-                            "title": str(row.get("报告名称", "") or "").strip(),
-                            "institution": str(row.get("机构", "") or "").strip(),
-                            "author": "",
-                            "rating": str(row.get("东财评级", "") or "").strip(),
-                            "targetPrice": None,
-                            "date": format_period(row.get("日期")),
-                        })
-                    records = _dedup_reports(records)[:resolved_limit]
-                    if records:
-                        return attach_argument_contract_meta(
-                            ok({"stockCode": code, "reports": records, "total": len(records)}),
-                            canonical_tool="get_research_reports",
-                            canonical_args=canonical_args,
-                            alias_hits=alias_hits,
-                        )
-            except Exception as _swallowed:
-                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:695: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                pass
 
         # 2. Tushare report_rc（需要日期范围才能有效过滤）
         try:
@@ -873,86 +731,10 @@ def get_profit_forecast(
             pass
 
         # 3. AkShare
-        if ak is not None:
-            df = None
-            try:
-                df = ak.stock_profit_forecast_em(symbol=code)
-            except Exception as _swallowed:
-                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:861: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                pass
-            if df is None or df.empty:
-                try:
-                    df = ak.stock_profit_forecast_ths(symbol=code)
-                except Exception as _swallowed:
-                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:866: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                    pass
-            if df is not None and not df.empty:
-                try:
-                    records = df.fillna("").to_dict(orient="records")
-                    return attach_argument_contract_meta(
-                        ok({"stockCode": code, "items": records, "total": len(records)}),
-                        canonical_tool="get_profit_forecast",
-                        canonical_args=canonical_args,
-                        alias_hits=alias_hits,
-                    )
-                except Exception as _swallowed:
-                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:877: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                    pass
 
         # P3-5.21 fix: 第四源 — 从研报正文回填盈利预测(诊断报告 §5.21)
         # 历史问题:东财/Tushare/AkShare 三源全跪时 items=[],AI 没有任何 fallback
         # 修复:从 stock_research_report_em / stock_research_report_ths 的研报里抽取近期评级和目标价作为简化 forecast
-        if ak is not None:
-            for fn_name in ('stock_research_report_em', 'stock_research_report_ths'):
-                fn = getattr(ak, fn_name, None)
-                if not callable(fn):
-                    continue
-                try:
-                    df_research = fn(symbol=code)
-                except Exception as _swallowed:
-                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:890: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                    continue
-                if df_research is None or df_research.empty:
-                    continue
-                try:
-                    head_df = df_research.head(20).fillna("")
-                    extracted: list[dict] = []
-                    for _, row in head_df.iterrows():
-                        rating_col = next((col for col in row.index if '评级' in str(col)), None)
-                        org_col = next((col for col in row.index if '机构' in str(col) or 'org' in str(col).lower()), None)
-                        date_col = next((col for col in row.index if '日期' in str(col) or 'date' in str(col).lower()), None)
-                        researcher_col = next((col for col in row.index if '分析师' in str(col)), None)
-                        target_col = next((col for col in row.index if '目标价' in str(col)), None)
-                        eps_col = next((col for col in row.index if 'eps' in str(col).lower() or '每股' in str(col)), None)
-                        extracted.append({
-                            "date": str(row.get(date_col, "") if date_col else ""),
-                            "institution": str(row.get(org_col, "") if org_col else ""),
-                            "researcher": str(row.get(researcher_col, "") if researcher_col else ""),
-                            "rating": str(row.get(rating_col, "") if rating_col else ""),
-                            "target_price": safe_float(row.get(target_col, None) if target_col else None),
-                            "eps_forecast": safe_float(row.get(eps_col, None) if eps_col else None),
-                            "_source": fn_name,
-                            "_synthesized_from_research_report": True,
-                        })
-                    if extracted:
-                        return attach_argument_contract_meta(
-                            ok({
-                                "stockCode": code,
-                                "items": extracted,
-                                "total": len(extracted),
-                                "fallback_used": True,
-                                "fallback_reason": "三源 forecast 全空,从研报正文抽取评级/目标价作为简化 forecast",
-                                "degraded": True,
-                                "quality_flags": ["synthesized_from_research_report"],
-                                "source": fn_name,
-                            }),
-                            canonical_tool="get_profit_forecast",
-                            canonical_args=canonical_args,
-                            alias_hits=alias_hits,
-                        )
-                except Exception as _swallowed:
-                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:930: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                    continue
 
         return attach_argument_contract_meta(
             _empty_degraded_response(

@@ -31,10 +31,6 @@ try:
     from ...baostock_api import baostock_client
 except (ImportError, Exception):
     baostock_client = None
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 import pandas as pd
 
 _KLINE_TOTAL_TIMEOUT = float(os.getenv("KLINE_TOTAL_TIMEOUT", "45"))
@@ -63,7 +59,6 @@ from .kline_rows import (
     _validated_kline_rows,
 )
 from .kline_minute import (
-    _get_minute_kline_from_akshare,
     _get_minute_kline_from_sina,
     _get_minute_kline_from_tencent,
     _parse_minute_period,
@@ -307,70 +302,6 @@ async def _get_kline_impl(stock_code: str, period: str, limit: int, started_at: 
         )
 
     # 3. AkShare 降级
-    if ak is not None and _time_remaining(started_at) > 5:
-        _append_chain_step(source_chain, "akshare.stock_zh_a_hist")
-        try:
-            df = await asyncio.to_thread(
-                _run_with_retry,
-                lambda: ak.stock_zh_a_hist(symbol=code, period=period, adjust="qfq"),
-                _KLINE_TIMEOUTS,
-            )
-            if df is not None and not df.empty:
-                df = df.tail(int(limit))
-                results = _process_kline_akshare(df, code)
-                if results:
-                    validated_results = _validated_kline_rows(results)
-                    await _async_save_klines_to_db(code, validated_results)
-                    return _ok_kline_response(
-                        validated_results,
-                        source="akshare",
-                        source_chain=list(source_chain),
-                        fallback_reason=fallback_reason,
-                        started_at=started_at,
-                    )
-        except Exception as e:
-            safe_stderr_print(f"AkShare K-line fetch failed for {code}: {e}")
-            fallback_reason.append(f"akshare.stock_zh_a_hist failed: {e}")
-
-        # 3.5 Tencent K线（仅日线，最后备用）
-        if period == "daily" and _time_remaining(started_at) > 3:
-            _append_chain_step(source_chain, "tencent.stock_zh_a_hist_tx")
-            try:
-                end_date = datetime.now().strftime("%Y%m%d")
-                start_date = (datetime.now() - timedelta(days=int(limit) * 2 + 30)).strftime("%Y%m%d")
-                market_prefix = "sh" if code.startswith("6") else "sz"
-                symbol = f"{market_prefix}{code}"
-                df_tx = await asyncio.to_thread(
-                    ak.stock_zh_a_hist_tx,
-                    symbol=symbol, start_date=start_date, end_date=end_date,
-                    adjust="", timeout=min(_KLINE_TIMEOUTS[-1] if _KLINE_TIMEOUTS else 25, _time_remaining(started_at)),
-                )
-                if df_tx is not None and not df_tx.empty:
-                    results = []
-                    for _, row in df_tx.tail(int(limit)).iterrows():
-                        results.append({
-                            "date": str(row.get("date", ""))[:10],
-                            "open": safe_float(row.get("open")),
-                            "close": safe_float(row.get("close")),
-                            "high": safe_float(row.get("high")),
-                            "low": safe_float(row.get("low")),
-                            "volume": safe_int(row.get("volume")),
-                            "amount": safe_float(row.get("amount")),
-                            "source": "tencent",
-                        })
-                    if results:
-                        validated_results = _validated_kline_rows(results)
-                        await _async_save_klines_to_db(code, validated_results)
-                        return _ok_kline_response(
-                            validated_results,
-                            source="tencent",
-                            source_chain=list(source_chain),
-                            fallback_reason=fallback_reason,
-                            started_at=started_at,
-                        )
-            except Exception as e_tx:
-                safe_stderr_print(f"Tencent K-line fetch failed for {code}: {e_tx}")
-                fallback_reason.append(f"tencent.stock_zh_a_hist_tx failed: {e_tx}")
 
     return _fail_kline_response(
         f"所有数据源均无法获取 {code} 的K线数据",
@@ -449,19 +380,19 @@ def get_minute_kline(
             started_at=started_at,
         ))
     fallback_reason: list[str] = []
-    source_chain: list[str] = ["akshare.stock_zh_a_hist_min_em"]
-    results = _get_minute_kline_from_akshare(code, minutes, limit)
-    if not results:
-        fallback_reason.append("akshare.stock_zh_a_hist_min_em empty_or_failed")
+    # The akshare intraday source was removed with the dependency; Sina is the
+    # first provider now and Tencent remains as the second.
+    source_chain: list[str] = []
+    results = _get_minute_kline_from_sina(code, minutes, limit)
+    if results:
         _append_chain_step(source_chain, "sina.getKLineData")
-        results = _get_minute_kline_from_sina(code, minutes, limit)
-        if not results:
-            fallback_reason.append("sina.getKLineData empty_or_failed")
-            # P3-5.4 fix: tencent 第三源(诊断报告 §5.4)
+    else:
+        fallback_reason.append("sina.getKLineData empty_or_failed")
+        results = _get_minute_kline_from_tencent(code, minutes, limit)
+        if results:
             _append_chain_step(source_chain, "tencent.mkline")
-            results = _get_minute_kline_from_tencent(code, minutes, limit)
-            if not results:
-                fallback_reason.append("tencent.mkline empty_or_failed")
+        else:
+            fallback_reason.append("tencent.mkline empty_or_failed")
 
     if not results:
         return _respond(_fail_kline_response(
@@ -480,9 +411,7 @@ def get_minute_kline(
             started_at=started_at,
         ))
     resolved_source_raw = str((validated_results or [{}])[0].get("source") or "")
-    if resolved_source_raw.startswith("akshare"):
-        resolved_source = "akshare_minute"
-    elif resolved_source_raw == "tencent":
+    if resolved_source_raw == "tencent":
         # P3-5.4: tencent 显式标识
         resolved_source = "tencent"
     else:
@@ -647,49 +576,12 @@ async def get_kline_data(
             safe_stderr_print(f"DataSource K-line (date range) failed for {code_normalized}: {e_ds}")
             fallback_reason.append(f"data_source.get_kline failed: {e_ds}")
 
-        if ak is None:
-            return _respond(_fail_kline_response(
-                f'无法获取 {code} 的K线数据 (日期范围查询, 所有数据源均失败)',
-                source_chain=list(source_chain),
-                fallback_reason=fallback_reason or [f"date_range fetch failed for {code}"],
-                started_at=started_at,
-            ))
-        _append_chain_step(source_chain, "akshare.stock_zh_a_hist")
-        try:
-            df = ak.stock_zh_a_hist(
-                symbol=code_normalized,
-                period=mapped_period,
-                start_date=start_date.replace('-', '') if start_date else None,
-                end_date=end_date.replace('-', '') if end_date else None,
-                adjust=adjust or "qfq"
-            )
-            if df is None or df.empty:
-                fallback_reason.append(f"no_kline_data:{code}")
-                return _respond(_fail_kline_response(
-                    f'No kline data for {code}',
-                    source_chain=list(source_chain),
-                    fallback_reason=fallback_reason,
-                    started_at=started_at,
-                ))
-            results = _process_kline_akshare(df, code_normalized)
-            validated_results = _validated_kline_rows(results)
-            if _has_validated_kline_rows(validated_results):
-                await _async_save_klines_to_db(code_normalized, validated_results)
-                return _respond(_ok_kline_response(
-                    validated_results,
-                    source="akshare",
-                    source_chain=list(source_chain),
-                    fallback_reason=fallback_reason,
-                    started_at=started_at,
-                ))
-        except Exception as e:
-            fallback_reason.append(str(e))
-            return _respond(_fail_kline_response(
-                f'Failed to get kline data: {str(e)}',
-                source_chain=list(source_chain),
-                fallback_reason=fallback_reason,
-                started_at=started_at,
-            ))
+        return _respond(_fail_kline_response(
+            f'无法获取 {code} 的K线数据 (日期范围查询, 所有数据源均失败)',
+            source_chain=list(source_chain),
+            fallback_reason=fallback_reason or [f"date_range fetch failed for {code}"],
+            started_at=started_at,
+        ))
 
     return _respond(await get_kline(code, mapped_period, limit))
 
@@ -805,34 +697,5 @@ async def get_index_kline(index_code: str, period: str = "daily", limit: int = 6
             safe_stderr_print(f"Tushare index kline failed for {code}: {e}")
 
     # 2. AkShare：指数专用公开源，作为最后降级
-    if ak is not None:
-        try:
-            df = _run_with_retry(
-                lambda: ak.stock_zh_index_daily_em(symbol=ak_symbol),
-                _KLINE_TIMEOUTS,
-            )
-            if df is not None and not df.empty:
-                df = df.tail(int(limit))
-                results = []
-                for _, row in df.iterrows():
-                    date_val = row.get("date") or row.get("日期") or ""
-                    results.append({
-                        "date": str(date_val)[:10],
-                        "open": safe_float(row.get("open") or row.get("开盘")),
-                        "close": safe_float(row.get("close") or row.get("收盘")),
-                        "high": safe_float(row.get("high") or row.get("最高")),
-                        "low": safe_float(row.get("low") or row.get("最低")),
-                        "volume": safe_int(row.get("volume") or row.get("成交量")),
-                        "amount": safe_float(row.get("amount") or row.get("成交额")),
-                        "source": "akshare_index",
-                    })
-                if results:
-                    if _has_index_like_price_scale(code, results):
-                        return ok(results)
-                    safe_stderr_print(
-                        f"AkShare index K-line identity mismatch for {code}: stock-like price scale"
-                    )
-        except Exception as e:
-            safe_stderr_print(f"AkShare index kline failed for {code}: {e}")
 
     return fail(f"所有数据源均无法获取指数 {code} 的K线数据")

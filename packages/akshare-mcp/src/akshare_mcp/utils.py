@@ -21,7 +21,9 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-SOURCE_NAME = "akshare"
+#: Label for a value this project computed itself. It used to say "akshare",
+#: which named a dependency that was never declared and is not installed.
+SOURCE_NAME = "internal"
 _STRICT_STOCK_CODE_PATTERNS = (
     re.compile(r"^\d{1,6}$"),
     re.compile(r"^(?:sh|sz|bj)(\d{6})$", re.IGNORECASE),

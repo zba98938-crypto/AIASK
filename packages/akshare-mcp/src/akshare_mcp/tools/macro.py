@@ -2,10 +2,6 @@ import os
 import time
 from typing import Any, Optional
 
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 import pandas as pd
 
 from ..core.cache_manager import cached
@@ -56,7 +52,13 @@ def _with_provider_contract(result: dict, **kwargs: Any) -> dict:
 
 
 def _ak_func(name: str):
-    return getattr(ak, name, None) if ak is not None else None
+    """Always ``None``: akshare is not a dependency of this project.
+
+    Every caller already takes a ``provider_unavailable`` path when this returns
+    nothing, which is the honest answer on a host without akshare.
+    """
+
+    return None
 
 
 def _get_social_financing_df() -> tuple[pd.DataFrame, list[str], bool]:

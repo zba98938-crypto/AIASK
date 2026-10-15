@@ -6,10 +6,6 @@ Dragon-tiger board, margin trading, and block trades functions.
 from datetime import datetime, timedelta
 from typing import Any, Optional
 
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 import requests
 
 from ..utils import fail, normalize_code, ok, parse_date_input, parse_numeric, resolve_existing_security_code_sync, safe_float, validate_int_range
@@ -139,31 +135,10 @@ def get_dragon_tiger(date: str = "", stock_code: str = "") -> dict:
             df = None
             source = "unknown"
 
-            sina_fn = getattr(ak, "stock_lhb_detail_daily_sina", None) if ak is not None else None
-            if callable(sina_fn):
-                try:
-                    df = sina_fn(date=date_dash)
-                    if df is not None and not df.empty:
-                        source = "sina"
-                        resolved_date = candidate_date
-                        break
-                except Exception as exc:
-                    fallback_reasons.append(f"sina:{candidate_date}:{exc}")
-            else:
-                fallback_reasons.append(f"sina:{candidate_date}:provider_unavailable")
-
-            em_fn = getattr(ak, "stock_lhb_detail_em", None) if ak is not None else None
-            if callable(em_fn):
-                try:
-                    df = em_fn(start_date=candidate_date, end_date=candidate_date)
-                    if df is not None and not df.empty:
-                        source = "eastmoney"
-                        resolved_date = candidate_date
-                        break
-                except Exception as exc:
-                    fallback_reasons.append(f"eastmoney:{candidate_date}:{exc}")
-            else:
-                fallback_reasons.append(f"eastmoney:{candidate_date}:provider_unavailable")
+            # The akshare Sina / East money board readers were removed with the
+            # dependency. The tushare and local-table fallbacks below remain, and
+            # the reason is still recorded so a reader can see what was skipped.
+            fallback_reasons.append(f"akshare:{candidate_date}:provider_unavailable")
 
             # P0-4 fix (诊断报告 §5.5): 加 tushare top_list 第三 source 兜底
             # 历史问题: sina+eastmoney 6 个交易日全跪 (5/15~5/20)
@@ -509,69 +484,20 @@ def get_margin_data(stock_code: str = "", days: int = 30) -> dict:
                 data_timestamp=str(results[0].get("date") or "") if results else None,
             )
 
-        # Fallback: market-level summary
-        def scale_margin(val: Any) -> Optional[float]:
-            num = parse_numeric(val)
-            return num * 1e8 if num is not None else None
-
-        df = ak.stock_margin_account_info()
-        if df is not None and not df.empty:
-            row = df.iloc[-1]
-            summary = {
-                "date": str(row.get("日期", "")),
-                "code": normalize_code(stock_code) if stock_code else "",
-                "name": "",
-                "marginBalance": scale_margin(row.get("融资余额")),
-                "marginBuy": scale_margin(row.get("融资买入额")),
-                "marginRepay": None,
-                "shortBalance": scale_margin(row.get("融券余额")),
-                "shortSell": scale_margin(row.get("融券卖出额")),
-                "shortRepay": None,
-                "totalBalance": None,
-            }
-            return _with_provider_contract(
-                ok([summary]),
-                "get_margin_data",
-                standard_model="MarginData",
-                provider_used="akshare.stock_margin_account_info",
-                source_chain=["eastmoney.datacenter", "akshare.stock_margin_account_info"],
-                data_timestamp=str(summary.get("date") or "") or None,
-            )
-
-        df = ak.stock_margin_sse(
-            start_date="20010106",
-            end_date=datetime.now().strftime("%Y%m%d"),
-        )
-        if df is None or df.empty:
-            return _with_provider_contract(
-                fail("未获取到融资融券数据"),
-                "get_margin_data",
-                standard_model="MarginData",
-                provider_used="none",
-                source_chain=["eastmoney.datacenter", "akshare.stock_margin_account_info", "akshare.stock_margin_sse"],
-                fallback_reason="empty margin data",
-            )
-
-        row = df.iloc[-1]
-        summary = {
-            "date": str(row.get("信用交易日期", "")),
-            "code": normalize_code(stock_code) if stock_code else "",
-            "name": "",
-            "marginBalance": safe_float(row.get("融资余额")),
-            "marginBuy": safe_float(row.get("融资买入额")),
-            "marginRepay": safe_float(row.get("融资偿还额")),
-            "shortBalance": safe_float(row.get("融券余量")),
-            "shortSell": safe_float(row.get("融券卖出量")),
-            "shortRepay": safe_float(row.get("融券偿还量")),
-            "totalBalance": None,
-        }
+        # The akshare margin fallbacks (stock_margin_account_info /
+        # stock_margin_sse) were removed with the dependency. East money's
+        # datacenter report above is the provider; when it returns nothing, say so
+        # instead of substituting a different source's snapshot.
         return _with_provider_contract(
-            ok([summary]),
+            fail("未获取到融资融券数据"),
             "get_margin_data",
             standard_model="MarginData",
-            provider_used="akshare.stock_margin_sse",
-            source_chain=["eastmoney.datacenter", "akshare.stock_margin_account_info", "akshare.stock_margin_sse"],
-            data_timestamp=str(summary.get("date") or "") or None,
+            provider_used="none",
+            source_chain=["eastmoney.datacenter"],
+            fallback_reason=(
+                "eastmoney.datacenter RPTA_WEB_RZRQ_GGMX returned no row; the akshare "
+                "margin fallback was removed with the dependency"
+            ),
         )
     except Exception as e:
         return _with_provider_contract(

@@ -4,10 +4,6 @@ import os
 import time
 from typing import Any
 
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 
 from ...core.rate_limiter import get_limiter
 from ...data_source import data_source
@@ -195,26 +191,4 @@ def _fetch_eastmoney_research(code: str, limit: int) -> list[dict]:
 
 
 def _try_akshare_news_functions(code: str, limit: int) -> list[dict]:
-    if ak is None:
-        return []
-    candidates = [
-        ("stock_news_em", {"symbol": code}),
-        ("stock_news_em", {"code": code}),
-        ("stock_news", {"symbol": code}),
-    ]
-    for func_name, kwargs in candidates:
-        func = getattr(ak, func_name, None)
-        if not func:
-            continue
-        try:
-            df = func(**kwargs)
-        except Exception as _swallowed:
-            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/helpers.py:209: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-            continue
-        if df is None or df.empty:
-            continue
-        rows = df.head(limit).fillna("").to_dict(orient="records")
-        mapped = _map_news_rows(rows)
-        if mapped:
-            return mapped
     return []

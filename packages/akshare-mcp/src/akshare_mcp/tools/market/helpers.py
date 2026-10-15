@@ -15,10 +15,6 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 from threading import Lock
 from typing import Any, Optional
 
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 import pandas as pd
 import requests
 
@@ -235,21 +231,7 @@ def get_spot_indexed() -> tuple[pd.DataFrame, bool]:
             df = None
 
         # 2. 降级: AkShare (如可用)
-        if (df is None or df.empty) and ak is not None:
-            try:
-                df = run_with_timeout(ak.stock_zh_a_spot_em, _SPOT_TIMEOUT_SECONDS)
-            except Exception:
-                df = None
         
-        if (df is None or df.empty) and ak is not None:
-            try:
-                df = run_with_timeout(ak.stock_zh_a_spot, _SPOT_TIMEOUT_SECONDS)
-            except Exception as e:
-                stale_indexed = _spot_cache.get("indexed")
-                stale_ts = float(_spot_cache.get("ts") or 0.0)
-                if stale_indexed is not None and (now - stale_ts) < _SPOT_STALE_SECONDS:
-                    return stale_indexed, True
-                raise e
         
         if df is None or df.empty:
             # 尝试返回过期缓存
@@ -340,21 +322,7 @@ def get_index_spot_indexed() -> tuple[pd.DataFrame, bool]:
             df = None
 
         # 2. 降级: AkShare (如可用)
-        if (df is None or df.empty) and ak is not None:
-            try:
-                df = run_with_timeout(ak.stock_zh_index_spot_em, _INDEX_TIMEOUT_SECONDS)
-            except Exception:
-                df = None
 
-        if (df is None or df.empty) and ak is not None:
-            try:
-                df = run_with_timeout(ak.stock_zh_index_spot_sina, min(_INDEX_TIMEOUT_SECONDS, 10.0))
-            except Exception as e:
-                stale_indexed = _index_cache.get("indexed")
-                stale_ts = float(_index_cache.get("ts") or 0.0)
-                if stale_indexed is not None and (now - stale_ts) < _INDEX_STALE_SECONDS:
-                    return stale_indexed, True
-                raise e
         
         if df is None or df.empty:
             stale_indexed = _index_cache.get("indexed")
@@ -475,14 +443,6 @@ def get_stock_list_cached() -> tuple[list[dict], bool]:
             records = list(merged.values())
 
         # 2. 降级: AkShare (如可用)
-        if not records and ak is not None:
-            try:
-                df = run_with_timeout(ak.stock_info_a_code_name, min(_SPOT_TIMEOUT_SECONDS, 10.0))
-                if df is not None and not df.empty:
-                    records = df.to_dict(orient="records")
-            except Exception as _swallowed:
-                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/helpers.py:478: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                pass
         
         if not records:
             if data is not None and (now - ts) < _STOCK_LIST_STALE_SECONDS:
@@ -538,7 +498,9 @@ def _infer_response_source(data) -> str:
             return unique_sources[0]
         if unique_sources:
             return "multiple"
-    return "akshare"
+    # No row carried a source; "akshare" used to be returned here, naming a
+    # provider that is not installed.
+    return "unknown"
 
 
 def ok(data, cached=False):

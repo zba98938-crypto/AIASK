@@ -31,10 +31,6 @@ try:
     from ...baostock_api import baostock_client
 except (ImportError, Exception):
     baostock_client = None
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 import pandas as pd
 
 _KLINE_TOTAL_TIMEOUT = float(os.getenv("KLINE_TOTAL_TIMEOUT", "45"))
@@ -78,36 +74,6 @@ def _parse_minute_period(period: str) -> Optional[int]:
     if minutes in (1, 5, 15, 30, 60):
         return minutes
     return None
-
-
-def _get_minute_kline_from_akshare(code: str, minutes: int, limit: int) -> list[dict]:
-    try:
-        df = _run_with_retry(
-            lambda: ak.stock_zh_a_hist_min_em(symbol=code, period=str(minutes), adjust=""),
-            _MINUTE_KLINE_TIMEOUTS,
-        )
-    except Exception:
-        return []
-    if df is None or df.empty:
-        return []
-    df = df.tail(int(limit))
-    results = []
-    for _, row in df.iterrows():
-        ts = row.get("时间") or row.get("日期") or row.get("time") or row.get("date")
-        date_str = str(ts)[:19]
-        results.append(
-            {
-                "date": date_str,
-                "open": safe_float(row.get("开盘") or row.get("open")),
-                "close": safe_float(row.get("收盘") or row.get("close")),
-                "high": safe_float(row.get("最高") or row.get("high")),
-                "low": safe_float(row.get("最低") or row.get("low")),
-                "volume": safe_int(row.get("成交量") or row.get("volume")),
-                "amount": safe_float(row.get("成交额") or row.get("amount")),
-                "source": "akshare_minute",
-            }
-        )
-    return results
 
 
 def _get_minute_kline_from_sina(code: str, minutes: int, limit: int) -> list[dict]:

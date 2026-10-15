@@ -2,10 +2,6 @@ import os
 import sqlite3
 import time
 
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 
 from ..utils import (
     attach_argument_contract_meta,

@@ -46,31 +46,9 @@ def _fallback_market_breadth() -> tuple[dict, float | None, float | None, str | 
     except Exception as exc:
         logger.warning("[MacroManager] Tushare breadth fallback failed: %s", exc)
 
-    try:
-        import akshare as ak
-        df = ak.stock_zh_a_spot_em()
-        if df is not None and not df.empty and "涨跌幅" in df.columns:
-            pct_values = []
-            turnover_total = 0.0
-            market_cap_total = 0.0
-            for _, row in df.iterrows():
-                pct = parse_numeric(row.get("涨跌幅"))
-                if pct is not None:
-                    pct_values.append(float(pct))
-                amount = parse_numeric(row.get("成交额"))
-                if amount is not None:
-                    turnover_total += float(amount)
-                total_mv = parse_numeric(row.get("总市值"))
-                if total_mv is not None:
-                    market_cap_total += float(total_mv)
-            if pct_values:
-                breadth = _breadth_from_pct_list(pct_values)
-                turnover = round(turnover_total / 1e12, 4) if turnover_total > 0 else None
-                market_cap = round(market_cap_total / 1e12, 4) if market_cap_total > 0 else None
-                return breadth, turnover, market_cap, "akshare.stock_zh_a_spot_em"
-    except Exception as exc:
-        logger.warning("[MacroManager] AkShare breadth fallback failed: %s", exc)
-
+    # The akshare breadth fallback was removed with the dependency. No provider
+    # returned a market-wide breadth, and the caller is told so rather than given
+    # a zero.
     return {}, None, None, None
 
 

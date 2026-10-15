@@ -396,7 +396,6 @@ def test_stock_info_uses_db_degraded_when_akshare_profile_missing(monkeypatch):
             return {"code": "600519", "name": "贵州茅台", "industry": "白酒", "list_date": "20010827"}
 
     monkeypatch.setattr(finance.data_source, "get_tushare_pro", lambda: None)
-    monkeypatch.setattr(finance, "ak", None)
     monkeypatch.setattr(finance, "_call_with_retry", lambda _fn: None)
     monkeypatch.setattr(
         finance,
@@ -523,7 +522,6 @@ def test_dragon_tiger_returns_degraded_empty_when_akshare_missing(monkeypatch):
 
             return FakeAcquire(Conn())
 
-    monkeypatch.setattr(fund_flow_market, "ak", None)
     monkeypatch.setattr(fund_flow_market, "get_db", lambda: Db())
 
     result = fund_flow_market.get_dragon_tiger(date="2026-05-20")
@@ -751,7 +749,6 @@ def test_research_empty_results_are_degraded_success(monkeypatch):
 
     monkeypatch.setattr(research.data_source, "get_tushare_pro", lambda: None)
     monkeypatch.setattr(research, "_fetch_eastmoney_research", lambda *_args, **_kwargs: [])
-    monkeypatch.setattr(research, "ak", None)
 
     result = research.get_stock_research.__wrapped__(code="600519", limit=5)
     assert result["success"] is True

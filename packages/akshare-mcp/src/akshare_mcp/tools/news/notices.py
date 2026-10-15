@@ -7,10 +7,6 @@ from typing import Any, Optional
 
 import requests
 
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 
 from ...services.db_first_market_context import load_db_first_document_context
 from ...storage import get_db
@@ -375,8 +371,7 @@ def get_stock_notices(
             if max_seconds > 0 and (time.monotonic() - start_ts) > max_seconds:
                 partial = True
                 break
-            if ak is None:
-                break
+            break
             date_str = current.strftime("%Y%m%d")
             for notice_type in normalized_types:
                 try:
@@ -384,7 +379,10 @@ def get_stock_notices(
                     last_error: Optional[Exception] = None
                     for _ in range(max_retry):
                         try:
-                            df = ak.stock_notice_report(symbol=notice_type, date=date_str) if ak is not None else None
+                            # akshare is not a dependency of this project, so there
+                            # is no notice provider here. The retry loop below still
+                            # records its fallback reason.
+                            df = None
                             if df is not None and not df.empty:
                                 break
                         except Exception as exc:

@@ -13,10 +13,6 @@ from ..utils import normalize_code, parse_numeric, safe_float, safe_int, safe_st
 
 logger = logging.getLogger(__name__)
 
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 
 from .tdx_local import get_tdx_local_source as _get_tdx_local
 from . import tdx_tqcenter as _tqcenter
@@ -282,29 +278,6 @@ class MarketDataMixin:
                 safe_stderr_print(f"[DataSource] Tushare Pro trade_cal failed: {e}")
 
         # 3. 降级到 AKShare
-        if ak is not None:
-            try:
-                df = ak.tool_trade_date_hist_sina()
-                if df is not None and not df.empty:
-                    dates = [d.strftime('%Y%m%d') for d in df['trade_date'].tolist()]
-                    if start_time:
-                        dates = [d for d in dates if d >= start_time]
-                    if effective_end_time:
-                        dates = [d for d in dates if d <= effective_end_time]
-                    dates = sorted(dates)
-                    if count > 0:
-                        dates = dates[-count:]
-                    return self._result_with_requested_backend(
-                        success=True,
-                        data=dates,
-                        source="akshare",
-                        message=f"获取到 {len(dates)} 个交易日",
-                        backend_requested=backend_requested,
-                        backend_used="akshare",
-                        started_at=started_at,
-                    )
-            except Exception as e:
-                safe_stderr_print(f"[DataSource] AKShare trade_date failed: {e}")
 
         return self._failed_fallback_result(
             data=[],
@@ -401,60 +374,6 @@ class MarketDataMixin:
                 safe_stderr_print(f"[DataSource] Tushare Pro new_share failed: {e}")
 
         # 3. 降级到 AKShare
-        if ak is not None:
-            try:
-                results = []
-
-                if ipo_type in (0, 2):
-                    try:
-                        df = ak.stock_xgsglb_em()
-                        if df is not None and not df.empty:
-                            for _, row in df.iterrows():
-                                results.append({
-                                    "code": str(row.get("股票代码", "")),
-                                    "name": str(row.get("股票简称", "")),
-                                    "SGDate": str(row.get("申购日期", "")).replace("-", ""),
-                                    "SGPrice": str(row.get("发行价格", "")),
-                                    "type": "stock"
-                                })
-                    except Exception as _swallowed:
-                        logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/market_data.py:420: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                        pass
-
-                if ipo_type in (1, 2):
-                    try:
-                        df = ak.bond_cb_jsl()
-                        if df is not None and not df.empty:
-                            today = datetime.datetime.now().strftime('%Y-%m-%d')
-                            for _, row in df.iterrows():
-                                sg_date = str(row.get("申购日期", ""))
-                                if ipo_date == 0 and sg_date != today:
-                                    continue
-                                if ipo_date == 1 and sg_date < today:
-                                    continue
-                                results.append({
-                                    "code": str(row.get("转债代码", "")),
-                                    "name": str(row.get("转债名称", "")),
-                                    "SGDate": sg_date.replace("-", ""),
-                                    "SGPrice": "100.00",
-                                    "type": "bond"
-                                })
-                    except Exception as _swallowed:
-                        logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/market_data.py:441: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                        pass
-
-                if results:
-                    return self._result_with_requested_backend(
-                        success=True,
-                        data=results,
-                        source="akshare",
-                        message=f"获取到 {len(results)} 条申购信息",
-                        backend_requested=backend_requested,
-                        backend_used="akshare",
-                        started_at=started_at,
-                    )
-            except Exception as e:
-                safe_stderr_print(f"[DataSource] AKShare IPO info failed: {e}")
 
         return self._failed_fallback_result(
             data=[],
@@ -584,70 +503,6 @@ class MarketDataMixin:
                 safe_stderr_print(f"[DataSource] Tushare Pro cb_basic failed: {e}")
 
         # 2. 降级到 AKShare
-        if ak is not None:
-            try:
-                code = normalize_code(stock_code)
-                if hasattr(ak, "bond_zh_cov_info"):
-                    try:
-                        df = ak.bond_zh_cov_info(symbol=code)
-                        if df is not None and not df.empty:
-                            row = df.iloc[0]
-                            data = {
-                                "KZZCode": str(row.get("SECURITY_CODE", "") or code),
-                                "HSCode": str(row.get("CONVERT_STOCK_CODE", "") or ""),
-                                "name": str(row.get("SECURITY_NAME_ABBR", "") or row.get("SECURITY_NAME", "") or ""),
-                                "ZGPrice": str(
-                                    row.get("TRANSFER_PRICE", "")
-                                    or row.get("INITIAL_TRANSFER_PRICE", "")
-                                    or row.get("CONVERT_STOCK_PRICE", "")
-                                    or row.get("转股价", "")
-                                    or ""
-                                ),
-                                "ZGDate": str(row.get("TRANSFER_START_DATE", "") or row.get("转股开始日", "") or ""),
-                                "EndDate": str(row.get("EXPIRE_DATE", "") or row.get("到期日期", "") or ""),
-                                "RestScope": str(
-                                    row.get("CURRENT_BOND_AMT", "")
-                                    or row.get("CURRENT_ISSUE_AMT", "")
-                                    or row.get("ACTUAL_ISSUE_SCALE", "")
-                                    or row.get("剩余规模", "")
-                                    or ""
-                                ),
-                            }
-                            return self._result_with_requested_backend(
-                                success=True,
-                                data=data,
-                                source="akshare",
-                                message="获取可转债信息成功",
-                                backend_requested=backend_requested,
-                                backend_used="akshare",
-                                started_at=started_at,
-                            )
-                    except Exception as inner_e:
-                        safe_stderr_print(f"[DataSource] AKShare bond_zh_cov_info failed: {inner_e}")
-
-                df = ak.bond_cb_jsl()
-                if df is not None and not df.empty:
-                    row = df[df['转债代码'] == code]
-                    if not row.empty:
-                        row = row.iloc[0]
-                        data = {
-                            "KZZCode": code,
-                            "HSCode": str(row.get("正股代码", "")),
-                            "name": str(row.get("转债名称", "")),
-                            "ZGPrice": str(row.get("转股价", "")),
-                            "RestScope": str(row.get("剩余规模", "") or row.get("发行规模", "")),
-                        }
-                        return self._result_with_requested_backend(
-                            success=True,
-                            data=data,
-                            source="akshare",
-                            message="获取可转债信息成功",
-                            backend_requested=backend_requested,
-                            backend_used="akshare",
-                            started_at=started_at,
-                        )
-            except Exception as e:
-                safe_stderr_print(f"[DataSource] AKShare cb_info failed: {e}")
 
         return self._failed_fallback_result(
             data={},
@@ -895,65 +750,6 @@ class MarketDataMixin:
                 safe_stderr_print(f"[DataSource] Tushare Pro daily_basic failed: {e}")
 
         # 2. 降级到 AKShare
-        if ak is not None:
-            code = normalize_code(stock_code)
-            today = datetime.datetime.now().strftime('%Y%m%d')
-
-            # 2a. 东财个股信息
-            try:
-                df = ak.stock_individual_info_em(symbol=code)
-                info_dict = _frame_to_info_dict(df)
-                data = _build_akshare_snapshot(info_dict, latest_date=today)
-                if data:
-                    return self._result_with_requested_backend(
-                        success=True,
-                        data=data,
-                        source="akshare",
-                        message="获取到 1 条股本数据",
-                        backend_requested=backend_requested,
-                        backend_used="akshare",
-                        started_at=started_at,
-                    )
-            except Exception as e:
-                safe_stderr_print(f"[DataSource] AKShare stock_individual_info_em failed: {e}")
-
-            # 2b. 巨潮 CNInfo
-            try:
-                df_cninfo = ak.stock_profile_cninfo(symbol=code)
-                info_dict_cninfo = _frame_to_info_dict(df_cninfo)
-                data_cninfo = _build_akshare_snapshot(info_dict_cninfo, latest_date=today)
-                if data_cninfo:
-                    return self._result_with_requested_backend(
-                        success=True,
-                        data=data_cninfo,
-                        source="akshare",
-                        message="获取到 1 条股本数据（CNInfo 快照）",
-                        backend_requested=backend_requested,
-                        backend_used="akshare",
-                        started_at=started_at,
-                    )
-            except Exception as e:
-                safe_stderr_print(f"[DataSource] AKShare stock_profile_cninfo failed: {e}")
-
-            # 2c. 东财日线 daily_basic 补充（从最近行情获取股本数据）
-            try:
-                df_hist = ak.stock_zh_a_hist(symbol=code, period="daily", adjust="", start_date=(datetime.datetime.now() - datetime.timedelta(days=10)).strftime('%Y%m%d'))
-                if df_hist is not None and not df_hist.empty:
-                    latest_row = df_hist.iloc[-1]
-                    zgb = parse_numeric(latest_row.get("总股本")) or parse_numeric(latest_row.get("total_share"))
-                    ltgb = parse_numeric(latest_row.get("流通股")) or parse_numeric(latest_row.get("float_share"))
-                    if zgb is not None or ltgb is not None:
-                        return self._result_with_requested_backend(
-                            success=True,
-                            data=[{"Date": int(today), "ltgb": float(ltgb or 0.0), "zgb": float(zgb or 0.0)}],
-                            source="akshare",
-                            message="获取到 1 条股本数据（日线补充）",
-                            backend_requested=backend_requested,
-                            backend_used="akshare",
-                            started_at=started_at,
-                        )
-            except Exception as e:
-                safe_stderr_print(f"[DataSource] AKShare hist fallback failed: {e}")
 
         return self._failed_fallback_result(
             data=[],

@@ -96,7 +96,6 @@ def test_user_profile_accepts_string_created_at(monkeypatch):
 def test_option_chain_returns_degraded_empty_when_akshare_missing(monkeypatch):
     from akshare_mcp.tools import options
 
-    monkeypatch.setattr(options, "ak", None)
     result = options.get_option_chain.__wrapped__("510050")
 
     assert result["success"] is True
@@ -108,7 +107,6 @@ def test_option_chain_returns_degraded_empty_when_akshare_missing(monkeypatch):
 def test_macro_indicator_returns_degraded_empty_when_provider_missing(monkeypatch):
     from akshare_mcp.tools import macro
 
-    monkeypatch.setattr(macro, "ak", None)
     monkeypatch.setattr(macro.data_source, "get_tushare_pro", lambda: None)
 
     result = macro.get_macro_indicator.__wrapped__("gdp", limit=3)
@@ -129,7 +127,6 @@ def test_market_blocks_degrades_to_empty_when_sources_and_cache_missing(monkeypa
         def acquire(self):
             return FakeAcquire(Conn())
 
-    monkeypatch.setattr(market_blocks, "ak", None)
     monkeypatch.setattr(market_blocks, "get_db", lambda: Db())
 
     result = asyncio.run(market_blocks.get_market_blocks(block_type="industry", limit=2))

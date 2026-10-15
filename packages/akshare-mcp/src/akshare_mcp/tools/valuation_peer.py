@@ -767,76 +767,10 @@ async def _get_historical_valuation_impl(
     ]
 
     quality = _history_quality(history_raw)
-    needs_external_valuation = (not db_query_failed) and quality['valuation_rows'] == 0
 
-    if needs_external_valuation:
-        if quality['row_count'] > 0:
-            fallback_reason.append('stock_quotes 历史估值覆盖不足，已补充外部数据源')
-        else:
-            fallback_reason.append('stock_quotes 无历史估值序列，已按降级链路补充外部数据源')
-        _append_source('tushare.daily_basic')
-        try:
-            from ..data_source import data_source
-            pro = data_source.get_tushare_pro()
-            if pro:
-                ts_code = f"{code}.SH" if str(code).startswith('6') else f"{code}.SZ"
-                end_date = datetime.now().strftime('%Y%m%d')
-                start_date = (datetime.now() - timedelta(days=max(days, 1))).strftime('%Y%m%d')
-                df = pro.daily_basic(
-                    ts_code=ts_code,
-                    start_date=start_date,
-                    end_date=end_date,
-                    fields='trade_date,pe_ttm,pb,total_mv,close',
-                )
-                if df is not None and not df.empty:
-                    for _, r in df.iterrows():
-                        history_raw.append(
-                            _make_history_row(
-                                date=r.get('trade_date'),
-                                pe_ratio=r.get('pe_ttm'),
-                                pb_ratio=r.get('pb'),
-                                market_cap=r.get('total_mv'),
-                                price=r.get('close'),
-                            )
-                        )
-        except Exception as e:
-            fallback_reason.append(f'Tushare降级失败: {e}')
-
-        quality = _history_quality(history_raw)
-        needs_external_valuation = quality['valuation_rows'] == 0
-
-    if needs_external_valuation:
-        try:
-            import akshare as ak
-
-            preferred_attr = 'stock_a_indicator_lg' if hasattr(ak, 'stock_a_indicator_lg') else (
-                'stock_value_em' if hasattr(ak, 'stock_value_em') else None
-            )
-            if preferred_attr is None:
-                raise AttributeError('stock_a_indicator_lg / stock_value_em 均不可用')
-
-            source_name = f'akshare.{preferred_attr}'
-            _append_source(source_name)
-            try:
-                df = getattr(ak, preferred_attr)(symbol=code)
-                if df is not None and not df.empty:
-                    tail_df = df.tail(max(requested_rows, 1)) if hasattr(df, 'tail') else df
-                    for _, r in tail_df.iterrows():
-                        history_raw.append(
-                            _make_history_row(
-                                date=r.get('trade_date') or r.get('日期') or r.get('数据日期'),
-                                pe_ratio=r.get('pe') if 'pe' in r else (r.get('PE(TTM)') if 'PE(TTM)' in r else r.get('市盈率')),
-                                pb_ratio=r.get('pb') if 'pb' in r else r.get('市净率'),
-                                market_cap=r.get('total_mv') if 'total_mv' in r else r.get('总市值'),
-                                price=r.get('close') if 'close' in r else (r.get('当日收盘价') if '当日收盘价' in r else r.get('收盘价')),
-                            )
-                        )
-            except Exception as e:
-                fallback_reason.append(f'{source_name} 降级失败: {e}')
-        except Exception as e:
-            fallback_reason.append(f'AkShare导入失败: {e}')
-
-        quality = _history_quality(history_raw)
+    # The akshare valuation providers (stock_a_indicator_lg / stock_value_em)
+    # were removed with the dependency; baostock and the local table below
+    # remain as sources.
 
     if not db_query_failed and quality['valuation_rows'] == 0 and quality['row_count'] == 0:
         _append_source('baostock.history_k_data_plus')

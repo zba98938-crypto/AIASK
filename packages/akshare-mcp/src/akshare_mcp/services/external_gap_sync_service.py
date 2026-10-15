@@ -163,48 +163,24 @@ class ExternalGapSyncService:
             return {"enabled": False, "skipped": True, "reason": "external_gap_fill_disabled"}
         provider = external_gap_fill_provider()
         if provider in {"akshare", "akshare_free", "free"}:
-            ak = self._build_akshare_client()
-            if ak is None:
-                recorded = await self._record_unavailable_for_empty_targets(
-                    db,
-                    "akshare_unavailable",
-                    {
-                        "north_fund_flow": "akshare.stock_hsgt_hist_em",
-                        "margin_market_flow": "akshare.stock_margin_sse/szse",
-                        "margin_detail": "akshare.stock_margin_detail_sse/szse",
-                    },
-                )
-                return {
-                    "enabled": True,
-                    "provider": "akshare_free",
-                    "ok": False,
-                    "error": "akshare unavailable",
-                    "source_unavailable": recorded,
-                }
-            north = await self._safe_sync(
+            # akshare was removed from this project: it was never a declared
+            # dependency, so this provider has no implementation left. Reported as
+            # an unavailable source rather than silently returning empty.
+            recorded = await self._record_unavailable_for_empty_targets(
                 db,
-                "north_fund_flow",
-                "akshare.stock_hsgt_hist_em",
-                lambda: self.sync_north_fund_from_akshare(db, ak),
-            )
-            margin = await self._safe_sync(
-                db,
-                "margin_market_flow",
-                "akshare.stock_margin_sse/szse",
-                lambda: self.sync_margin_market_from_akshare(db, ak),
-            )
-            margin_detail = await self._safe_sync(
-                db,
-                "margin_detail",
-                "akshare.stock_margin_detail_sse/szse",
-                lambda: self.sync_margin_detail_from_akshare(db, ak),
+                "akshare_removed",
+                {
+                    "north_fund_flow": "akshare.stock_hsgt_hist_em",
+                    "margin_market_flow": "akshare.stock_margin_sse/szse",
+                    "margin_detail": "akshare.stock_margin_detail_sse/szse",
+                },
             )
             return {
                 "enabled": True,
                 "provider": "akshare_free",
-                "north_fund_flow": north,
-                "margin_market_flow": margin,
-                "margin_detail": margin_detail,
+                "ok": False,
+                "error": "akshare removed: not a dependency of this project",
+                "source_unavailable": recorded,
             }
 
         recorded = await self._record_unavailable_for_empty_targets(
@@ -302,125 +278,8 @@ class ExternalGapSyncService:
         )
         return {"recorded": True, "table_rows": 0}
 
-    def _build_akshare_client(self):
-        try:
-            import akshare as ak
 
-            return ak
-        except Exception as exc:
-            logger.warning("[ExternalGapSync] AkShare init failed: %s", exc)
-            return None
 
-    async def sync_north_fund_from_akshare(self, db, ak) -> dict[str, Any]:
-        df = await asyncio.to_thread(ak.stock_hsgt_hist_em, symbol="北向资金")
-        _, rows = _iter_df_tuples(df)
-        accepted = 0
-        async with db.acquire() as conn:
-            for row in rows:
-                trade_date = _norm_date(_at(row, 0))
-                if not trade_date:
-                    continue
-                north_money = _safe_float(_at(row, 1))
-                if north_money is None:
-                    continue
-                await conn.execute(
-                    """
-                    INSERT INTO north_fund_flow (
-                        trade_date, north_money, south_money, net_amount,
-                        ggt_ss, ggt_sz, hgt, sgt, source, source_priority, updated_at
-                    ) VALUES ($1, $2, NULL, $2, NULL, NULL, NULL, NULL,
-                              'akshare.stock_hsgt_hist_em', $3, CURRENT_TIMESTAMP)
-                    ON CONFLICT (trade_date) DO UPDATE SET
-                        north_money = EXCLUDED.north_money,
-                        net_amount = EXCLUDED.net_amount,
-                        source = EXCLUDED.source,
-                        source_priority = EXCLUDED.source_priority,
-                        updated_at = CURRENT_TIMESTAMP
-                    """,
-                    trade_date,
-                    north_money,
-                    _source_priority(),
-                )
-                accepted += 1
-        await self._record_completeness(
-            db,
-            "north_fund_flow",
-            accepted,
-            {
-                "provider": "akshare.stock_hsgt_hist_em",
-                "reason": "tdx_field_unavailable",
-                "source_priority": _source_priority(),
-                "unit_note": "AkShare EastMoney northbound history; net field is used as provided.",
-            },
-        )
-        return {"updated": accepted, "provider": "akshare.stock_hsgt_hist_em"}
-
-    async def sync_margin_market_from_akshare(self, db, ak) -> dict[str, Any]:
-        start, end = self._window(self.margin_days)
-        accepted = 0
-        failed_dates = 0
-
-        sse_df = await asyncio.to_thread(ak.stock_margin_sse, start_date=start, end_date=end)
-        _, sse_rows = _iter_df_tuples(sse_df)
-        async with db.acquire() as conn:
-            for row in sse_rows:
-                if await self._insert_margin_market_row(
-                    conn,
-                    trade_date=_norm_date(_at(row, 0)),
-                    exchange_id="SSE",
-                    rzye=_safe_float(_at(row, 1)),
-                    rzmre=_safe_float(_at(row, 2)),
-                    rzche=None,
-                    rqye=_safe_float(_at(row, 5)),
-                    rqmcl=_safe_float(_at(row, 4)),
-                    rqyl=_safe_float(_at(row, 3)),
-                    rzrqye=_safe_float(_at(row, 6)),
-                    source="akshare.stock_margin_sse",
-                ):
-                    accepted += 1
-
-        for ymd in _recent_ymd_dates(self.margin_days):
-            try:
-                szse_df = await asyncio.to_thread(ak.stock_margin_szse, date=ymd)
-            except Exception as exc:
-                failed_dates += 1
-                logger.debug("[ExternalGapSync] stock_margin_szse %s failed: %s", ymd, exc)
-                await asyncio.sleep(0.05)
-                continue
-            _, szse_rows = _iter_df_tuples(szse_df)
-            if not szse_rows:
-                continue
-            async with db.acquire() as conn:
-                for row in szse_rows[:1]:
-                    if await self._insert_margin_market_row(
-                        conn,
-                        trade_date=_norm_date(ymd),
-                        exchange_id="SZSE",
-                        rzye=_money_yi_to_yuan(_at(row, 1)),
-                        rzmre=_money_yi_to_yuan(_at(row, 0)),
-                        rzche=None,
-                        rqye=_money_yi_to_yuan(_at(row, 4)),
-                        rqmcl=_money_yi_to_yuan(_at(row, 2)),
-                        rqyl=_money_yi_to_yuan(_at(row, 3)),
-                        rzrqye=_money_yi_to_yuan(_at(row, 5)),
-                        source="akshare.stock_margin_szse",
-                    ):
-                        accepted += 1
-            await asyncio.sleep(0.05)
-
-        await self._record_completeness(
-            db,
-            "margin_market_flow",
-            accepted,
-            {
-                "provider": "akshare.stock_margin_sse/szse",
-                "reason": "tdx_field_unavailable",
-                "source_priority": _source_priority(),
-                "failed_szse_date_count": failed_dates,
-                "unit_note": "SZSE summary values are converted from 100M units to raw units.",
-            },
-        )
-        return {"updated": accepted, "start": start, "end": end, "failed_szse_dates": failed_dates}
 
     async def _insert_margin_market_row(
         self,
@@ -472,57 +331,6 @@ class ExternalGapSyncService:
         )
         return True
 
-    async def sync_margin_detail_from_akshare(self, db, ak) -> dict[str, Any]:
-        accepted = 0
-        failed_dates = 0
-        universe = {_to_ts_code(code) for code in self.universe if _to_ts_code(code)}
-
-        for ymd in _recent_ymd_dates(self.margin_detail_days):
-            try:
-                sse_df = await asyncio.to_thread(ak.stock_margin_detail_sse, date=ymd)
-                _, sse_rows = _iter_df_tuples(sse_df)
-                accepted += await self._insert_margin_detail_rows(
-                    db,
-                    exchange="SSE",
-                    ymd=ymd,
-                    rows=sse_rows,
-                    universe=universe,
-                    source="akshare.stock_margin_detail_sse",
-                )
-            except Exception as exc:
-                failed_dates += 1
-                logger.debug("[ExternalGapSync] stock_margin_detail_sse %s failed: %s", ymd, exc)
-
-            try:
-                szse_df = await asyncio.to_thread(ak.stock_margin_detail_szse, date=ymd)
-                _, szse_rows = _iter_df_tuples(szse_df)
-                accepted += await self._insert_margin_detail_rows(
-                    db,
-                    exchange="SZSE",
-                    ymd=ymd,
-                    rows=szse_rows,
-                    universe=universe,
-                    source="akshare.stock_margin_detail_szse",
-                )
-            except Exception as exc:
-                failed_dates += 1
-                logger.debug("[ExternalGapSync] stock_margin_detail_szse %s failed: %s", ymd, exc)
-
-            await asyncio.sleep(0.05)
-
-        await self._record_completeness(
-            db,
-            "margin_detail",
-            accepted,
-            {
-                "provider": "akshare.stock_margin_detail_sse/szse",
-                "reason": "tdx_field_unavailable",
-                "source_priority": _source_priority(),
-                "failed_date_count": failed_dates,
-                "days": self.margin_detail_days,
-            },
-        )
-        return {"updated": accepted, "days": self.margin_detail_days, "failed_dates": failed_dates}
 
     async def _insert_margin_detail_rows(
         self,

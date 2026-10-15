@@ -223,23 +223,9 @@ def register_sentiment_manager(mcp):
                     except Exception as e:
                         logger.warning(f"[Sentiment] Tushare批量行情失败: {e}")
                     
-                    # 降级: AkShare 批量行情
-                    if total_count < min_market_sample:
-                        try:
-                            import akshare as ak
-                            df = ak.stock_zh_a_spot_em()
-                            if df is not None and not df.empty:
-                                chg_col = '涨跌幅'
-                                if chg_col in df.columns:
-                                    up_count = int(len(df[df[chg_col] > 0]))
-                                    down_count = int(len(df[df[chg_col] < 0]))
-                                    total_count = up_count + down_count
-                                    data_source_info = 'AkShare实时行情'
-                                    source_chain.append('akshare.stock_zh_a_spot_em')
-                                    logger.info(f"[Sentiment] AkShare批量行情: 涨{up_count} 跌{down_count}")
-                        except Exception as e:
-                            logger.warning(f"[Sentiment] AkShare批量行情失败: {e}")
-                
+                    # The akshare batch-quote fallback was removed with the
+                    # dependency; the per-symbol kline fallback below remains.
+
                 # 方案3: AkShare批量也失败，逐只K线兜底
                 if total_count == 0:
                     sample_stocks = ['600519', '000001', '600036', '601318', '000858', 

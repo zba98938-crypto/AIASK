@@ -33,10 +33,6 @@ from ...utils import (
     safe_stderr_print,
 )
 from ..data_quality import build_quality_meta, infer_missing_fields, normalize_reason_list
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 import pandas as pd
 
 from ._quote_support import *
@@ -356,7 +352,7 @@ def get_realtime_quote(
         - preClose (float|None): 昨收
         - volume (int|None): 成交量(股)
         - amount (float|None): 成交额(元)
-        - source (str): 数据来源标识，如 "data_source"/"akshare_minute"/"sina"/"tencent"
+        - source (str): 数据来源标识，如 "data_source"/"sina"/"tencent"
 
     Errors:
         - 所有数据源均不可用时返回 success=false
@@ -407,7 +403,7 @@ def get_realtime_quote(
         fallback_reason_parts: list[str] = []
         access_chain = ["db.stock_quotes"]
 
-        # 1. DataSource 优先：Tushare / 公开源 → akshare
+        # 1. DataSource 优先：Tushare / 公开源
         attempted_sources.append("db.stock_quotes")
         try:
             access = get_quote_snapshot_sync(code, fallback_mode=FALLBACK_DB_FIRST_LIVE)
@@ -436,26 +432,9 @@ def get_realtime_quote(
             fallback_reason_parts.append(f"data_source失败: {e}")
             safe_stderr_print(f"DataSource quote failed for {code}: {e}")
 
-        # 2. Try AkShare
-        attempted_sources.append("akshare")
-        try:
-            res = _get_realtime_quote_akshare(code)
-        except (TimeoutError, RuntimeError, Exception) as e:
-            fallback_reason_parts.append(f"akshare失败: {e}")
-            safe_stderr_print(f"AkShare quote failed for {code}: {e}")
-            res = None
-        if res:
-            validated = _as_plain_quote(validate_quote(res))
-            if isinstance(validated, dict):
-                validated = _backfill_prev_close(validated, code)
-            return _respond(
-                _ok_quote_response(
-                    validated,
-                    attempted_sources=list(dict.fromkeys(attempted_sources)),
-                    source_chain=list(dict.fromkeys([*access_chain, "akshare"])),
-                    fallback_reason="; ".join(fallback_reason_parts) if fallback_reason_parts else "DataSource不可用，已降级至AkShare",
-                )
-            )
+        # 2. The akshare quote fallback was removed with the dependency. The
+        # local minute/daily quote helpers it used remain reachable through
+        # `_get_minute_quote` / `_get_daily_quote` directly.
 
         # 3. Try Sina
         attempted_sources.append("sina")
@@ -469,7 +448,7 @@ def get_realtime_quote(
                 _ok_quote_response(
                     validated,
                     attempted_sources=list(dict.fromkeys(attempted_sources)),
-                    source_chain=list(dict.fromkeys([*access_chain, "akshare", "sina"])),
+                    source_chain=list(dict.fromkeys([*access_chain, "sina"])),
                     fallback_reason="; ".join(fallback_reason_parts) if fallback_reason_parts else "上游源不可用，已降级至Sina",
                 )
             )
@@ -486,7 +465,7 @@ def get_realtime_quote(
                 _ok_quote_response(
                     validated,
                     attempted_sources=list(dict.fromkeys(attempted_sources)),
-                    source_chain=list(dict.fromkeys([*access_chain, "akshare", "sina", "tencent"])),
+                    source_chain=list(dict.fromkeys([*access_chain, "sina", "tencent"])),
                     fallback_reason="; ".join(fallback_reason_parts) if fallback_reason_parts else "上游源不可用，已降级至Tencent",
                 )
             )
@@ -497,7 +476,7 @@ def get_realtime_quote(
             _fail_quote_response(
                 f"所有数据源均无法获取 {code} 的实时行情（attempted={attempted}, reason={reason}）",
                 attempted_sources=attempted_sources,
-                source_chain=list(dict.fromkeys([*access_chain, "akshare", "sina", "tencent"])),
+                source_chain=list(dict.fromkeys([*access_chain, "sina", "tencent"])),
                 fallback_reason=reason,
             )
         )
@@ -597,7 +576,7 @@ def get_batch_quotes(stock_codes: list[str]) -> dict:
         if not codes:
             return fail("stock_codes 不能为空")
 
-        name_map: Optional[dict] = None  # 延后加载，仅在使用 akshare 或补 name 时再调 _get_name_map
+        name_map: Optional[dict] = None  # 延后加载，仅在补 name 时再调 _get_name_map
         quotes: list[dict] = []
         missing: list[str] = []
 
@@ -618,7 +597,7 @@ def get_batch_quotes(stock_codes: list[str]) -> dict:
                     continue
             except Exception as _e:
                 _log_quote_source_error("batch code existence check", code, _e)
-            # 1. 优先 DataSource：Tushare / 公开源 → akshare
+            # 1. 优先 DataSource：Tushare / 公开源
             try:
                 access = get_quote_snapshot_sync(code, fallback_mode=FALLBACK_DB_FIRST_LIVE)
                 fallback = dict(access.get("data") or {}) if access.get("success") else {}
@@ -645,7 +624,7 @@ def get_batch_quotes(stock_codes: list[str]) -> dict:
             except Exception as e:
                 _log_quote_source_error("batch quote db_first", code, e)
 
-            # 以下为 akshare/其他降级路径，需要 name 时再拉取 name_map
+            # 以下为其它降级路径，需要 name 时再拉取 name_map
             if name_map is None:
                 name_map = _get_name_map()
             name = name_map.get(code, "")
@@ -897,15 +876,7 @@ def get_index_quote(index_code: str) -> dict:
         if code not in df.index:
             attempted_sources.append("sina_index")
             try:
-                if ak is not None:
-                    df_sina = _run_with_retry(ak.stock_zh_index_spot_sina, _QUOTE_TIMEOUTS)
-                    if df_sina is not None and not df_sina.empty:
-                        df_sina["代码"] = df_sina["代码"].apply(normalize_code)
-                        df_sina = df_sina.set_index("代码", drop=False)
-                        if code in df_sina.index:
-                            df = df_sina
-                            cached = False
-                            used_source = "sina_index"
+                pass
             except Exception as exc:
                 fallback_reason_parts.append(f"sina_index失败: {exc}")
                 safe_stderr_print(f"[quote] index sina fallback failed for {code}: {exc}")

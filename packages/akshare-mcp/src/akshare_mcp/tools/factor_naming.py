@@ -81,8 +81,6 @@ def list_factor_aliases() -> dict[str, list[str]]:
         result.setdefault(canonical, [])
         for alias in meta.get("aliases", []) or []:
             ak = str(alias).strip().lower()
-            if ak and ak not in result[canonical] and ak != canonical:
-                result[canonical].append(ak)
     # 2. 从 _CROSS_ACTION_ALIASES 补充
     for alias, canonical in _CROSS_ACTION_ALIASES.items():
         if canonical not in result:

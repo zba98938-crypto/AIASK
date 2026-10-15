@@ -2,10 +2,6 @@ import os
 import sqlite3
 import time
 
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 
 from ..utils import (
     attach_argument_contract_meta,
@@ -626,115 +622,32 @@ async def get_financials(
     ))
 
 def _get_financials_akshare(code: str) -> Optional[dict]:
-    try:
-        df = _call_with_retry(lambda: ak.stock_financial_abstract_ths(symbol=code, indicator="按报告期"))
-        if df is None or df.empty:
-            # Fallback to EM
-            return _get_financials_akshare_em(code)
+    """Removed with akshare: this project has no THS/East money financial provider.
 
-        row = df.iloc[-1]
-        report_date = str(row.get("报告期", ""))
-
-        # 尝试多个可能的ROA字段名
-        roa = (
-            parse_numeric(row.get("总资产收益率")) or
-            parse_numeric(row.get("总资产报酬率")) or
-            parse_numeric(row.get("ROA")) or
-            parse_numeric(row.get("资产收益率")) or
-            parse_numeric(row.get("总资产净利率"))
-        )
-
-        return {
-            "code": code,
-            "reportDate": report_date,
-            "eps": parse_numeric(row.get("基本每股收益")),
-            "bvps": parse_numeric(row.get("每股净资产")),
-            "roe": parse_numeric(row.get("净资产收益率")) or parse_numeric(row.get("净资产收益率-摊薄")),
-            "roa": roa,
-            "grossProfitMargin": parse_numeric(row.get("销售毛利率")),
-            "netProfitMargin": parse_numeric(row.get("销售净利率")),
-            "debtRatio": parse_numeric(row.get("资产负债率")),
-            "currentRatio": parse_numeric(row.get("流动比率")),
-            "source": "akshare_ths"
-        }
-    except Exception as e:
-        print(f"[Finance] AkShare THS failed: {e}", file=sys.stderr)
-        return _get_financials_akshare_em(code)
+    akshare is not declared in any pyproject and is not installed, so this link
+    never ran. Returning None lets the caller's chain move to its next source,
+    which is what already happened.
+    """
+    return None
 
 def _get_financials_akshare_em(code: str) -> Optional[dict]:
-    try:
-        df = _call_with_retry(lambda: ak.stock_financial_abstract(symbol=code))
-        if df is None or df.empty:
-            return _get_financials_akshare_indicator(code)
+    """Removed with akshare: this project has no THS/East money financial provider.
 
-        date_cols = [c for c in df.columns if str(c).isdigit()]
-        if not date_cols:
-            return _get_financials_akshare_indicator(code)
-        latest_col = sorted(date_cols)[-1]
-
-        def pick_metric(metric: str) -> Optional[float]:
-            rows = df[df["指标"] == metric]
-            if rows.empty:
-                return None
-            return parse_numeric(rows.iloc[0].get(latest_col))
-
-        roa = (
-            pick_metric("总资产收益率") or
-            pick_metric("总资产报酬率") or
-            pick_metric("总资产净利率") or
-            pick_metric("资产收益率")
-        )
-
-        return {
-            "code": code,
-            "reportDate": str(latest_col),
-            "eps": pick_metric("基本每股收益"),
-            "bvps": pick_metric("每股净资产"),
-            "roe": pick_metric("净资产收益率"),
-            "roa": roa,
-            "grossProfitMargin": pick_metric("销售毛利率"),
-            "netProfitMargin": pick_metric("销售净利率"),
-            "debtRatio": pick_metric("资产负债率"),
-            "currentRatio": pick_metric("流动比率"),
-            "source": "akshare_em"
-        }
-    except Exception as e:
-        print(f"[Finance] AkShare EM failed: {e}", file=sys.stderr)
-        return _get_financials_akshare_indicator(code)
+    akshare is not declared in any pyproject and is not installed, so this link
+    never ran. Returning None lets the caller's chain move to its next source,
+    which is what already happened.
+    """
+    return None
 
 
 def _get_financials_akshare_indicator(code: str) -> Optional[dict]:
-    """额外降级路径: 使用 stock_financial_analysis_indicator 获取财务指标"""
-    try:
-        df = _call_with_retry(lambda: ak.stock_financial_analysis_indicator(symbol=code))
-        if df is None or df.empty:
-            return None
+    """Removed with akshare: this project has no THS/East money financial provider.
 
-        row = df.iloc[0]
-
-        def _pick(names: list[str]) -> Optional[float]:
-            for name in names:
-                val = parse_numeric(row.get(name))
-                if val is not None:
-                    return val
-            return None
-
-        return {
-            "code": code,
-            "reportDate": str(row.get("日期", "") or ""),
-            "roe": _pick(["净资产收益率", "加权净资产收益率", "摊薄净资产收益率"]),
-            "roa": _pick(["总资产收益率", "总资产报酬率", "总资产净利率"]),
-            "grossProfitMargin": _pick(["销售毛利率", "毛利率"]),
-            "netProfitMargin": _pick(["销售净利率", "净利率"]),
-            "debtRatio": _pick(["资产负债率"]),
-            "currentRatio": _pick(["流动比率"]),
-            "eps": _pick(["基本每股收益", "摊薄每股收益"]),
-            "bvps": _pick(["每股净资产"]),
-            "source": "akshare_indicator",
-        }
-    except Exception as e:
-        print(f"[Finance] AkShare indicator fallback failed: {e}", file=sys.stderr)
-        return None
+    akshare is not declared in any pyproject and is not installed, so this link
+    never ran. Returning None lets the caller's chain move to its next source,
+    which is what already happened.
+    """
+    return None
 
 
 @cached(ttl=86400.0)  # 24h cache for stock info
@@ -864,117 +777,47 @@ def get_stock_info(
                 data_timestamp=payload.get("listDate") or None,
             )
 
-        info_source_chain = ["akshare.stock_individual_info_em"]
-        info_provider_used = "akshare.stock_individual_info_em"
-        try:
-            df = _call_with_retry(lambda: ak.stock_individual_info_em(symbol=code))
-        except Exception:
-            df = None
-        if df is None or df.empty:
-            info_source_chain.append("akshare.stock_profile_cninfo")
-            info_provider_used = "akshare.stock_profile_cninfo"
-            profile_fn = getattr(ak, "stock_profile_cninfo", None) if ak is not None else None
-            if callable(profile_fn):
-                try:
-                    df = profile_fn(symbol=code)
-                except Exception:
-                    df = None
-            if df is None or df.empty:
-                db_payload = _stock_info_from_sqlite(code)
-                if db_payload:
-                    fallback_result = _ok_stock_info_degraded(
-                        db_payload,
-                        source_chain=info_source_chain + ["db.stocks"],
-                        fallback_reason="upstream profile providers unavailable; returned DB reference snapshot",
-                    )
-                    return _respond(
-                        fallback_result,
-                        provider_requested=info_source_chain[0],
-                        provider_used="db.stocks",
-                        source_chain=info_source_chain + ["db.stocks"],
-                        data_timestamp=db_payload.get("listDate") or None,
-                    )
-                return _respond(
-                    _ok_stock_info_degraded(
-                        {
-                            "code": code,
-                            "name": "",
-                            "industry": "",
-                            "listDate": "",
-                            "totalShares": "",
-                            "floatShares": "",
-                            "totalMarketCap": "",
-                            "floatMarketCap": "",
-                            "raw": {},
-                        },
-                        source_chain=info_source_chain,
-                        fallback_reason=f"未找到股票 {code} 的信息",
-                    ),
-                    provider_requested=info_source_chain[0],
-                    provider_used="none",
-                    source_chain=info_source_chain,
-                )
-
-        info: dict[str, str] = {}
-        if "item" in df.columns and "value" in df.columns:
-            for _, row in df.iterrows():
-                key = str(row.get("item", "")).strip()
-                value = row.get("value", "")
-                if not key:
-                    continue
-                info[key] = str(value) if value is not None else ""
-        else:
-            row = df.iloc[0]
-            info = {str(k): str(row.get(k, "")) for k in df.columns}
-
-        # P2-4.5.9 fix: totalShares 空字符串时尝试 fallback 到 raw.tdx_total_shares 或 daily_basic 计算(诊断报告 §4.5.9)
-        # 历史问题:akshare 路径常返回空字符串,AI 判定 totalShares 为空时把 marketCap=price*0=0
-        total_shares_raw = info.get("总股本", "")
-        float_shares_raw = info.get("流通股", "")
-        total_market_cap_raw = info.get("总市值", "")
-        float_market_cap_raw = info.get("流通市值", "")
-        share_quality_warnings: list[dict] = []
-        if not str(total_shares_raw or "").strip() or str(total_shares_raw or "").strip() == "0":
-            # fallback 1: tdx_total_shares (来自 storage.stocks raw payload)
-            db_payload = _stock_info_from_sqlite(code) or {}
-            tdx_total = (
-                db_payload.get("totalShares")
-                or (db_payload.get("raw", {}) or {}).get("tdx_total_shares")
-                or (db_payload.get("raw", {}) or {}).get("total_share")
+        # The akshare individual-info / cninfo profile readers were removed with
+        # the dependency. The local reference table is the provider; when it holds
+        # nothing the response says so rather than presenting empty fields as data.
+        info_source_chain = ["db.stocks"]
+        info_provider_used = "db.stocks"
+        db_payload = _stock_info_from_sqlite(code) or {}
+        if db_payload:
+            result = _ok_stock_info_degraded(
+                db_payload,
+                source_chain=info_source_chain,
+                fallback_reason=(
+                    "akshare profile providers removed with the dependency; "
+                    "returned DB reference snapshot"
+                ),
             )
-            if tdx_total:
-                total_shares_raw = str(tdx_total)
-                share_quality_warnings.append({
-                    'code': 'totalShares_fallback_tdx',
-                    'message': 'akshare 未返回总股本,已 fallback 到 db.stocks.raw.tdx_total_shares',
-                    'severity': 'info',
-                })
-            else:
-                share_quality_warnings.append({
-                    'code': 'totalShares_unavailable',
-                    'message': 'akshare 与 db 均未提供总股本,marketCap 字段不可计算',
-                    'severity': 'warning',
-                })
-
-        payload = {
-            "code": code,
-            "name": info.get("股票简称", info.get("A股简称", "")),
-            "industry": info.get("行业", info.get("所属行业", "")),
-            "listDate": info.get("上市时间", info.get("上市日期", "")),
-            "totalShares": total_shares_raw,
-            "floatShares": float_shares_raw,
-            "totalMarketCap": total_market_cap_raw,
-            "floatMarketCap": float_market_cap_raw,
-            "raw": info,
-        }
-        if share_quality_warnings:
-            payload['warnings'] = share_quality_warnings
+            provider_used = "db.stocks"
+            data_timestamp = db_payload.get("listDate") or None
+        else:
+            result = _ok_stock_info_degraded(
+                {
+                    "code": code,
+                    "name": "",
+                    "industry": "",
+                    "listDate": "",
+                    "totalShares": "",
+                    "floatShares": "",
+                    "totalMarketCap": "",
+                    "floatMarketCap": "",
+                    "raw": {},
+                },
+                source_chain=info_source_chain,
+                fallback_reason="no reference row for this code",
+            )
+            provider_used = "none"
+            data_timestamp = None
         return _respond(
-            ok(payload),
+            result,
             provider_requested=info_source_chain[0],
-            provider_used=info_provider_used,
+            provider_used=provider_used,
             source_chain=info_source_chain,
-            data_timestamp=payload.get("listDate") or None,
+            data_timestamp=data_timestamp,
         )
     except Exception as e:
         response = attach_argument_contract_meta(

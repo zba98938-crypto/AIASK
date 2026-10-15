@@ -22,10 +22,6 @@ from ...storage import get_db, run_with_db_cleanup
 from ...utils import safe_stderr_print
 from ..data_quality import build_quality_meta, infer_missing_fields, normalize_reason_list
 from ...services.background_tasks import track_background_task
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 import pandas as pd
 import logging
 
@@ -81,26 +77,7 @@ def _get_daily_snapshot(code: str) -> dict[str, Optional[float]]:
         _log_quote_source_error("daily snapshot datasource", code, e)
 
     # 2. 降级 AkShare
-    if ak is None:
-        return {}
-    try:
-        df = _run_with_retry(
-            lambda: ak.stock_zh_a_hist(symbol=code, period="daily", adjust=""),
-            _QUOTE_TIMEOUTS,
-        )
-        if df is None or df.empty:
-            return {}
-        row = df.iloc[-1]
-        prev_close = safe_float(df.iloc[-2].get("收盘")) if len(df) >= 2 else None
-        return {
-            "open": safe_float(row.get("开盘")),
-            "high": safe_float(row.get("最高")),
-            "low": safe_float(row.get("最低")),
-            "prev_close": prev_close,
-        }
-    except Exception as e:
-        _log_quote_source_error("daily snapshot akshare", code, e)
-        return {}
+    return {}
 
 def _coalesce_price(value: Optional[float], fallback: Optional[float]) -> Optional[float]:
     if value is None or value == 0:
@@ -301,39 +278,7 @@ def _get_minute_quote(code: str) -> dict:
         _log_quote_source_error("minute quote datasource", code, e)
 
     # 2. 降级 AkShare
-    if ak is None:
-        raise RuntimeError(f"无法获取 {code} 分钟行情 (DataSource 不可用, akshare 未安装)")
-    df = _run_with_retry(
-        lambda: ak.stock_zh_a_hist_min_em(symbol=code, period="1", adjust=""),
-        _QUOTE_TIMEOUTS,
-    )
-    if df is None or df.empty:
-        raise RuntimeError(f"未获取到 {code} 分钟行情数据")
-    last_row = df.iloc[-1]
-    first_row = df.iloc[0]
-    price = safe_float(last_row.get("收盘"))
-    if price is None:
-        raise RuntimeError(f"{code} 分钟行情缺少收盘价")
-    day_open = safe_float(first_row.get("开盘"))
-    day_high = safe_float(df["最高"].max()) if "最高" in df.columns else safe_float(last_row.get("最高"))
-    day_low = safe_float(df["最低"].min()) if "最低" in df.columns else safe_float(last_row.get("最低"))
-    if day_open is not None and day_open <= 0:
-        day_open = None
-    if day_high is not None and day_high <= 0:
-        day_high = None
-    if day_low is not None and day_low <= 0:
-        day_low = None
-    day_volume = safe_int(df["成交量"].sum()) if "成交量" in df.columns else safe_int(last_row.get("成交量"))
-    day_amount = safe_float(df["成交额"].sum()) if "成交额" in df.columns else safe_float(last_row.get("成交额"))
-    return {
-        "price": price,
-        "open": day_open,
-        "high": day_high,
-        "low": day_low,
-        "volume": day_volume,
-        "amount": day_amount,
-        "time": str(last_row.get("时间", "")),
-    }
+    raise RuntimeError(f"无法获取 {code} 分钟行情 (DataSource 不可用, akshare 未安装)")
 
 def _get_daily_quote(code: str, name: str) -> Optional[dict]:
     """获取日K线行情（降级用）
@@ -367,37 +312,7 @@ def _get_daily_quote(code: str, name: str) -> Optional[dict]:
         _log_quote_source_error("daily quote datasource", code, e)
 
     # 2. 降级 AkShare
-    if ak is None:
-        return None
-    try:
-        df = _run_with_retry(
-            lambda: ak.stock_zh_a_hist(symbol=code, period="daily", adjust="qfq"),
-            _QUOTE_TIMEOUTS,
-        )
-        if df is None or df.empty:
-            return None
-        row = df.iloc[-1]
-        prev_close = safe_float(df.iloc[-2].get("收盘")) if len(df) >= 2 else None
-        price = safe_float(row.get("收盘"))
-        if price is None:
-            return None
-        return {
-            "code": code,
-            "name": name,
-            "price": price,
-            "change": safe_float(row.get("涨跌额")),
-            "changePercent": safe_float(row.get("涨跌幅")),
-            "open": safe_float(row.get("开盘")),
-            "high": safe_float(row.get("最高")),
-            "low": safe_float(row.get("最低")),
-            "preClose": prev_close,
-            "volume": safe_int(row.get("成交量")),
-            "amount": safe_float(row.get("成交额")),
-            "fallback": "daily_kline",
-        }
-    except Exception as e:
-        _log_quote_source_error("daily quote akshare", code, e)
-        return None
+    return None
 
 def _get_quote_sina(code: str) -> Optional[dict]:
     """Fallback: Get quote from Sina interface"""

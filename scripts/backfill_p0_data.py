@@ -81,111 +81,56 @@ async def _load_table_status(db, table: str, date_col: str) -> dict[str, Any]:
 
 
 async def _backfill_north_fund(db) -> dict[str, Any]:
-    """P0-1 北向资金回填。"""
-    print("\n=== [1] P0-1 北向资金回填 ===")
+    """Unavailable: the akshare north-bound history source was removed.
+
+    `ExternalGapSyncService` no longer carries an akshare provider, so this step
+    has nothing to call. Reported rather than skipped silently.
+    """
+    print("\n=== [1] P0-0 北向资金回填 ===")
     before = await _load_table_status(db, "north_fund_flow", "trade_date")
-    print(f"  before: {before}")
-
-    try:
-        from akshare_mcp.services.external_gap_sync_service import ExternalGapSyncService
-        try:
-            import akshare as ak
-        except ImportError:
-            return {**before, "result": "akshare_not_installed", "after": before}
-
-        service = ExternalGapSyncService(north_days=730, margin_days=730)  # 回填 2 年
-        report = await service.sync_north_fund_from_akshare(db, ak)
-        after = await _load_table_status(db, "north_fund_flow", "trade_date")
-        print(f"  fill report: {report}")
-        print(f"  after: {after}")
-        return {"step": "north_fund_flow", "before": before, "after": after, "report": report}
-    except Exception as exc:
-        traceback.print_exc()
-        return {"step": "north_fund_flow", "before": before, "error": f"{type(exc).__name__}:{exc}"}
+    return {
+        **before,
+        "step": "north_fund_flow",
+        "result": "source_removed",
+        "reason": "akshare is not a dependency of this project and its provider was removed",
+        "after": before,
+    }
 
 
 async def _backfill_margin(db) -> dict[str, Any]:
-    """P0-1 融资融券回填。"""
+    """Unavailable: the akshare margin sources were removed.
+
+    上交所's own endpoint is reachable but not wired here; 深交所's is blocked
+    through this host's proxy. Reported rather than skipped silently.
+    """
     print("\n=== [2] P0-1 融资融券回填 ===")
     mkt_before = await _load_table_status(db, "margin_market_flow", "trade_date")
     detail_before = await _load_table_status(db, "margin_detail", "date")
-    print(f"  market before: {mkt_before}")
-    print(f"  detail before: {detail_before}")
-
-    try:
-        from akshare_mcp.services.external_gap_sync_service import ExternalGapSyncService
-        try:
-            import akshare as ak
-        except ImportError:
-            return {"step": "margin", "result": "akshare_not_installed"}
-
-        service = ExternalGapSyncService(margin_days=180)
-        market_report = await service.sync_margin_market_from_akshare(db, ak)
-        detail_report = await service.sync_margin_detail_from_akshare(db, ak)
-        mkt_after = await _load_table_status(db, "margin_market_flow", "trade_date")
-        detail_after = await _load_table_status(db, "margin_detail", "date")
-        print(f"  market after: {mkt_after}")
-        print(f"  detail after: {detail_after}")
-        return {
-            "step": "margin",
-            "market": {"before": mkt_before, "after": mkt_after, "report": market_report},
-            "detail": {"before": detail_before, "after": detail_after, "report": detail_report},
-        }
-    except Exception as exc:
-        traceback.print_exc()
-        return {"step": "margin", "error": f"{type(exc).__name__}:{exc}"}
+    return {
+        "step": "margin",
+        "result": "source_removed",
+        "reason": "akshare margin providers were removed with the dependency",
+        "market_before": mkt_before,
+        "detail_before": detail_before,
+    }
 
 
 async def _backfill_dragon_tiger(db) -> dict[str, Any]:
-    """P0-1 龙虎榜回填。"""
-    print("\n=== [3] P0-1 龙虎榜回填(过去 30 个交易日) ===")
+    """Unavailable here: the akshare dragon-tiger source was removed.
+
+    The data itself is present in `dragon_tiger` (269,446 rows back to 2004),
+    written by `scripts/sync_market_fundamentals.py` from East money's datacenter
+    report. This step wrote a separate `dragon_tiger_list` table and has nothing
+    to call now.
+    """
+    print("\n=== [3] P0-1 龙虎榜回填 ===")
     before = await _load_table_status(db, "dragon_tiger_list", "date")
-    print(f"  before: {before}")
-
-    try:
-        try:
-            import akshare as ak
-        except ImportError:
-            return {"step": "dragon_tiger", "result": "akshare_not_installed"}
-
-        # 过去 30 个交易日(约 6 周)
-        end = date.today()
-        start = end - timedelta(days=45)
-        try:
-            df = await asyncio.to_thread(
-                ak.stock_lhb_detail_em,
-                start_date=start.strftime("%Y%m%d"),
-                end_date=end.strftime("%Y%m%d"),
-            )
-            inserted = 0
-            if df is not None and not df.empty:
-                async with db.acquire() as conn:
-                    for _, r in df.iterrows():
-                        try:
-                            d = str(r.get("交易日", "") or r.get("trade_date", "")).strip()
-                            if not d:
-                                continue
-                            await conn.execute(
-                                """INSERT INTO dragon_tiger_list (date, code, source, raw)
-                                   VALUES ($1, $2, 'akshare.stock_lhb_detail_em', $3)
-                                   ON CONFLICT (date, code) DO NOTHING""",
-                                d,
-                                str(r.get("代码", "") or r.get("symbol", "")).strip(),
-                                json.dumps(r.to_dict(), ensure_ascii=False, default=str),
-                            )
-                            inserted += 1
-                        except Exception as _swallowed:
-                            logger.warning("scripts/backfill_p0_data.py:175: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                            continue
-            after = await _load_table_status(db, "dragon_tiger_list", "date")
-            print(f"  inserted: {inserted}")
-            print(f"  after: {after}")
-            return {"step": "dragon_tiger", "before": before, "after": after, "inserted": inserted}
-        except Exception as exc:
-            traceback.print_exc()
-            return {"step": "dragon_tiger", "before": before, "error": f"{type(exc).__name__}:{exc}"}
-    except Exception as exc:
-        return {"step": "dragon_tiger", "error": f"outer:{type(exc).__name__}:{exc}"}
+    return {
+        "step": "dragon_tiger",
+        "result": "source_removed",
+        "reason": "akshare removed; use scripts/sync_market_fundamentals.py --what dragon",
+        "before": before,
+    }
 
 
 async def _backfill_vector(db, limit: int = 200) -> dict[str, Any]:

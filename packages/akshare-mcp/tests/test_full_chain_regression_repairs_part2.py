@@ -115,7 +115,6 @@ def test_index_quote_returns_degraded_empty_when_all_sources_missing(monkeypatch
 
     monkeypatch.setattr(quote, "_fetch_single_index_quote_eastmoney", lambda _code: None)
     monkeypatch.setattr(quote, "_get_index_spot_indexed", lambda: (pd.DataFrame(), False))
-    monkeypatch.setattr(quote, "ak", None)
     monkeypatch.setattr(quote.data_source, "get_tushare_pro", lambda: None)
 
     result = quote.get_index_quote("000001")

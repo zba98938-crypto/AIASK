@@ -86,7 +86,6 @@ def test_get_minute_kline_uses_intraday_sources_only(monkeypatch):
         raise AssertionError("data_source.get_kline should not be used for intraday fetches")
 
     monkeypatch.setattr(kline_module.data_source, "get_kline", _unexpected_data_source)
-    monkeypatch.setattr(kline_module, "_get_minute_kline_from_akshare", lambda code, minutes, limit: [])
     monkeypatch.setattr(
         kline_module,
         "_get_minute_kline_from_sina",
@@ -108,7 +107,9 @@ def test_get_minute_kline_uses_intraday_sources_only(monkeypatch):
 
     assert result["success"] is True
     assert result["source"] == "sina"
-    assert result["source_chain"] == ["akshare.stock_zh_a_hist_min_em", "sina.getKLineData"]
+    # The akshare intraday source was removed with the dependency, so Sina is the
+    # first and only provider consulted here.
+    assert result["source_chain"] == ["sina.getKLineData"]
 
 
 def test_batch_sync_klines_times_out_per_code(monkeypatch):

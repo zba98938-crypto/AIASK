@@ -82,78 +82,9 @@ def _trial(name, fn):
         print(f"  [{name:<46s}] FAIL ({elapsed}s) {msg[:80]}", flush=True)
 
 
-# ========== AKShare ==========
-print("\n=== AKShare 网络可达性测试 ===")
-import akshare as ak
-from pathlib import Path
-
-# 1) 北向资金（沪深股通）
-_trial("ak.stock_hsgt_hist_em",
-       lambda: ak.stock_hsgt_hist_em(symbol="北向资金"))
-_trial("ak.stock_hsgt_fund_flow_summary_em",
-       lambda: ak.stock_hsgt_fund_flow_summary_em())
-_trial("ak.stock_hsgt_north_acc_flow_in_em (deprecated check)",
-       lambda: ak.stock_hsgt_north_acc_flow_in_em(symbol="北上"))
-
-# 2) 北向单股持股
-_trial("ak.stock_hsgt_individual_em",
-       lambda: ak.stock_hsgt_individual_em(stock="600519"))
-
-# 3) 龙虎榜
-_trial("ak.stock_lhb_detail_daily_sina",
-       lambda: ak.stock_lhb_detail_daily_sina(date="20260516"))
-_trial("ak.stock_lhb_detail_em",
-       lambda: ak.stock_lhb_detail_em(start_date="20260514", end_date="20260518"))
-
-# 4) 融资融券
-_trial("ak.stock_margin_account_info",
-       lambda: ak.stock_margin_account_info())
-_trial("ak.stock_margin_underlying_info_szse (深市)",
-       lambda: ak.stock_margin_underlying_info_szse(date="20260516"))
-
-# 5) 大宗交易
-_trial("ak.stock_dzjy_mrtj",
-       lambda: ak.stock_dzjy_mrtj(start_date="20260514", end_date="20260518"))
-
-# 6) 涨停板池
-_trial("ak.stock_zt_pool_em",
-       lambda: ak.stock_zt_pool_em(date="20260516"))
-
-# 7) 股东户数
-_trial("ak.stock_zh_a_gdhs",
-       lambda: ak.stock_zh_a_gdhs(symbol="20260331"))
-
-# 8) 盘后资金（个股资金流）
-_trial("ak.stock_individual_fund_flow",
-       lambda: ak.stock_individual_fund_flow(stock="600519", market="sh"))
-
-# 9) 板块资金流
-_trial("ak.stock_sector_fund_flow_rank",
-       lambda: ak.stock_sector_fund_flow_rank(indicator="今日"))
-
-# 10) 公告
-_trial("ak.stock_notice_report",
-       lambda: ak.stock_notice_report(symbol="全部", date="20260518"))
-
-# 11) 研报
-_trial("ak.stock_research_report_em",
-       lambda: ak.stock_research_report_em(symbol="600519"))
-
-# 12) 财务历史（季度）
-_trial("ak.stock_financial_abstract_ths",
-       lambda: ak.stock_financial_abstract_ths(symbol="600519", indicator="按报告期"))
-_trial("ak.stock_financial_abstract",
-       lambda: ak.stock_financial_abstract(symbol="600519"))
-_trial("ak.stock_financial_analysis_indicator",
-       lambda: ak.stock_financial_analysis_indicator(symbol="600519"))
-
-# 13) 业绩预告 / 业绩快报
-_trial("ak.stock_yjbb_em (业绩快报)",
-       lambda: ak.stock_yjbb_em(date="20251231"))
-
-# 14) 个股新闻
-_trial("ak.stock_news_em",
-       lambda: ak.stock_news_em(symbol="600519"))
+# ========== AKShare: REMOVED ==========
+# akshare is not a declared dependency of this project (see docs/DATA_SOURCES.md),
+# so it is no longer probed here. The candidates below are the reachable ones.
 
 # ========== Tushare ==========
 print("\n=== Tushare（取决于 TUSHARE_TOKEN）===")

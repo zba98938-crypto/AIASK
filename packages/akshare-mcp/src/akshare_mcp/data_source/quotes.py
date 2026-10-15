@@ -631,29 +631,8 @@ class QuotesMixin:
             except Exception as e:
                 safe_stderr_print(f"[DataSource] Tushare index_daily failed for {index_storage_code}: {e}")
 
-        # 2. AkShare 指数专用接口（lazy import，仅指数分支触发）
-        try:
-            import akshare as _ak
-            df = _ak.stock_zh_index_daily_em(symbol=index_storage_code)
-            if df is not None and not df.empty:
-                df = df.tail(int(limit))
-                results = []
-                for _, row in df.iterrows():
-                    date_val = row.get("date") or row.get("日期") or ""
-                    results.append({
-                        "date": str(date_val)[:10],
-                        "open": safe_float(row.get("open") or row.get("开盘")),
-                        "close": safe_float(row.get("close") or row.get("收盘")),
-                        "high": safe_float(row.get("high") or row.get("最高")),
-                        "low": safe_float(row.get("low") or row.get("最低")),
-                        "volume": safe_int(row.get("volume") or row.get("成交量")),
-                        "amount": safe_float(row.get("amount") or row.get("成交额")),
-                        "source": "akshare_index",
-                    })
-                if results:
-                    return results
-        except Exception as e:
-            safe_stderr_print(f"[DataSource] AkShare index kline failed for {index_storage_code}: {e}")
+        # 2. The AkShare index endpoints were removed with the dependency.
+        # Tushare above and Sina below are the remaining providers.
 
         # 3. Sina public index K-line fallback (works when Eastmoney proxy is broken)
         if period == "daily":

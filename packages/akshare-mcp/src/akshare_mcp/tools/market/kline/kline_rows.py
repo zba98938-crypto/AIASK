@@ -31,10 +31,6 @@ try:
     from ...baostock_api import baostock_client
 except (ImportError, Exception):
     baostock_client = None
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 import pandas as pd
 import logging
 

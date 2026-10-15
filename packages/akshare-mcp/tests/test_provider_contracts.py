@@ -279,17 +279,10 @@ def _assert_provider_meta(result: dict, tool_name: str, standard_model: str) -> 
 
 def test_stock_info_tool_response_includes_provider_contract_meta(monkeypatch):
     monkeypatch.setattr(finance_module.data_source, "get_tushare_pro", lambda: None)
-    monkeypatch.setattr(
-        finance_module,
-        "_call_with_retry",
-        lambda _fn: pd.DataFrame(
-            [
-                {"item": "股票简称", "value": "Demo"},
-                {"item": "行业", "value": "Testing"},
-                {"item": "上市日期", "value": "20200101"},
-            ]
-        ),
-    )
+    # akshare was removed with the dependency, so the local reference table is the
+    # only provider. With no row there either, the response must still carry the
+    # envelope and say which provider was used.
+    monkeypatch.setattr(finance_module, "_stock_info_from_sqlite", lambda _code: None)
 
     result = finance_module.get_stock_info.__wrapped__(code="600519")
 
@@ -299,7 +292,7 @@ def test_stock_info_tool_response_includes_provider_contract_meta(monkeypatch):
     contract = result["meta"]["provider_contract"]
     assert contract["standard_model"] == "StockInfo"
     assert contract["tool"] == "get_stock_info"
-    assert contract["provider_used"] == "akshare.stock_individual_info_em"
+    assert contract["provider_used"] == "none"
     assert result["meta"]["contract_meta"]["standard_model"] == "StockInfo"
 
 
@@ -440,16 +433,6 @@ def test_sector_and_concept_fund_flow_response_include_provider_contract_meta(mo
 
 def test_market_flow_tools_response_include_provider_contract_meta(monkeypatch):
     monkeypatch.setattr(fund_flow_market_module, "get_latest_trading_date", lambda: "20260520")
-    monkeypatch.setattr(
-        fund_flow_market_module,
-        "ak",
-        SimpleNamespace(
-            stock_lhb_detail_daily_sina=lambda date: pd.DataFrame(
-                [{"股票代码": "600519", "股票名称": "Demo", "收盘价": 10.0, "对应值": 1.0, "指标": "test"}]
-            ),
-            stock_lhb_detail_em=lambda start_date, end_date: pd.DataFrame(),
-        ),
-    )
     dragon = fund_flow_market_module.get_dragon_tiger(date="2026-05-20")
     _assert_provider_meta(dragon, "get_dragon_tiger", "DragonTiger")
 
@@ -491,15 +474,6 @@ def test_macro_option_and_block_tools_response_include_provider_contract_meta(mo
     macro = macro_module.get_macro_indicator.__wrapped__(indicator="cpi", limit=1)
     _assert_provider_meta(macro, "get_macro_indicator", "MacroIndicator")
 
-    monkeypatch.setattr(
-        options_module,
-        "ak",
-        SimpleNamespace(
-            option_sse_list_sina=lambda symbol: ["202606"],
-            option_sse_codes_sina=lambda **_kwargs: pd.DataFrame(),
-            option_sse_underlying_spot_price_sina=lambda symbol: pd.DataFrame(),
-        ),
-    )
     option_chain = options_module.get_option_chain.__wrapped__(underlying="510050", limit=1)
     _assert_provider_meta(option_chain, "get_option_chain", "OptionChain")
 

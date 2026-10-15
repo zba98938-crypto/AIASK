@@ -16,10 +16,6 @@ from datetime import datetime
 
 import pandas as pd
 import requests
-try:
-    import akshare as ak
-except ImportError:
-    ak = None
 
 from ..market.helpers import (
     normalize_code, parse_numeric, pick_value, parse_date_input,
@@ -93,44 +89,7 @@ def _normalize_limit_time(value) -> str:
 
 
 def _get_limit_up_stocks_from_akshare(check_date: str) -> list[dict]:
-    if ak is None or not hasattr(ak, "stock_zt_pool_em"):
-        return []
-    try:
-        df = ak.stock_zt_pool_em(date=check_date)
-    except Exception:
-        return []
-    if df is None or df.empty:
-        return []
-
-    trade_date = _format_trade_date(check_date)
-    results: list[dict] = []
-    for _, row in df.iterrows():
-        code = normalize_code(pick_value(row, ["代码", "code"]))
-        if not code:
-            continue
-        latest_price = parse_numeric(pick_value(row, ["最新价", "price"])) or 0.0
-        total_mv = parse_numeric(pick_value(row, ["总市值", "marketCap"]))
-        float_mv = parse_numeric(pick_value(row, ["流通市值"]))
-        market_cap = total_mv if total_mv is not None else (float_mv or 0.0)
-        continuous_days = parse_numeric(pick_value(row, ["连板数", "连续涨停天数"])) or 0.0
-        results.append({
-            "code": code,
-            "name": str(pick_value(row, ["名称", "name"]) or ""),
-            "price": float(latest_price),
-            "changePercent": float(parse_numeric(pick_value(row, ["涨跌幅", "changePercent"])) or 0.0),
-            "limitUpPrice": float(latest_price),
-            "firstLimitTime": _normalize_limit_time(pick_value(row, ["首次封板时间"])),
-            "lastLimitTime": _normalize_limit_time(pick_value(row, ["最后封板时间"])),
-            "openTimes": int(parse_numeric(pick_value(row, ["炸板次数", "openTimes"])) or 0),
-            "continuousDays": int(continuous_days or 0),
-            "turnoverRate": float(parse_numeric(pick_value(row, ["换手率", "turnoverRate"])) or 0.0),
-            "marketCap": float(market_cap or 0.0),
-            "industry": str(pick_value(row, ["所属行业", "industry"]) or ""),
-            "concept": "",
-            "tradeDate": trade_date,
-            "_derived_fields": set(),
-        })
-    return results
+    return []
 
 
 def _mark_limit_up_field(item: dict, field: str, value) -> None:
@@ -625,7 +584,7 @@ def get_limit_up_statistics(date: str = "") -> dict:
         open_times_missing = int((res["data_quality"].get("missing_field_counts") or {}).get("openTimes", 0) or 0)
 
     response = ok(result)
-    response["source"] = res.get("source", "akshare")
+    response["source"] = res.get("source", "unknown")
     response["source_chain"] = res.get("source_chain", [])
     if res.get("fallback_reason"):
         response["fallback_reason"] = res.get("fallback_reason")
