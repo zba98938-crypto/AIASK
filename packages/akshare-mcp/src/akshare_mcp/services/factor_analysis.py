@@ -11,6 +11,10 @@ from numba import jit
 # 中性化截面回归的最小自由度（有效样本数 - 设计矩阵列数）。
 # 低于此值跳过中性化（灰度测试发现的小样本翻号风险防护）。可经 env 调整。
 import os as _os
+import logging
+
+logger = logging.getLogger(__name__)
+
 try:
     _NEUTRALIZE_MIN_DOF = max(1, int(_os.getenv("FACTOR_NEUTRALIZE_MIN_DOF", "5") or 5))
 except (TypeError, ValueError):
@@ -42,7 +46,8 @@ class FactorAnalyzer:
                 continue
             try:
                 close_val = float(close_raw)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_analysis.py:46: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             if not np.isfinite(close_val):
                 continue
@@ -205,7 +210,17 @@ class FactorAnalyzer:
         forward_returns = forward_returns[mask]
         
         if len(factor_values) < 2:
-            return {'ic': 0.0, 'ic_ir': 0.0, 'p_value': 1.0}
+            # Not computed is not the same as computed-and-zero. Returning 0.0
+            # here reported a measured "no relationship" for a sample that was
+            # never measured.
+            return {
+                'ic': None,
+                'ic_ir': None,
+                'p_value': None,
+                'sample_size': int(len(factor_values)),
+                'measurable': False,
+                'reason': 'insufficient_samples',
+            }
         
         # 计算IC
         if method == 'pearson':
@@ -215,10 +230,15 @@ class FactorAnalyzer:
         else:
             raise ValueError(f"Unknown method: {method}")
         
+        measurable = not (np.isnan(ic) or np.isnan(p_value))
         return {
-            'ic': float(ic),
-            'p_value': float(p_value),
-            'sample_size': len(factor_values),
+            'ic': float(ic) if measurable else None,
+            'p_value': float(p_value) if measurable else None,
+            'sample_size': int(len(factor_values)),
+            'measurable': measurable,
+            # A constant input array has no correlation to measure, so scipy
+            # returns NaN.
+            'reason': None if measurable else 'undefined_correlation',
         }
 
     @staticmethod
@@ -254,11 +274,14 @@ class FactorAnalyzer:
 
         if len(factor_values) < 3:
             return {
-                'normal_ic': 0.0,
-                'rank_ic': 0.0,
-                'normal_p_value': 1.0,
-                'rank_p_value': 1.0,
+                # See calculate_ic: unmeasured must not read as measured-zero.
+                'normal_ic': None,
+                'rank_ic': None,
+                'normal_p_value': None,
+                'rank_p_value': None,
                 'sample_size': int(len(factor_values)),
+                'measurable': False,
+                'reason': 'insufficient_samples',
                 'neutralization': {
                     'enabled': bool(enable_neutralization),
                     'reason': 'insufficient_samples',
@@ -276,17 +299,24 @@ class FactorAnalyzer:
         n_ic, n_p = stats.pearsonr(neutralized, forward_returns)
         r_ic, r_p = stats.spearmanr(neutralized, forward_returns)
 
-        if np.isnan(n_ic):
-            n_ic, n_p = 0.0, 1.0
-        if np.isnan(r_ic):
-            r_ic, r_p = 0.0, 1.0
+        # A constant input array has no correlation to measure. The previous
+        # conversion to 0.0 / p=1.0 turned that into "measured exactly zero
+        # information, confidently", and it kept the full sample_size, so the
+        # record was indistinguishable from a real measurement. Nine such
+        # warnings were emitted during the first factor-mining cycle over the
+        # expanded universe.
+        normal_measurable = not (np.isnan(n_ic) or np.isnan(n_p))
+        rank_measurable = not (np.isnan(r_ic) or np.isnan(r_p))
+        measurable = normal_measurable and rank_measurable
 
         return {
-            'normal_ic': float(n_ic),
-            'rank_ic': float(r_ic),
-            'normal_p_value': float(n_p),
-            'rank_p_value': float(r_p),
+            'normal_ic': float(n_ic) if normal_measurable else None,
+            'rank_ic': float(r_ic) if rank_measurable else None,
+            'normal_p_value': float(n_p) if normal_measurable else None,
+            'rank_p_value': float(r_p) if rank_measurable else None,
             'sample_size': int(len(neutralized)),
+            'measurable': measurable,
+            'reason': None if measurable else 'undefined_correlation',
             'neutralization': neutral_meta,
         }
     

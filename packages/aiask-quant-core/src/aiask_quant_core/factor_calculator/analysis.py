@@ -11,9 +11,20 @@ class AnalysisFactorsMixin:
         factor_values: List[float],
         future_returns: List[float]
     ) -> Dict[str, float]:
-        """计算因子IC（信息系数）"""
+        """计算因子IC（信息系数）。
+
+        不可测量时返回 ``None`` 并给出稳定原因码，而不是 0.0：把"没算出来"写成
+        "算出来是 0"会让一个常量因子看起来像"已测得的零相关性"，下游再按阈值
+        比较就再也分不清两者。
+        """
         if len(factor_values) != len(future_returns):
-            return {'ic': 0.0, 'rank_ic': 0.0}
+            return {
+                'ic': None,
+                'rank_ic': None,
+                'sample_size': 0,
+                'measurable': False,
+                'reason': 'length_mismatch',
+            }
 
         factor_arr = np.array(factor_values)
         returns_arr = np.array(future_returns)
@@ -24,7 +35,13 @@ class AnalysisFactorsMixin:
         returns_arr = returns_arr[mask]
 
         if len(factor_arr) < 10:
-            return {'ic': 0.0, 'rank_ic': 0.0}
+            return {
+                'ic': None,
+                'rank_ic': None,
+                'sample_size': int(len(factor_arr)),
+                'measurable': False,
+                'reason': 'insufficient_samples',
+            }
 
         # Pearson相关系数（IC）
         ic = np.corrcoef(factor_arr, returns_arr)[0, 1]
@@ -33,9 +50,14 @@ class AnalysisFactorsMixin:
         from scipy.stats import spearmanr
         rank_ic, _ = spearmanr(factor_arr, returns_arr)
 
+        ic_ok = not np.isnan(ic)
+        rank_ok = not np.isnan(rank_ic)
         return {
-            'ic': float(ic) if not np.isnan(ic) else 0.0,
-            'rank_ic': float(rank_ic) if not np.isnan(rank_ic) else 0.0,
+            'ic': float(ic) if ic_ok else None,
+            'rank_ic': float(rank_ic) if rank_ok else None,
+            'sample_size': int(len(factor_arr)),
+            'measurable': ic_ok and rank_ok,
+            'reason': None if (ic_ok and rank_ok) else 'undefined_correlation',
         }
 
     @staticmethod

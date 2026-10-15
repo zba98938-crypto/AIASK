@@ -541,6 +541,10 @@ async def handle_batch_compute_factors(
                     errors.append({"code": item["stock_code"], "error": f"persist failed: {row_exc}"})
 
     ic_results = {}
+    # IC that could not be measured. Reported rather than dropped: a factor whose
+    # cross-section is constant has no IC, and silently persisting 0.0 for it is
+    # how "unmeasurable" became "measured zero".
+    skipped_ic: list[dict] = []
     if compute_ic and len(results) >= 10:
         # PR-F5: 多周期 IC 计算（5/10/20/60 日）
         # 正确的 IC 计算：用 T-horizon 天的因子值 vs T-horizon 到 T 的实际收益率
@@ -613,7 +617,8 @@ async def handle_batch_compute_factors(
                                 style_industries.append(styles.get("industry"))
                                 style_market_caps.append(styles.get("market_cap"))
                                 style_betas.append(styles.get("beta"))
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/quant_mgr_classic.py:617: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
 
                 if len(factor_vals) >= 10:
@@ -630,15 +635,36 @@ async def handle_batch_compute_factors(
                             beta=style_betas or None,
                             enable_neutralization=True,
                         )
-                        ic_val = float(dual.get("normal_ic", 0.0))
-                        rank_ic = float(dual.get("rank_ic", 0.0))
+                        ic_val = dual.get("normal_ic")
+                        rank_ic = dual.get("rank_ic")
                     else:
                         from ...services.factor_calculator.analysis import AnalysisFactorsMixin
 
                         ic_data = AnalysisFactorsMixin.calculate_factor_ic(factor_vals, forward_rets)
-                        ic_val = ic_data.get("ic", 0.0)
-                        rank_ic = ic_data.get("rank_ic", 0.0)
-                    horizon_ic[factor_name] = {"ic": ic_val, "rank_ic": rank_ic, "sample_size": len(factor_vals)}
+                        ic_val = ic_data.get("ic")
+                        rank_ic = ic_data.get("rank_ic")
+
+                    # An undefined correlation is not a zero IC. Writing 0.0 into
+                    # factor_ic_history made an unmeasurable factor look like a
+                    # measured one, and the row carried the full sample size.
+                    if ic_val is None or rank_ic is None:
+                        skipped_ic.append(
+                            {
+                                "factor": factor_name,
+                                "horizon": horizon,
+                                "reason": "undefined_correlation",
+                                "sample_size": len(factor_vals),
+                            }
+                        )
+                        continue
+
+                    ic_val = float(ic_val)
+                    rank_ic = float(rank_ic)
+                    horizon_ic[factor_name] = {
+                        "ic": ic_val,
+                        "rank_ic": rank_ic,
+                        "sample_size": len(factor_vals),
+                    }
                     if persist:
                         await db.save_factor_ic(factor_name, str(horizon), today, ic_val, rank_ic, len(factor_vals))
 
@@ -655,6 +681,8 @@ async def handle_batch_compute_factors(
             "errors": errors[:10],
             "factors": factors,
             "ic": ic_results,
+            "ic_skipped_count": len(skipped_ic),
+            "ic_skipped": skipped_ic[:10],
             "persisted": persist,
             "store": persist,
         },
