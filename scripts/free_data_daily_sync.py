@@ -19,6 +19,9 @@ Usage:
 """
 
 from __future__ import annotations
+import logging
+
+logger = logging.getLogger(__name__)
 
 import argparse
 import asyncio
@@ -92,7 +95,24 @@ def _configure_env() -> Path:
 
 
 def _sina_symbol(code: str) -> str:
-    return ("sh" if str(code).startswith("6") else "sz") + str(code)
+    """Map a bare stock code to Sina's symbol, 北交所 included.
+
+    The previous version sent everything that is not ``6…`` to ``sz``, so all 350
+    BSE symbols (``920xxx``/``4xxxxx``/``8xxxxx``) were requested as ``sz920000``
+    and came back as an empty list. Sina does serve them — under ``bj``.
+    """
+
+    text = str(code).strip()
+    if text[:2].lower() in {"sh", "sz", "bj"}:
+        return text
+    if text.startswith(("60", "68", "11", "13")):
+        return "sh" + text
+    if text.startswith(("00", "30", "12")):
+        return "sz" + text
+    if text.startswith(("92", "43", "83", "87", "88", "4", "8")):
+        return "bj" + text
+    # Unknown shape: keep the historical default rather than guessing bj.
+    return "sz" + text
 
 
 def _fetch_sina_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any]]:
@@ -141,17 +161,20 @@ def _fetch_sina_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any]]:
     return [row for row in rows if row.get("date")]
 
 
-async def sync_stock_klines(codes: list[str], *, datalen: int = 300) -> dict[str, Any]:
+async def sync_stock_klines(
+    codes: list[str], *, datalen: int = 300, concurrency: int = 1
+) -> dict[str, Any]:
     from akshare_mcp.storage import get_db
 
     db = get_db()
     await db.initialize()
     out: dict[str, Any] = {}
-    for code in codes:
+
+    async def _one(code: str) -> None:
         try:
-            rows = _fetch_sina_kline(code, datalen=datalen)
+            rows = await asyncio.to_thread(_fetch_sina_kline, code, datalen=datalen)
             result = await db.save_klines(code, rows)
-            out[code] = {
+            entry = {
                 "fetched": len(rows),
                 "save": result
                 if not isinstance(result, dict)
@@ -160,9 +183,51 @@ async def sync_stock_klines(codes: list[str], *, datalen: int = 300) -> dict[str
                     "rejected_count": result.get("rejected_count"),
                 },
             }
-            time.sleep(0.12)
+            # An empty body is not a success. It was counted as one, which is how
+            # 350 北交所 symbols returned nothing for a whole sync run and the
+            # summary still read "5574 ok".
+            if not rows:
+                entry["empty"] = True
+            out[code] = entry
         except Exception as exc:
+            # Recorded per code, never dropped: a sync that reports "done" while
+            # 200 symbols failed is the failure mode this whole file guards against.
             out[code] = {"error": f"{type(exc).__name__}: {exc}"}
+
+    # One worker is the documented rate-safe default; the full-market backfill
+    # raises it deliberately rather than by accident.
+    workers = max(1, int(concurrency or 1))
+    if workers == 1:
+        for index, code in enumerate(codes, 1):
+            await _one(code)
+            time.sleep(0.12)
+            if index % 200 == 0:
+                print(f"    ... {index}/{len(codes)} symbols fetched")
+    else:
+        semaphore = asyncio.Semaphore(workers)
+        done = 0
+
+        async def _guarded(code: str) -> None:
+            nonlocal done
+            async with semaphore:
+                await _one(code)
+                done += 1
+                if done % 200 == 0:
+                    print(f"    ... {done}/{len(codes)} symbols fetched")
+                await asyncio.sleep(0.05)
+
+        await asyncio.gather(*(_guarded(code) for code in codes))
+
+    failures = {code: value for code, value in out.items() if "error" in value}
+    empties = {code: value for code, value in out.items() if value.get("empty")}
+    landed = len(out) - len(failures) - len(empties)
+    print(
+        f"    kline sync: {landed} with data, {len(empties)} returned no rows, "
+        f"{len(failures)} failed"
+    )
+    if empties:
+        sample = sorted(empties)[:8]
+        print(f"    no-row sample: {sample}{' ...' if len(empties) > 8 else ''}")
     return out
 
 
@@ -330,7 +395,8 @@ def sync_north_fund_best_effort() -> dict[str, Any]:
         for key in ("当日成交净买额", "当日资金流入"):
             try:
                 candidate = float(item.get(key))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("scripts/free_data_daily_sync.py:365: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             if not math.isnan(candidate):
                 value = candidate
@@ -503,7 +569,8 @@ async def seed_active_factor_pool() -> dict[str, Any]:
                 "UPDATE factor_pool_active SET status='retired', retired_reason='compile_invalid_free_seed', retired_at=$1 WHERE factor_id LIKE 'free_seed_%' AND status='active'",
                 now,
             )
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/free_data_daily_sync.py:538: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     pool = await load_active_pool_from_db(db)
     active = [item for item in pool if str(item.get("status") or "") == "active"]
@@ -656,12 +723,14 @@ async def run_evidence_pipeline(*, history_days: int = 8) -> dict[str, Any]:
     incubation = build_incubation_runtime()
     try:
         await incubation.start()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/free_data_daily_sync.py:691: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     incubation_result = await incubation.run_once(trigger="free_data_evidence_pipeline")
     try:
         await incubation.stop()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/free_data_daily_sync.py:696: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     import sqlite3
@@ -733,12 +802,102 @@ async def collector_status() -> dict[str, Any]:
     }
 
 
+def _codes_from_db() -> list[str]:
+    """Read listed stock codes from the runtime ``stocks`` table."""
+
+    import contextlib
+    import sqlite3
+
+    from _integration_paths import default_sqlite_path
+
+    path = default_sqlite_path()
+    if not path.exists():
+        return []
+    try:
+        with contextlib.closing(sqlite3.connect(str(path))) as conn:
+            rows = conn.execute(
+                "SELECT stock_code FROM stocks "
+                "WHERE stock_code IS NOT NULL AND COALESCE(list_status, 'L') = 'L'"
+            ).fetchall()
+    except sqlite3.Error as exc:
+        print(f"[universe] stocks table unreadable: {type(exc).__name__}: {exc}", file=sys.stderr)
+        return []
+    # Indices live in this table too (sh000001, sz399300 …); they have their own
+    # sync path and must not enter the individual-stock universe.
+    return [str(row[0]) for row in rows if str(row[0]).isdigit()]
+
+
+def _resolve_universe(args: argparse.Namespace) -> tuple[list[str], str]:
+    """Return ``(codes, source)`` for the requested universe.
+
+    ``DEFAULT_CODES`` is the last resort, not the default. A daily sync over 15
+    symbols, while the market has more than 5500, produces factor and strategy
+    evidence that cannot support any market-wide claim, and the output looked
+    identical either way.
+    """
+
+    import _db_sync_common as common
+
+    if args.universe == "default":
+        return list(DEFAULT_CODES), f"default:{len(DEFAULT_CODES)} representative codes"
+
+    db_codes = _codes_from_db()
+    if args.universe == "db":
+        if not db_codes:
+            raise SystemExit("--universe db requested but the stocks table is empty")
+        return db_codes, f"sqlite:stocks ({len(db_codes)} listed rows)"
+
+    # 'auto' trusts the table only when it already covers the market.
+    if args.universe == "auto" and len(db_codes) >= common.MIN_FULL_UNIVERSE:
+        return db_codes, f"sqlite:stocks ({len(db_codes)} listed rows)"
+
+    try:
+        codes, source = common.fetch_market_symbols()
+        if codes:
+            return codes, source
+    except Exception as exc:
+        if args.universe == "full":
+            raise
+        print(
+            f"[universe] Sina listing unavailable ({type(exc).__name__}: {exc}); "
+            f"falling back to the local table",
+            file=sys.stderr,
+        )
+
+    if db_codes:
+        return db_codes, f"sqlite:stocks ({len(db_codes)} listed rows, degraded)"
+
+    return (
+        list(DEFAULT_CODES),
+        f"default:{len(DEFAULT_CODES)} representative codes (degraded; not the market)",
+    )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Free public data daily sync for AIASK")
     parser.add_argument(
         "--codes",
         default="",
-        help="Comma-separated stock codes (default: representative free universe)",
+        help="Comma-separated stock codes; overrides --universe",
+    )
+    parser.add_argument(
+        "--universe",
+        choices=("auto", "full", "db", "default"),
+        default="auto",
+        help=(
+            "Which stock universe to sync when --codes is not given. "
+            "'auto' uses the stocks table when it already covers the market, "
+            "otherwise enumerates every A-share from Sina; 'full' always "
+            "enumerates; 'db' reads the stocks table; 'default' is the legacy "
+            f"{len(DEFAULT_CODES)}-code representative list"
+        ),
+    )
+    parser.add_argument("--limit", type=int, default=0, help="Cap the universe size (0 = no cap)")
+    parser.add_argument(
+        "--concurrency",
+        type=int,
+        default=1,
+        help="Concurrent kline fetches against Sina (default 1, the documented rate-safe value)",
     )
     parser.add_argument("--skip-stocks", action="store_true")
     parser.add_argument("--skip-index", action="store_true")
@@ -757,12 +916,20 @@ async def main() -> int:
     args = parse_args()
     db_path = _configure_env()
     codes = [item.strip() for item in str(args.codes or "").split(",") if item.strip()]
+    universe_source = "cli:--codes" if codes else ""
     if not codes:
-        codes = list(DEFAULT_CODES)
+        codes, universe_source = _resolve_universe(args)
+    if args.limit and len(codes) > args.limit:
+        codes = codes[: int(args.limit)]
+        universe_source = f"{universe_source} (capped to {args.limit})"
+    if not codes:
+        raise SystemExit("resolved an empty stock universe; refusing to run a no-op sync")
+    print(f"universe: {len(codes)} code(s) from {universe_source}")
 
     report: dict[str, Any] = {
         "generated_at": datetime.now().isoformat(timespec="seconds"),
         "sqlite_path": str(db_path),
+        "universe_source": universe_source,
         "codes": codes,
         "free_sources": {
             "stock_kline": "sina",
@@ -777,7 +944,9 @@ async def main() -> int:
     }
 
     if not args.skip_stocks:
-        report["steps"]["stock_klines"] = await sync_stock_klines(codes)
+        report["steps"]["stock_klines"] = await sync_stock_klines(
+            codes, concurrency=getattr(args, "concurrency", 1)
+        )
     if not args.skip_index:
         report["steps"]["index_klines"] = await sync_index_klines()
     if not args.skip_sector:

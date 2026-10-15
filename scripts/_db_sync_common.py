@@ -101,19 +101,44 @@ FULL_UNIVERSE = SEED_UNIVERSE
 
 # 股票池来源标识，供调用方判断是否降级到种子池。
 UNIVERSE_SOURCE_DB = "sqlite:stocks"
+UNIVERSE_SOURCE_SINA = "sina:Market_Center[hs_a]"
 UNIVERSE_SOURCE_TDX = "tdx:vipdoc"
 UNIVERSE_SOURCE_TUSHARE = "tushare:stock_basic"
 UNIVERSE_SOURCE_SEED = "seed:30"
 
-#: DB 里的 stocks 表至少要有这么多行才算一份可用的股票列表。低于它说明
-#: stocks 表没同步过，此时回退到别的来源比拿着一张残缺的表继续跑更诚实。
-MIN_DB_UNIVERSE = 100
+#: ``stocks`` 表至少要有这么多行，``auto`` 才直接信它。
+#:
+#: 这里曾经是 100，在那个门槛下 165 行的残缺表会被当成一份可用的股票列表，
+#: 于是"股票池=165 只"就固化下来了 —— 而 A 股实际有 5500 余只。门槛现在按
+#: 全市场规模设定：表够大就直接用（快），不够就去重新列举（准）。
+MIN_FULL_UNIVERSE = 4000
+
+def fetch_market_symbols() -> tuple[list[str], str]:
+    """向 Sina 列举全部 A 股代码，返回 (代码, 来源)。
+
+    失败时抛异常，不返回空列表：列举失败和"市场里没有股票"是两件事，
+    让它们长得一样正是这份代码此前的问题。
+    """
+
+    from akshare_mcp.data_source.sina_listing import fetch_all_a_share_symbols
+
+    result = fetch_all_a_share_symbols()
+    codes = [item["code"] for item in result["symbols"]]
+    if not result.get("complete"):
+        # 部分成功仍然可用，但必须说清楚它不完整。
+        print(
+            f"[universe] {UNIVERSE_SOURCE_SINA}: {len(codes)} symbols from "
+            f"{result['pages']} page(s), INCOMPLETE (failed pages: {result['failed_pages']})",
+            file=sys.stderr,
+        )
+    return codes, UNIVERSE_SOURCE_SINA
 
 
 def resolve_stock_universe() -> tuple[list[str], str]:
     """返回 (股票代码, 来源标识)。
 
-    优先级：本地 SQLite → 本地 TDX vipdoc → Tushare → 种子池。
+    优先级：本地 SQLite（仅当它足够大）→ Sina 全市场 → 本地 TDX vipdoc
+    → Tushare → 种子池。
 
     每个被跳过的来源都会记下原因并打到 stderr。旧实现用 `except Exception:
     pass` 吞掉失败，于是"数据库读挂了"和"数据库是空的"以及"真的只有 30 只
@@ -128,15 +153,25 @@ def resolve_stock_universe() -> tuple[list[str], str]:
                 rows = conn.execute(
                     "SELECT stock_code FROM stocks WHERE stock_code IS NOT NULL"
                 ).fetchall()
-            if len(rows) >= MIN_DB_UNIVERSE:
+            if len(rows) >= MIN_FULL_UNIVERSE:
                 return [r[0] for r in rows], UNIVERSE_SOURCE_DB
             skipped.append(
-                f"{UNIVERSE_SOURCE_DB}: {len(rows)} row(s), below the {MIN_DB_UNIVERSE}-row floor"
+                f"{UNIVERSE_SOURCE_DB}: {len(rows)} row(s), below the "
+                f"{MIN_FULL_UNIVERSE}-row full-market floor"
             )
         except Exception as exc:
             skipped.append(f"{UNIVERSE_SOURCE_DB}: {type(exc).__name__}: {exc}")
     else:
         skipped.append(f"{UNIVERSE_SOURCE_DB}: {DB_PATH} does not exist")
+
+    # Sina 全市场清单：本机唯一可达的完整列举来源。
+    try:
+        codes, source = fetch_market_symbols()
+        if codes:
+            return codes, source
+        skipped.append(f"{UNIVERSE_SOURCE_SINA}: no symbols returned")
+    except Exception as exc:
+        skipped.append(f"{UNIVERSE_SOURCE_SINA}: {type(exc).__name__}: {exc}")
 
     # 从本地 TDX vipdoc 列出（已内置过滤，只返回 A 股个股）
     if tdx_local.has_local:
