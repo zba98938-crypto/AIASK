@@ -32,6 +32,9 @@ from .spawn_policy_registry import (
     get_spawn_policy_version,
 )
 from .targets import _normalize_target_codes
+import logging
+
+logger = logging.getLogger(__name__)
 
 class StrategySpawner:
     """根据每日数据快照生成候选策略。"""
@@ -867,7 +870,8 @@ class StrategySpawner:
     def _safe_float(value: Any) -> float:
         try:
             return float(value or 0.0)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/domain/spawner.py:871: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0.0
 
     @staticmethod

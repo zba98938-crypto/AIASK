@@ -24,6 +24,9 @@ from .process_registry import ProcessRegistry
 from .paths import aiask_agent_home
 from .terminal_backends import TerminalBackendError, TerminalBackendManager, TerminalInvocation, backend_status, command_targets_aiask_runtime
 from .tools.policy import ToolPolicy, build_policy_from_env
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _envelope(
@@ -76,7 +79,8 @@ class WorkspaceGuard:
             try:
                 path.relative_to(root)
                 return True
-            except ValueError:
+            except ValueError as _swallowed:
+                logger.warning("packages/agent/src/aiask_agent/general_tools.py:80: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
         return False
 
@@ -189,7 +193,8 @@ def _load_checkpoint_metadata(checkpoint_dir: Path, *, checkpoint_id: str | None
     for metadata_path in checkpoint_dir.glob("fchk_*.json"):
         try:
             metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/general_tools.py:193: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if checkpoint_id and metadata.get("checkpoint_id") != checkpoint_id:
             continue
@@ -626,7 +631,8 @@ def build_general_tool_handlers(
                             matches.append({"path": str(file_path), "line": lineno, "text": line[:500]})
                             if len(matches) >= limit:
                                 break
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/agent/src/aiask_agent/general_tools.py:630: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     continue
             return _envelope(True, data={"query": query, "matches": matches}, tool_name=tool, level="read_only")
         except Exception as exc:

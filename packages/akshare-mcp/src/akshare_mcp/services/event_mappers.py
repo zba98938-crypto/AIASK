@@ -19,6 +19,9 @@ from .event_constants import (
     _coerce_date_text,
     _TIER_DEFAULT_RELIABILITY,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _clean(value: Any, limit: int = 1000) -> str:
     text = str(value or "").replace("\r", " ").replace("\n", " ").strip()
@@ -61,7 +64,8 @@ def _millis_to_date_text(value: Any) -> str:
         return ""
     try:
         return datetime.fromtimestamp(number / 1000, timezone.utc).date().isoformat()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/event_mappers.py:65: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return ""
 
 

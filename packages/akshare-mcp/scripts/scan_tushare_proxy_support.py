@@ -18,6 +18,9 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 import tushare as ts
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -90,7 +93,8 @@ def init_pro(token: str, http_url: str | None):
         try:
             pro._DataApi__token = token
             pro._DataApi__http_url = http_url
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/scripts/scan_tushare_proxy_support.py:94: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     return pro
 
@@ -131,7 +135,8 @@ def main() -> int:
             if df is not None and not df.empty and "ts_code" in df.columns:
                 cache[cache_key] = str(df.iloc[0]["ts_code"])
                 return cache[cache_key]
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/scripts/scan_tushare_proxy_support.py:135: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         cache[cache_key] = ""
         return ""

@@ -11,6 +11,9 @@ from .tool_catalog import (
     STANDARD_ENVELOPE_OUTPUT_SCHEMA,
     get_tool_contract as get_catalog_tool_contract,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 _CATEGORY_DESCRIPTIONS = {
@@ -231,7 +234,8 @@ def _iter_registered_tools(mcp):
                     result.append((name, t))
                 if result:
                     return result
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/search.py:235: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     return []
@@ -467,7 +471,8 @@ def register(mcp):
                     try:
                         from ..utils import safe_stderr_print
                         safe_stderr_print(f"[search_stocks] db like fallback failed: {type(exc_search).__name__}: {exc_search}")
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/search.py:471: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
 
             # FIX-11: 行业语义兜底 — 关键词检索仍 0 命中时回退到 semantic_stock_search
@@ -495,7 +500,8 @@ def register(mcp):
                     try:
                         from ..utils import safe_stderr_print
                         safe_stderr_print(f"[search_stocks] semantic fallback failed: {type(exc_sem).__name__}: {exc_sem}")
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/search.py:499: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
             
             return ok_with_meta(

@@ -13,6 +13,9 @@ from .search import _search_stocks_tushare_fallback
 from ..utils import ok, fail, suppress_stdout
 import statistics
 import math
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 _GENERIC_SEMANTIC_HINTS = {
@@ -146,7 +149,8 @@ async def _load_candidate_stock_rows(db, target_code: str, target_industry: str,
                 rows = [row for row in rows if row['code'] and row['code'] != target_code]
             if rows:
                 return candidate_scope, rows[:limit]
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/_vector_common.py:150: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     if not hasattr(db, 'acquire'):

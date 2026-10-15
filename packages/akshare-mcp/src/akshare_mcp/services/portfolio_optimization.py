@@ -6,6 +6,9 @@ import numpy as np
 from typing import List, Dict, Any, Optional, Tuple
 from scipy.optimize import minimize
 from scipy.linalg import inv
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     from sklearn.covariance import LedoitWolf
@@ -30,7 +33,8 @@ class PortfolioOptimizer:
                 rm = np.asarray(returns_matrix, dtype=float)
                 if rm.ndim == 2 and rm.shape[1] == cov.shape[0] and rm.shape[0] >= max(3, cov.shape[0]):
                     cov = LedoitWolf().fit(rm).covariance_
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/portfolio_optimization.py:34: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         cov = (cov + cov.T) / 2.0

@@ -262,7 +262,8 @@ class ExecutionUniverseContract:
         if isinstance(value, str):
             try:
                 return datetime.fromisoformat(value.replace("Z", "+00:00"))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/contracts/execution_universe.py:266: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
         return None
 

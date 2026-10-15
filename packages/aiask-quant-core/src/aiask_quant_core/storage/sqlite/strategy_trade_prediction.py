@@ -9,6 +9,9 @@ from typing import Any, Optional
 from uuid import uuid4
 
 from .strategy_factory_json_budget import bounded_json_text, strategy_json_field_max_bytes
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _string(value: Any) -> str:
@@ -29,7 +32,8 @@ def _coerce_float(value: Any) -> Optional[float]:
         if value in (None, ""):
             return None
         return float(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/strategy_trade_prediction.py:33: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

@@ -11,6 +11,9 @@ from ...services import get_artifact_async, list_artifacts_async, register_artif
 from ...services.rolling_model_registry import default_rolling_registry
 from .quant_mgr_artifact_common import _payload_from_artifact_row
 from .quant_mgr_helpers import _as_code_list, _safe_float
+import logging
+
+logger = logging.getLogger(__name__)
 
 MODEL_REGISTRY_STRATEGY = "quant_model_registry"
 MODEL_REGISTRY_VERSION = "p2.v1"
@@ -60,7 +63,8 @@ def _safe_optional_int(value: Any) -> int | None:
         return None
     try:
         return int(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_quant_mgr_model_registry_catalog_common.py:64: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 def _now_iso() -> str:

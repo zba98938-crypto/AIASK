@@ -13,6 +13,9 @@ from typing import Any, Optional
 import httpx
 
 from ..env_loader import load_mcp_env
+import logging
+
+logger = logging.getLogger(__name__)
 
 _POSITIVE_KEYWORDS = {
     "利好": 1.1,
@@ -104,13 +107,15 @@ def _parse_iso_date(value: Any) -> date | None:
     ):
         try:
             return parser(raw)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/financial_semantic_service.py:108: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     digits = "".join(ch for ch in raw if ch.isdigit())
     if len(digits) >= 8:
         try:
             return date.fromisoformat(f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}")
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/financial_semantic_service.py:114: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
     return None
 
@@ -125,7 +130,8 @@ def _json_loads_loose(text: str) -> dict[str, Any]:
     try:
         parsed = json.loads(content)
         return parsed if isinstance(parsed, dict) else {}
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/financial_semantic_service.py:129: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     match = re.search(r"\{.*\}", content, flags=re.S)
     if not match:
@@ -214,7 +220,8 @@ class FinancialSemanticService:
             return True
         try:
             return bool(getattr(client, "is_closed"))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/financial_semantic_service.py:218: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return False
 
     async def _ensure_client(self) -> httpx.AsyncClient:
@@ -229,7 +236,8 @@ class FinancialSemanticService:
             return
         try:
             await client.aclose()
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/financial_semantic_service.py:233: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     def is_enabled(self) -> bool:

@@ -40,6 +40,9 @@ except ImportError:
 import pandas as pd
 
 from ._quote_support import *
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _backfill_prev_close(payload: dict, code: str) -> dict:
@@ -119,7 +122,8 @@ def _ok_quote_response(
     try:
         from ...services.name_sanitize import wrap_response_with_clean_names
         response = wrap_response_with_clean_names(response, fallback="")
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/quote.py:123: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return response
 

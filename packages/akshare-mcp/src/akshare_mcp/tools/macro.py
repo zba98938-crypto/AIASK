@@ -19,6 +19,9 @@ from ..utils import (
     format_publish_date,
     parse_numeric,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _read_only_extra_meta(
@@ -154,7 +157,8 @@ def _try_tushare_macro(indicator: str, limit: int) -> Optional[tuple[dict[str, A
             records = records[-limit:][::-1]
             return {"indicator": indicator, "records": records}, "tushare_pro.shibor"
 
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/macro.py:158: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return None
 
@@ -543,7 +547,8 @@ def _try_akshare_macro(indicator: str, limit: int = 120) -> Optional[dict]:
         result = get_macro_indicator(indicator=indicator, limit=limit)
         if isinstance(result, dict) and result.get("success"):
             return result
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/macro.py:547: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return None
 

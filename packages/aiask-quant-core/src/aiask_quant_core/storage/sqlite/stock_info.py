@@ -38,7 +38,8 @@ def _safe_float(value: Any) -> Optional[float]:
         return None
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/stock_info.py:42: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -69,7 +70,8 @@ class StockInfoMixin:
             return None
         try:
             return float(value) * float(multiplier or 1.0)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/stock_info.py:73: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     @staticmethod
@@ -78,7 +80,8 @@ class StockInfoMixin:
             return None
         try:
             numeric = float(value)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/stock_info.py:82: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         if numeric <= 0:
             return numeric

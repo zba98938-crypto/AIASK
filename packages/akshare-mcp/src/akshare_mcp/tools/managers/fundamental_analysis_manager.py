@@ -365,13 +365,15 @@ def register_fundamental_analysis_manager(mcp):
                             df_fina = None
                             try:
                                 df_fina = ts_pro.fina_indicator(ts_code=ts_code, fields='end_date,roe,debt_to_assets,grossprofit_margin,netprofit_yoy,or_yoy')
-                            except Exception:
+                            except Exception as _swallowed:
+                                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/fundamental_analysis_manager.py:369: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                                 pass
                             
                             df_balance = None
                             try:
                                 df_balance = ts_pro.balancesheet(ts_code=ts_code, fields='end_date,total_liab,total_assets')
-                            except Exception:
+                            except Exception as _swallowed:
+                                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/fundamental_analysis_manager.py:375: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                                 pass
                             
                             if df_income is not None and not df_income.empty:
@@ -383,7 +385,8 @@ def register_fundamental_analysis_manager(mcp):
                                         try:
                                             if pd.isna(v):
                                                 rec[k] = None
-                                        except (TypeError, ValueError):
+                                        except (TypeError, ValueError) as _swallowed:
+                                            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/fundamental_analysis_manager.py:387: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                                             pass
                                 if df_fina is not None and not df_fina.empty:
                                     fina_map = {}
@@ -493,7 +496,8 @@ def register_fundamental_analysis_manager(mcp):
                                 metrics['market_cap'] = float(db_mcap)
                                 metrics['market_cap_source'] = 'db.stocks'
                             source_chain = _dedupe_chain(source_chain + ['db.stocks'])
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/fundamental_analysis_manager.py:497: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
                 
                 return _ok({

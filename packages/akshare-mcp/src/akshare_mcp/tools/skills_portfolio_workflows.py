@@ -9,6 +9,9 @@ import numpy as np
 
 from ..utils import normalize_code
 from . import skills_support as skill_support
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _skill_support():
@@ -127,7 +130,8 @@ async def exec_fund_manager_pro(params: Dict[str, Any]) -> Dict[str, Any]:
             for row in cleaned_rows:
                 try:
                     closes.append(float(row.get("close")))
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/skills_portfolio_workflows.py:131: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             if len(closes) < 30:
                 dropped.append(code)

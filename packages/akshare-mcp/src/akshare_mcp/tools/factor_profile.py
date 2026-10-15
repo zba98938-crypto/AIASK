@@ -9,6 +9,9 @@ from ..services.data_pipeline import build_cross_section_summary, compute_signal
 from ..storage import get_db
 from ..services.factor_calculator import factor_calculator
 from ..utils import ok, fail
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ── 因子名 → 计算逻辑映射 ──
@@ -199,7 +202,8 @@ async def _fetch_peer_codes(db, code: str, industry: str) -> tuple[list[str], li
                 extra_codes = [row["code"] for row in extra_rows if row["code"] not in industry_codes_db]
                 if extra_codes:
                     industry_codes_db = (industry_codes_db + extra_codes)[:50]
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/factor_profile.py:203: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         return industry_codes_db, market_codes_db
@@ -219,7 +223,8 @@ async def _collect_peer_factor_values(db, codes: list[str], lookback_days: int, 
             current = _series_last_value(compute_fn(closes))
             if current is not None and np.isfinite(current):
                 values.append(float(current))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/factor_profile.py:223: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return values
 

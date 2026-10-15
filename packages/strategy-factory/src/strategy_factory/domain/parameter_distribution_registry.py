@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from copy import deepcopy
 from typing import Any, Iterable, Mapping, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ParameterDistributionRegistry:
@@ -206,7 +209,8 @@ class ParameterDistributionRegistry:
                 if lo is not None and hi is not None:
                     try:
                         preferred = (float(lo) + float(hi)) / 2.0
-                    except (TypeError, ValueError):
+                    except (TypeError, ValueError) as _swallowed:
+                        logger.warning("packages/strategy-factory/src/strategy_factory/domain/parameter_distribution_registry.py:210: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
                 else:
                     continue

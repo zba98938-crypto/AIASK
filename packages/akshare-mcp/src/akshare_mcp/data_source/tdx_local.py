@@ -270,7 +270,8 @@ class TdxLocalSource:
                     ip, port = token.split(":", 1)
                     try:
                         servers.append((ip.strip(), int(port.strip())))
-                    except ValueError:
+                    except ValueError as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/tdx_local.py:274: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
                 else:
                     servers.append((token, 7709))
@@ -404,7 +405,8 @@ class TdxLocalSource:
             if self._hq_api is not None:
                 try:
                     self._hq_api.disconnect()
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/tdx_local.py:408: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             self._hq_api = None
             self._hq_server = None
@@ -583,7 +585,8 @@ class TdxLocalSource:
         try:
             if hasattr(ts, "strftime"):
                 return ts.strftime("%Y-%m-%d %H:%M:%S") if getattr(ts, "hour", 0) or getattr(ts, "minute", 0) else ts.strftime("%Y-%m-%d")
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/tdx_local.py:587: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         text = str(ts or row.get("date", "") or "")
         return text[:19] if " " in text else text[:10]

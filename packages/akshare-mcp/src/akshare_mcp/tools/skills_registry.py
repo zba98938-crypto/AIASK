@@ -7,6 +7,9 @@ import json
 from pathlib import Path
 import re
 from typing import Any, Callable, Dict, List, Mapping, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 _FALLBACK_SKILLS: List[Dict[str, Any]] = [
@@ -638,7 +641,8 @@ def _parse_skill_md(md_path: Path) -> Dict[str, Any]:
                     status = _normalize_skill_status(value)
                 elif key == "deprecated":
                     deprecated = _parse_bool_flag(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/skills_registry.py:642: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     category = "general"
@@ -710,7 +714,8 @@ def _load_skill_coverage_audit() -> Dict[str, Any] | None:
         return None
     try:
         payload = json.loads(audit_path.read_text(encoding="utf-8", errors="ignore"))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/skills_registry.py:714: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if not isinstance(payload, dict):
         return None
@@ -726,7 +731,8 @@ def _load_skill_capability_audit() -> Dict[str, Any] | None:
         return None
     try:
         payload = json.loads(audit_path.read_text(encoding="utf-8", errors="ignore"))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/skills_registry.py:730: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if not isinstance(payload, dict):
         return None
@@ -740,13 +746,15 @@ def _is_repo_local_skill(skill: Dict[str, Any]) -> bool:
         return False
     try:
         resolved = Path(path).resolve()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/skills_registry.py:744: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     repo_skills_root = repo_root / ".codex" / "skills"
     try:
         resolved.relative_to(repo_skills_root)
         return True
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/skills_registry.py:750: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
 
 

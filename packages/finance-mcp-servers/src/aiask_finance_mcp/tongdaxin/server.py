@@ -26,6 +26,9 @@ import sys
 from typing import Any
 
 from .._shared.redaction import redact_public_text, sanitize_public_payload
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ------------------------------------------------------------------
@@ -116,7 +119,8 @@ class TdxClient:
         if self._api and self._connected:
             try:
                 self._api.disconnect()
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/finance-mcp-servers/src/aiask_finance_mcp/tongdaxin/server.py:120: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             self._connected = False
 
@@ -541,7 +545,8 @@ def main() -> None:
             continue
         try:
             request = json.loads(line)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as _swallowed:
+            logger.warning("packages/finance-mcp-servers/src/aiask_finance_mcp/tongdaxin/server.py:545: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
 
         response = _handle_jsonrpc(request)

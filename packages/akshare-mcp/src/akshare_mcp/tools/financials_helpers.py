@@ -43,6 +43,9 @@ from ..date_utils import get_latest_trading_date
 from ..data_source import data_source
 from ..storage import run_with_db_cleanup
 from ..storage.sqlite.schema_base import default_sqlite_path
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _ok_stock_info_degraded(
     payload: dict,
@@ -200,7 +203,8 @@ def _pick_best_statement_row(df: Any, fields: tuple[str, ...], date_field: str =
     except Exception:
         try:
             return df.iloc[0]
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/financials_helpers.py:204: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
 

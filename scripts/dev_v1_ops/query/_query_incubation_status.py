@@ -16,6 +16,9 @@ import json
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _aiask_root() -> Path:
     override = os.getenv("AIASK_PROJECT_ROOT")
@@ -103,7 +106,8 @@ try:
     for rid, sj in cur.fetchall():
         try:
             sm = json.loads(sj) if sj else {}
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/dev_v1_ops/query/_query_incubation_status.py:107: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         lane = str(sm.get("submission_lane") or "")
         lanes[lane] += 1

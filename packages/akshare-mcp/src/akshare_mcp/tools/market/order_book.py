@@ -29,6 +29,9 @@ try:
 except ImportError:
     ak = None
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _build_exchange_code(code: str) -> str:
@@ -85,7 +88,8 @@ def _get_order_book_sina_direct(code: str) -> Optional[dict]:
             "asks": asks,
             "timestamp": int(time.time() * 1000),
         }
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/order_book.py:89: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -135,7 +139,8 @@ def _get_order_book_tencent_direct(code: str) -> Optional[dict]:
             "asks": asks,
             "timestamp": int(time.time() * 1000),
         }
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/order_book.py:139: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -318,7 +323,8 @@ def _get_trade_details_tencent_direct(code: str, limit: int) -> Optional[list[di
             )
 
         return details if details else None
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/order_book.py:322: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

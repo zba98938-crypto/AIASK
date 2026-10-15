@@ -4,6 +4,9 @@ from typing import Iterable
 
 import numpy as np
 from scipy import stats as sp_stats
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _clean(values: Iterable[float]) -> list[float]:
@@ -11,7 +14,8 @@ def _clean(values: Iterable[float]) -> list[float]:
     for value in values:
         try:
             numeric = float(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/data_pipeline/cross_section.py:15: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if np.isfinite(numeric):
             result.append(numeric)

@@ -18,6 +18,9 @@ from typing import Any
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from ..route_auth import is_loopback, token_matches
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _ws_authorized(websocket: WebSocket, token: str | None) -> bool:
@@ -78,7 +81,8 @@ def create_ws_router(
                             eid = int(event.get("id") or 0)
                             if eid > last_event_id:
                                 last_event_id = eid
-                        except (TypeError, ValueError):
+                        except (TypeError, ValueError) as _swallowed:
+                            logger.warning("packages/agent/src/aiask_agent/routes/ws.py:82: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             pass
                         await websocket.send_json({
                             "type": "run_event",
@@ -93,12 +97,14 @@ def create_ws_router(
                     last_heartbeat = now
 
                 await asyncio.sleep(poll_interval)
-        except WebSocketDisconnect:
+        except WebSocketDisconnect as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/routes/ws.py:97: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return  # 客户端正常断开
         except Exception:  # noqa: BLE001 - WS 长连接需兜底,避免协程泄漏
             try:
                 await websocket.close()
-            except Exception:  # noqa: BLE001
+            except Exception as _swallowed:
+                logger.warning("packages/agent/src/aiask_agent/routes/ws.py:102: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             return
 

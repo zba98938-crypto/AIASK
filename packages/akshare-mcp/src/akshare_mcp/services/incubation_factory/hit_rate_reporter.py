@@ -19,7 +19,8 @@ def _finite_float(value: Any) -> float | None:
         return None
     try:
         numeric = float(value)
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError, OverflowError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/hit_rate_reporter.py:23: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return numeric if math.isfinite(numeric) else None
 
@@ -438,7 +439,8 @@ class HitRateReporter:
                         numeric = _finite_float(lcb)
                         if numeric is not None:
                             older_skill_lcbs.append(numeric)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/hit_rate_reporter.py:442: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
         if not recent_skill_lcbs or not older_skill_lcbs:

@@ -814,7 +814,8 @@ async def _get_fund_flow_safe(code: str) -> dict | None:
         result = await asyncio.to_thread(get_stock_fund_flow, code)
         if isinstance(result, dict) and result.get("success"):
             return result.get("data")
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/trade_plan.py:818: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return None
 
@@ -1376,7 +1377,8 @@ async def _get_realtime_price(code: str) -> float | None:
         if isinstance(rt, dict) and rt.get("success"):
             p = float(rt.get("data", {}).get("price", 0))
             return p if p > 0 else None
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/trade_plan.py:1380: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 # --- trade_plan_parts/actions.py ---
@@ -1429,7 +1431,8 @@ async def generate_plan(
     patterns = []
     try:
         patterns = pattern_recognition.detect_patterns(klines)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/trade_plan.py:1433: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     # ── Step 4: 资金流

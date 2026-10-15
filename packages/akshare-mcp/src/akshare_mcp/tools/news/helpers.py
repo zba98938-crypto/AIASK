@@ -12,6 +12,9 @@ except ImportError:
 from ...core.rate_limiter import get_limiter
 from ...data_source import data_source
 from ...utils import format_period, normalize_code, pick_value
+import logging
+
+logger = logging.getLogger(__name__)
 
 _RETRY_SLEEP_SECONDS = float(os.getenv("AKSHARE_RETRY_SLEEP_SECONDS", "0.5"))
 
@@ -205,7 +208,8 @@ def _try_akshare_news_functions(code: str, limit: int) -> list[dict]:
             continue
         try:
             df = func(**kwargs)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/helpers.py:209: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if df is None or df.empty:
             continue

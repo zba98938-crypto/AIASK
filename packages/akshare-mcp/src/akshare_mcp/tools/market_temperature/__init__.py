@@ -52,6 +52,9 @@ from .helpers import (
     _stock_industry_matches,
     _summarize_forward_values,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def get_market_temperature_snapshot(
     limit: int = 300,
@@ -467,7 +470,8 @@ async def list_market_temperature_industry_constituents(
         for raw_row in list(rows or []):
             try:
                 candidates.append(dict(raw_row or {}))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market_temperature/__init__.py:471: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
         matches = [
             row

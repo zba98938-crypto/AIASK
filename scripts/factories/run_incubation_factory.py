@@ -23,7 +23,8 @@ def _configure_stdio_utf8() -> None:
             kernel32 = ctypes.windll.kernel32
             kernel32.SetConsoleCP(65001)
             kernel32.SetConsoleOutputCP(65001)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_incubation_factory.py:27: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name, None)
@@ -32,7 +33,8 @@ def _configure_stdio_utf8() -> None:
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")
             continue
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_incubation_factory.py:36: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         buffer = getattr(stream, "buffer", None)
         if buffer is not None:
@@ -47,7 +49,8 @@ def _configure_stdio_utf8() -> None:
                         line_buffering=True,
                     ),
                 )
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("scripts/factories/run_incubation_factory.py:51: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
 
@@ -61,6 +64,8 @@ STRATEGY_FACTORY_SRC = PROJECT_ROOT / "packages" / "strategy-factory" / "src"
 if str(STRATEGY_FACTORY_SRC) not in sys.path:
     sys.path.insert(0, str(STRATEGY_FACTORY_SRC))
 
+
+logger = logging.getLogger(__name__)
 from _integration_paths import default_sqlite_path, ensure_runtime_dirs, runtime_home
 
 from strategy_factory.runtime_bootstrap import ensure_factory_runtime

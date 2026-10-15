@@ -8,6 +8,9 @@ from ...storage import get_db
 from ...utils import normalize_code
 from ..manager_protocol import fail_with_meta, normalize_manager_kwargs, normalize_manager_payload, ok_with_meta
 from ..market import get_kline
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _normalize_kwargs(kwargs: dict) -> dict:
     """统一解析 kwargs 参数（兼容 JSON 字符串和 dict）"""
@@ -47,7 +50,8 @@ def _extract_closes_with_dates(klines):
             continue
         try:
             close_v = float(close)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_performance_manager_support.py:51: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
 
         dt = (

@@ -19,7 +19,8 @@ def _discard_task(task: asyncio.Task[Any]) -> None:
         return
     try:
         exc = task.exception()
-    except asyncio.CancelledError:
+    except asyncio.CancelledError as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/background_tasks.py:23: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return
     except Exception as exc:
         logger.warning("[background_tasks] failed to inspect completed task: %s", exc)

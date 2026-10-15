@@ -259,7 +259,8 @@ class ReferenceHost:
             import importlib.util
 
             return importlib.util.find_spec("aiask_agent.cli") is not None
-        except Exception:  # noqa: BLE001 - absence is the answer
+        except Exception as _swallowed:
+            logger.warning("packages/reference-host/src/aiask_reference_host/host.py:263: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return False
 
     def default_skill_bundle(self) -> SkillBundle:

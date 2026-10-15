@@ -11,6 +11,9 @@ from urllib.parse import urlparse
 
 from .general_tools import WorkspaceGuard
 from .tools.policy import ToolPolicy
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 _ADVISORIES_PATH = Path(__file__).resolve().parent / "data" / "known_advisories.json"
@@ -344,7 +347,8 @@ class SecurityScanner:
                 try:
                     name = str(dist.metadata.get("Name") or "").strip()
                     version = str(dist.version or "").strip()
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/agent/src/aiask_agent/security.py:348: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     continue
                 if not name:
                     continue
@@ -416,8 +420,10 @@ class SecurityScanner:
     def _safe_version(module_name: str) -> str:
         try:
             return str(importlib_metadata.version(module_name))
-        except importlib_metadata.PackageNotFoundError:
+        except importlib_metadata.PackageNotFoundError as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/security.py:420: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return ""
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/security.py:422: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return ""
 

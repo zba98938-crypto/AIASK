@@ -87,7 +87,8 @@ async def handle_incubation_sync_run(db, params: dict) -> dict:
             return value
         try:
             return date.fromisoformat(str(value)[:10])
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_incubation.py:91: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     sid = str(params.get("strategy_id") or params.get("id") or "").strip() or None

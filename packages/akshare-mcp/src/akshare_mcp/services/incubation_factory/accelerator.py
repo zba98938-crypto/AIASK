@@ -32,7 +32,8 @@ def _finite_float(value: Any) -> float | None:
         return None
     try:
         numeric = float(value)
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError, OverflowError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/accelerator.py:36: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return numeric if math.isfinite(numeric) else None
 
@@ -150,7 +151,8 @@ class IncubationAccelerator:
                     strategy_id=sid, status="open", limit=5
                 )
                 open_risks = len(risk_events)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/accelerator.py:154: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         if open_risks > 0:
@@ -187,7 +189,8 @@ class IncubationAccelerator:
                 else:
                     break
             return streak
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/accelerator.py:191: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0
 
     async def _trigger_acceleration(

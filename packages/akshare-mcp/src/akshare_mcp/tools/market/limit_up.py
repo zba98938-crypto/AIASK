@@ -198,7 +198,8 @@ def _tushare_http_call(api_name: str, params: dict | None = None, fields: str = 
         data = result.get("data", {})
         if data:
             return pd.DataFrame(data.get("items", []), columns=data.get("fields", []))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/limit_up.py:202: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return None
 
@@ -215,7 +216,8 @@ def _get_name_map() -> dict:
                 if code and name:
                     name_map[code] = name
             return name_map
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/limit_up.py:219: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return {}
 

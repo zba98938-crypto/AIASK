@@ -32,7 +32,8 @@ def _finite_float(value: Any) -> float | None:
         return None
     try:
         numeric = float(value)
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError, OverflowError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/hit_rate_matrix.py:36: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return numeric if math.isfinite(numeric) else None
 

@@ -191,6 +191,8 @@ class BuiltinTrackerAdapter(ExperimentTrackerAdapter):
 import logging
 import sys as _sys
 
+logger = logging.getLogger(__name__)
+
 _mlflow_fallback_warned = False
 _experiment_tracker_logger = logging.getLogger("akshare_mcp.experiment_tracker")
 
@@ -283,7 +285,8 @@ class MlflowTrackerAdapter(ExperimentTrackerAdapter):
                 "started_at": str(run.info.start_time),
                 "completed_at": str(run.info.end_time),
             }
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/adapters/experiment_tracker_adapter.py:287: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     def list_runs(

@@ -22,6 +22,9 @@ from .data_quality import build_quality_meta
 from .market.helpers import get_name_map as _get_cached_name_map
 
 from .fund_flow_common import _fetch_eastmoney_datacenter, _run_storage_call_sync
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _with_provider_contract(result: dict, tool_name: str, **kwargs: Any) -> dict:
@@ -121,7 +124,8 @@ def get_dragon_tiger(date: str = "", stock_code: str = "") -> dict:
                 anchor = datetime.strptime(requested_date, "%Y%m%d")
                 for offset in range(1, 6):
                     candidate_dates.append((anchor - timedelta(days=offset)).strftime("%Y%m%d"))
-            except ValueError:
+            except ValueError as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/fund_flow_market.py:125: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         resolved_date = requested_date
@@ -294,7 +298,8 @@ def get_dragon_tiger(date: str = "", stock_code: str = "") -> dict:
                         "source": source,
                     }
                 )
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/fund_flow_market.py:298: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
         response = ok(results)
@@ -715,7 +720,8 @@ def _get_security_meta_map(codes: set[str]) -> dict[str, dict[str, str]]:
         ts_code = f"{code}.SH" if code.startswith("6") else f"{code}.SZ"
         try:
             df = pro.stock_basic(ts_code=ts_code, list_status="L", fields="ts_code,name,industry")
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/fund_flow_market.py:719: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if df is None or df.empty:
             continue

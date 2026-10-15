@@ -5,6 +5,9 @@ from __future__ import annotations
 import os
 from datetime import date, datetime, time, timezone
 from typing import Any, Mapping, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 _EMPTY_VALUES = (None, "", [], {})
 _SUPPORTED_DSL_FIELDS = {"open", "high", "low", "close", "volume"}
@@ -178,7 +181,8 @@ def _coerce_iso_ts(value: Any) -> Optional[str]:
                         int(digits[6:8]),
                         tzinfo=timezone.utc,
                     )
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/strategy-factory/src/strategy_factory/application/semantic_contract.py:182: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     return None
             else:
                 return None

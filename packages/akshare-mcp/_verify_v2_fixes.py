@@ -15,6 +15,9 @@ import os
 import sys
 import traceback
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 _SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 _REPO_ROOT = os.path.abspath(os.path.join(_SCRIPT_DIR, "..", ".."))
@@ -51,7 +54,8 @@ if hasattr(sys.stdout, "reconfigure"):
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/_verify_v2_fixes.py:55: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
 # 让 import 找到 src/ 包(本脚本位于 packages/akshare-mcp/_verify_v2_fixes.py)

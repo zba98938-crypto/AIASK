@@ -43,7 +43,8 @@ def _safe_float(value: Any) -> Optional[float]:
             text = text[:-1]
         numeric = float(text)
         return numeric if numeric == numeric else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/external_gap_sync_service.py:47: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -55,7 +56,8 @@ def _norm_date(value: Any) -> str:
     text = str(value).strip()
     try:
         text = str(int(float(text)))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/external_gap_sync_service.py:59: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     if len(text) == 8 and text.isdigit():
         return f"{text[:4]}-{text[4:6]}-{text[6:8]}"

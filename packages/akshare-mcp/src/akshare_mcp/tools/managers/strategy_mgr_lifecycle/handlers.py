@@ -356,7 +356,8 @@ async def handle_factory_status(db, params: dict) -> dict:
                 raw = f"{raw[:-1]}+00:00"
             try:
                 ts = datetime.fromisoformat(raw)
-            except ValueError:
+            except ValueError as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/handlers.py:360: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
         if ts.tzinfo is None:
             return ts.replace(tzinfo=timezone.utc)

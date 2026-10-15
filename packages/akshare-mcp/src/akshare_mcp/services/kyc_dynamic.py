@@ -147,7 +147,8 @@ class KycDynamic:
                 return None
             settings = row['settings'] if isinstance(row['settings'], dict) else json.loads(row['settings'])
             return settings.get('kyc_level')
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/kyc_dynamic.py:151: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     async def _has_stable_history(self, user_id: str, db, days: int = 30) -> bool:
@@ -163,7 +164,8 @@ class KycDynamic:
                     user_id, int(days),
                 )
             return row and int(row['cnt']) >= 5
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/kyc_dynamic.py:167: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return False
 
 

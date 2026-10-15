@@ -79,7 +79,8 @@ class EliminationChecker:
                     return None
                 try:
                     return float(payload[key])
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as _swallowed:
+                    logger.warning("packages/strategy-factory/src/strategy_factory/application/elimination.py:83: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     return None
 
             max_drawdown_raw = _opt_float(backtest_metrics, "max_drawdown")

@@ -75,6 +75,9 @@ from .quant_mgr_classic import (
 from .quant_mgr_generation import handle_llm_factor_mining
 from .quant_mgr_validation import handle_validate_factor_candidate
 from .data_sync_manager import run_runtime_data_warmup
+import logging
+
+logger = logging.getLogger(__name__)
 
 _QUANT_MANAGER_IMPL = None
 _MARKET_CODE_PATTERN = re.compile(r"^\d{6}$")
@@ -139,7 +142,8 @@ def register_quant_manager(mcp):
                     extra = json.loads(tool_kwargs.get("params") or "{}")
                     if isinstance(extra, dict):
                         tool_kwargs = {**tool_kwargs, **extra}
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/quant_manager.py:143: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
 
             if tool_kwargs.get("kwargs") and isinstance(tool_kwargs.get("kwargs"), str):
@@ -147,7 +151,8 @@ def register_quant_manager(mcp):
                     extra = json.loads(tool_kwargs.get("kwargs") or "{}")
                     if isinstance(extra, dict):
                         tool_kwargs = {**tool_kwargs, **extra}
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/quant_manager.py:151: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
 
             if isinstance(tool_kwargs.get("kwargs"), dict):

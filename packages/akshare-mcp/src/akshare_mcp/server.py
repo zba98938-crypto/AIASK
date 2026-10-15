@@ -34,6 +34,9 @@ load_mcp_env(override=False)
 
 # 在所有导入之前抑制警告，避免干扰 MCP 协议通信
 import warnings
+
+logger = logging.getLogger(__name__)
+
 warnings.filterwarnings("ignore", category=DeprecationWarning)
 warnings.filterwarnings("ignore", message=".*Pydantic.*")
 warnings.filterwarnings("ignore", message=".*invalid escape sequence.*")
@@ -153,7 +156,8 @@ class _AsyncTaskServiceHandle:
         if self._task.done():
             try:
                 await self._task
-            except asyncio.CancelledError:
+            except asyncio.CancelledError as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/server.py:157: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return
             except Exception as exc:  # pragma: no cover - defensive logging
                 logging.getLogger(__name__).warning("[Server] background task %s failed: %s", self._name, exc)
@@ -162,7 +166,8 @@ class _AsyncTaskServiceHandle:
         self._task.cancel()
         try:
             await self._task
-        except asyncio.CancelledError:
+        except asyncio.CancelledError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/server.py:166: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return
         except Exception as exc:  # pragma: no cover - defensive logging
             logging.getLogger(__name__).warning("[Server] background task %s failed during shutdown: %s", self._name, exc)
@@ -211,14 +216,16 @@ def _acquire_background_services_leader() -> bool:
     except BlockingIOError:
         try:
             handle.close()
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/server.py:215: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         logger.info("[Server] background services leader lock already held: %s", lock_path)
         return False
     except Exception as exc:
         try:
             handle.close()
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/server.py:222: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         logger.warning("[Server] background services leader lock failed: %s", exc)
         return False
@@ -239,7 +246,8 @@ def _release_background_services_leader() -> None:
     finally:
         try:
             handle.close()
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/server.py:243: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
 

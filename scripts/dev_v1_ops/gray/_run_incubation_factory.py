@@ -19,6 +19,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 from collections import Counter
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _aiask_root() -> Path:
     override = os.getenv("AIASK_PROJECT_ROOT")
@@ -197,7 +200,8 @@ async def main():
                     pl = json.loads(pl_json) if pl_json else {}
                     for k, v in pl.items():
                         print(f"         payload.{k}: {v}")
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("scripts/dev_v1_ops/gray/_run_incubation_factory.py:201: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
         con.close()
 

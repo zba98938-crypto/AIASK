@@ -208,7 +208,8 @@ class _PipelineStageMixin:
                         "momentum_20d": round(float(raw.get("momentum_20d") or 0), 4),
                         "volatility_20d": round(float(raw.get("volatility_20d") or 0), 4),
                     })
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/pipeline_stages.py:212: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
         if stock_fundamentals:

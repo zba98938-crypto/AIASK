@@ -44,7 +44,8 @@ async def find_best_momentum_window(db: Any, default: int = 20) -> int:
                 if avg_ic > best_ic:
                     best_ic = avg_ic
                     best_window = window
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/domain/adaptive_parameters.py:48: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
 
     return best_window
@@ -63,7 +64,8 @@ async def find_best_volatility_window(db: Any, default: int = 20) -> int:
                 if avg_ic > best_ic:
                     best_ic = avg_ic
                     best_window = window
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/domain/adaptive_parameters.py:67: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
 
     return best_window

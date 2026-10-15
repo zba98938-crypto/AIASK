@@ -242,7 +242,8 @@ class DecayMonitor:
             if value is None:
                 return None
             return float(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/feedback/decay_monitor.py:246: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     @staticmethod
@@ -290,5 +291,6 @@ class DecayMonitor:
         except ValueError:
             try:
                 return datetime.strptime(text[:10], "%Y-%m-%d").date()
-            except ValueError:
+            except ValueError as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/feedback/decay_monitor.py:294: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None

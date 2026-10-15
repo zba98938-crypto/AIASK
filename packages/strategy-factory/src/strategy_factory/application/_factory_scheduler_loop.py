@@ -2173,7 +2173,8 @@ class _StrategyFactorySchedulerLoopMixin:
             try:
                 if callable(getattr(external_provider, "is_enabled", None)) and not external_provider.is_enabled():
                     return False
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/_factory_scheduler_loop.py:2177: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return False
             return not bool(cls._external_llm_health_snapshot(autonomy_gateway).get("scheduler_should_disable"))
 
@@ -2184,7 +2185,8 @@ class _StrategyFactorySchedulerLoopMixin:
                 return None
             try:
                 limit = int(getattr(getattr(external_provider, "config", None), "max_concurrency", 0) or 0)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/_factory_scheduler_loop.py:2188: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
             return max(1, limit) if limit > 0 else None
 
@@ -2211,7 +2213,8 @@ class _StrategyFactorySchedulerLoopMixin:
             if callable(resolver):
                 try:
                     return bool(resolver())
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/strategy-factory/src/strategy_factory/application/_factory_scheduler_loop.py:2215: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             return cls._env_bool(
                 "STRATEGY_FACTORY_BULK_LLM_ENABLED",
@@ -3244,7 +3247,8 @@ class _StrategyFactorySchedulerLoopMixin:
                                         try:
                                             os.kill(pid, 0)
                                             return True
-                                        except OSError:
+                                        except OSError as _swallowed:
+                                            logger.warning("packages/strategy-factory/src/strategy_factory/application/_factory_scheduler_loop.py:3248: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                                             return False
 
                                     current_pid = os.getpid()

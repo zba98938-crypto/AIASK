@@ -37,6 +37,9 @@ from aiask_quant_core.vector_collection_scope import (  # noqa: E402
     resolve_dimension_scoped_version,
     resolve_vector_collection_name,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _utc_now_iso() -> str:
@@ -49,7 +52,8 @@ def _affected_rows(tag: str) -> int:
         return 0
     try:
         return int(text.split()[-1])
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/scripts/remediate_market_doc_embedding_dimensions.py:53: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0
 
 

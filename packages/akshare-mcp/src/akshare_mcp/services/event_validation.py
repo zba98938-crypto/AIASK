@@ -18,6 +18,9 @@ from .event_constants import (
     _coerce_date_text,
     _unique_list,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _event_date_key(event: dict[str, Any]) -> str:
     for key in ("event_time", "publish_time", "evidence_time"):
@@ -258,7 +261,8 @@ class MultiSourceEventValidator:
         for item in rows:
             try:
                 count = max(count, int(_validation_summary_value(item).get(key) or 0))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/event_validation.py:262: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
         return count
 

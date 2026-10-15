@@ -5,6 +5,9 @@ import threading
 import time
 from collections import OrderedDict
 from typing import Any, Dict, Optional, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _default_cache_dir() -> str:
@@ -138,7 +141,8 @@ class SimpleCache:
             if temp_path and os.path.exists(temp_path):
                 try:
                     os.remove(temp_path)
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/cache.py:142: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
 
     def clear(self) -> int:
@@ -152,7 +156,8 @@ class SimpleCache:
                     try:
                         os.remove(path)
                         count += 1
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/cache.py:156: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
         return count
 
@@ -172,7 +177,8 @@ class SimpleCache:
                     file_count += 1
                     try:
                         total_size += os.path.getsize(os.path.join(self.cache_dir, name))
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/cache.py:176: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
             return {
                 **self._stats,

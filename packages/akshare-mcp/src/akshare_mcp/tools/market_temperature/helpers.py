@@ -8,13 +8,17 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from ...services.market_temperature import build_market_temperature_snapshot
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _safe_float(value: Any) -> float | None:
     if value in (None, ""):
         return None
     try:
         parsed = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market_temperature/helpers.py:18: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return parsed if math.isfinite(parsed) else None
 
@@ -74,7 +78,8 @@ async def _build_stock_row(db: Any, stock: dict[str, Any], *, as_of: str | None,
         klines = await db.get_klines(code, end_date=as_of, limit=max(21, int(min_bars or 20) + 1))
     except TypeError:
         klines = await db.get_klines(code, limit=max(21, int(min_bars or 20) + 1))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market_temperature/helpers.py:78: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if not klines:
         return None
@@ -289,7 +294,8 @@ def _parse_forward_horizons(value: Any) -> list[int]:
     for item in raw_items:
         try:
             parsed = float(item)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market_temperature/helpers.py:293: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if not math.isfinite(parsed):
             continue
@@ -358,7 +364,8 @@ def _parse_trade_date(value: Any) -> datetime | None:
         return None
     try:
         return datetime.strptime(text, "%Y-%m-%d")
-    except ValueError:
+    except ValueError as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market_temperature/helpers.py:362: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -396,13 +403,15 @@ async def _load_benchmark_bars(
                 rows = await reader(code, limit=500)
             except TypeError:
                 rows = await reader(code)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market_temperature/helpers.py:400: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         bars = []
         for raw_row in list(rows or []):
             try:
                 row = dict(raw_row or {})
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market_temperature/helpers.py:406: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             bar = _compact_benchmark_bar(row)
             if bar is not None:

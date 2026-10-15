@@ -40,7 +40,8 @@ def _fallback_market_breadth() -> tuple[dict, float | None, float | None, str | 
                         pct_values = [float(value) for value in df["pct_chg"].tolist() if value is not None]
                         if pct_values:
                             return _breadth_from_pct_list(pct_values), None, None, f"tushare.daily({check_date})"
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/macro_manager.py:44: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     continue
     except Exception as exc:
         logger.warning("[MacroManager] Tushare breadth fallback failed: %s", exc)

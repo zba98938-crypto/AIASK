@@ -65,7 +65,8 @@ class FactorPoolGateway:
                 if abs(float(labels.get(key) or 0.0)) > 1e-12:
                     all_zero = False
                     break
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/api.py:69: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         unknown_oos = (
             not bool(labels.get("oos_pass"))

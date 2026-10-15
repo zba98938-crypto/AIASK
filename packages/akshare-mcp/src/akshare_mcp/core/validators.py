@@ -8,6 +8,8 @@ import os
 from typing import Any, Optional
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
+logger = logging.getLogger(__name__)
+
 _logger = logging.getLogger(__name__)
 
 
@@ -47,7 +49,8 @@ class StockQuote(BaseModel):
         try:
             # 如果是浮点数，转换为整数
             return int(float(v))
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/core/validators.py:51: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     @field_validator('volume')
@@ -100,7 +103,8 @@ class KlineData(BaseModel):
         try:
             # 如果是浮点数，转换为整数
             return int(float(v))
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/core/validators.py:104: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     @field_validator('volume')

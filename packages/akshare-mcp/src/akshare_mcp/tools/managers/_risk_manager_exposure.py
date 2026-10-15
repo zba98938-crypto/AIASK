@@ -24,6 +24,9 @@ from .risk_mgr_helpers import (
     _safe_float,
     _safe_portfolio_id,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 async def _handle_risk_exposure(
@@ -385,7 +388,8 @@ async def _load_financial_row(db: Any, code: str, source_chain: list[str]) -> di
             return financials[0]
         if isinstance(financials, dict):
             return financials
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_risk_manager_exposure.py:389: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return None
 

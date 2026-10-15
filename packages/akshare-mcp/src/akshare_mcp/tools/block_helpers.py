@@ -19,6 +19,9 @@ from ..utils import (
 )
 from ..core.normalize import normalize_block_list, normalize_block_stock_list
 from ..provider_contracts import attach_tool_provider_contract_meta
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     import akshare as ak
@@ -39,7 +42,8 @@ def _is_placeholder_summary(block: dict) -> bool:
             and not str(leader_code or '').strip()
             and not str(leader_name or '').strip()
         )
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/block_helpers.py:43: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
 
 

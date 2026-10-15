@@ -12,6 +12,9 @@ from ..contracts.execution_universe import (
     ExecutionUniverseQuery,
     ExecutionUniverseStrategy,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 JSONDict = dict[str, Any]
@@ -581,7 +584,8 @@ try:
         MarketDataRepository as _SharedMarketDataRepository,
         StrategyFactoryRepository as _SharedStrategyFactoryRepository,
     )
-except ModuleNotFoundError:
+except ModuleNotFoundError as _swallowed:
+    logger.warning("packages/strategy-factory/src/strategy_factory/api/contracts.py:585: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
     pass
 else:
     StrategyFactoryRepository = _SharedStrategyFactoryRepository

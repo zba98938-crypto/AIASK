@@ -6,6 +6,9 @@ from typing import Any, Optional
 import json
 from ...utils import ok, fail
 from ..manager_protocol import normalize_manager_payload
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_kwargs(kwargs: dict) -> dict:
@@ -183,7 +186,8 @@ def register_options_manager(mcp):
                         res = await get_kline(normalize_code(code), 'daily', 1)
                         if res.get('success') and res.get('data'):
                             spot = float(res['data'][-1].get('close', 0) or 0)
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/options_manager.py:187: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
                 if spot is not None:
                     spot = float(spot)
@@ -301,7 +305,8 @@ def register_options_manager(mcp):
                                 spot = fetched_spot
                                 if kwargs.get('strike') is None:
                                     strike = spot  # 平值期权
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/options_manager.py:305: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
 
                 expiry_date = kwargs.get('expiry_date')
@@ -435,7 +440,8 @@ def register_options_manager(mcp):
                     try:
                         strike = float(item.get('strike'))
                         option_price = float(item.get('last'))
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/options_manager.py:439: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
 
                     option_type = str(item.get('type') or '').strip().lower()

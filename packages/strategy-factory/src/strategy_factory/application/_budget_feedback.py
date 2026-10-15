@@ -8,6 +8,9 @@ from ..domain.constants import (
     FACTORY_BACKLOG_RELAX_ENABLED,
     FACTORY_BACKLOG_RELAX_PRIORITY_PENALTY,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 FEEDBACK_METRIC_KEYS = (
     "ema_submit_count",
@@ -2139,7 +2142,8 @@ def _uses_bulk_matrix_plan(payload: dict[str, Any] | None) -> bool:
         try:
             if int(item.get(key) or 0) > 0:
                 return True
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/_budget_feedback.py:2143: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     if safe_float(item.get("stock_family_priority"), 0.0) > 0.0:
         return True

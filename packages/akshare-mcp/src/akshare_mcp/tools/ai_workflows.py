@@ -23,6 +23,9 @@ from .market.kline import get_kline
 from .pit_middleware import build_pit_meta_simple
 from .skills_strategy_workflows import build_strategy_review_workflow_payload
 from .tool_catalog import build_tool_meta
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_codes(code: str | None = None, codes: list[str] | None = None) -> list[str]:
@@ -61,7 +64,8 @@ def _nested_dict(value: Any, key: str) -> dict[str, Any]:
 def _safe_float(value: Any) -> float | None:
     try:
         parsed = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/ai_workflows.py:65: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return parsed if math.isfinite(parsed) else None
 
@@ -268,7 +272,8 @@ def _derive_decay_monitor_status(
             decay_status = str(decay_report.get("decay_status") or "").strip().lower()
             if decay_status in {"stable", "decaying", "decayed"}:
                 return decay_status
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/ai_workflows.py:272: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     return "not_monitored"
@@ -835,7 +840,8 @@ def register(mcp) -> None:
                     ),
                 )
                 factor_enrichment_payload = enrichment.to_dict()
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/ai_workflows.py:839: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
             result_payload: dict[str, Any] = {
@@ -1203,7 +1209,8 @@ def register(mcp) -> None:
                     calibration_report=report,
                 )
                 uncertainty_payload = uncertainty.to_dict()
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/ai_workflows.py:1207: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
             diagnosis_payload: dict[str, Any] = {

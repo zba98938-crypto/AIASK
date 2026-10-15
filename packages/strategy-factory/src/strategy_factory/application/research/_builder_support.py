@@ -17,6 +17,9 @@ from .._budget_feedback import (
     resolve_feedback_metrics,
     resolve_relaxed_research_control_mode,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class FactorResearchBuilderSupportMixin:
@@ -31,7 +34,8 @@ class FactorResearchBuilderSupportMixin:
     def _safe_int(value: Any) -> int:
         try:
             return int(value or 0)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/research/_builder_support.py:35: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0
 
     @classmethod
@@ -50,7 +54,8 @@ class FactorResearchBuilderSupportMixin:
         ):
             try:
                 return parser(raw)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/research/_builder_support.py:54: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
         return None
 
@@ -61,7 +66,8 @@ class FactorResearchBuilderSupportMixin:
         try:
             baseline = reference_date or date.today()
             return max((baseline - value).days, 0)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/research/_builder_support.py:65: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     @classmethod

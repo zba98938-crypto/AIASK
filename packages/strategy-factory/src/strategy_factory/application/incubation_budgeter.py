@@ -19,6 +19,9 @@ from ..domain.constants import (
     FACTORY_INCUBATION_FORMAL_SLOT_COUNT,
     FACTORY_INCUBATION_OBSERVE_SLOT_COUNT,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 _BASE_PRIORITY_SHARPE_WEIGHT = float(
     os.environ.get("STRATEGY_FACTORY_PRIORITY_SHARPE_WEIGHT", "10.0") or 10.0
@@ -905,7 +908,8 @@ class IncubationBudgeter:
             def _entry_score(entry: dict[str, Any]) -> float:
                 try:
                     return float(entry.get("priority_score") or 0.0)
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as _swallowed:
+                    logger.warning("packages/strategy-factory/src/strategy_factory/application/incubation_budgeter.py:909: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     return 0.0
             while (
                 exploration_pool

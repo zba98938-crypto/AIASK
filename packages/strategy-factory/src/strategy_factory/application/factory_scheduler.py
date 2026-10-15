@@ -287,11 +287,13 @@ class StrategyFactoryScheduler(_StrategyFactorySchedulerAnalysisMixin, _Strategy
                     }
                 try:
                     self._cycle_count = max(0, int(state.get("cycle_count") or 0))
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/strategy-factory/src/strategy_factory/application/factory_scheduler.py:291: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
                 try:
                     self._consecutive_failures = max(0, int(state.get("consecutive_failures") or 0))
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/strategy-factory/src/strategy_factory/application/factory_scheduler.py:295: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
                 circuit_state = str(state.get("circuit_state") or "closed").strip().lower()
                 if circuit_state in {"closed", "open", "half_open"}:
@@ -347,11 +349,13 @@ class StrategyFactoryScheduler(_StrategyFactorySchedulerAnalysisMixin, _Strategy
                     self._family_gate_feedback = restored
                 try:
                     self._cycle_count = max(0, int(state.get("cycle_count") or 0))
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/strategy-factory/src/strategy_factory/application/factory_scheduler.py:351: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
                 try:
                     self._consecutive_failures = max(0, int(state.get("consecutive_failures") or 0))
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/strategy-factory/src/strategy_factory/application/factory_scheduler.py:355: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
                 circuit_state = str(state.get("circuit_state") or "closed").strip().lower()
                 if circuit_state in {"closed", "open", "half_open"}:
@@ -375,8 +379,9 @@ class StrategyFactoryScheduler(_StrategyFactorySchedulerAnalysisMixin, _Strategy
                     self._restore_scheduler_state(),
                     name="strategy-factory-restore-state",
                 )
-            except RuntimeError:
+            except RuntimeError as _swallowed:
                 # 没有 running loop（同步 start 场景）—— 跳过自动恢复
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/factory_scheduler.py:380: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             self._task = asyncio.create_task(self._loop(), name="strategy-factory-scheduler")
             logger.info(

@@ -55,6 +55,9 @@ import math
 import os
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 _DEFAULT_PER_CANDIDATE_BUDGET_SEC = 30.0
@@ -100,7 +103,8 @@ def _safe_float(value: Any) -> Optional[float]:
         return None
     try:
         v = float(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/research/statistical_robustness.py:104: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if math.isnan(v) or math.isinf(v):
         return None

@@ -5,6 +5,9 @@ SQLite 适配器 — 财务数据 Mixin
 """
 
 from typing import List, Dict, Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _date_text(value: Any) -> str | None:
@@ -36,7 +39,8 @@ class FinancialsMixin:
                 return "stock_code"
             if "code" in cols:
                 return "code"
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/financials.py:40: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return "stock_code"
 

@@ -376,7 +376,8 @@ def _normalize_kwargs(kwargs: dict) -> dict:
             extra = json.loads(raw or "{}")
             if isinstance(extra, dict):
                 kwargs = {**kwargs, **extra}
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_execution_manager_support.py:380: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     if "code" not in kwargs or kwargs.get("code") is None:
@@ -704,7 +705,8 @@ def _enrich_kwargs_with_realtime(code: str, kwargs: dict) -> dict:
                 kwargs["avg_minute_volume"] = float(vol) / 240.0
                 # 标记为自动填充，避免将实时估算值直接用于高等级参与率风控判定（防止噪声误报）
                 kwargs["__auto_avg_minute_volume"] = True
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_execution_manager_support.py:708: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return kwargs
 

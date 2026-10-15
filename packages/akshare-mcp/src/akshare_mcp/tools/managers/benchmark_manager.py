@@ -183,7 +183,8 @@ def _compare(actual: Optional[float], op: str, threshold: float) -> Optional[boo
         return None
     try:
         val = float(actual)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/benchmark_manager.py:187: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if op == ">":
         return val > threshold

@@ -127,7 +127,8 @@ def _to_float(val: Any) -> Optional[float]:
     try:
         v = float(val)
         return v if v == v else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/tdx_sync_service.py:131: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 from .tdx_sync_market import _MarketSyncMixin

@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+logger = logging.getLogger(__name__)
+
 LOGGER = logging.getLogger("strategy_factory_quality_session")
 MARKET_TZ = ZoneInfo("Asia/Shanghai")
 DEFAULT_EXECUTION_MODE = "stock_first_observe_primary"
@@ -75,7 +77,8 @@ def _process_alive(pid: int) -> bool:
     if os.name != "nt":
         try:
             os.kill(pid, 0)
-        except OSError:
+        except OSError as _swallowed:
+            logger.warning("scripts/factories/_quality_session_common.py:79: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return False
         return True
     try:

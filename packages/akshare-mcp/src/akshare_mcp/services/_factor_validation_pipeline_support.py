@@ -19,6 +19,9 @@ from .validation import (
     probability_of_backtest_overfitting,
     white_reality_check,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 _SIMILARITY_BASIS_DEFINITIONS = [
     {"name": "basis_momentum_20d", "family": "momentum", "inputs": ["close"], "expression_dsl": "momentum_20d"},
@@ -512,7 +515,8 @@ def _build_multiple_testing_report(
             try:
                 basis_series = evaluate_compiled_factor(basis_compiled, frame)
                 basis_series_map[code] = pd.Series(basis_series.values, index=frame["date"].astype(str), dtype=float)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_factor_validation_pipeline_support.py:516: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
         basis_df = _build_panel(basis_series_map)
@@ -783,7 +787,8 @@ def _build_similarity_report(
             try:
                 basis_series = evaluate_compiled_factor(basis_compiled, frame)
                 basis_series_map[code] = pd.Series(basis_series.values, index=frame["date"].astype(str), dtype=float)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_factor_validation_pipeline_support.py:787: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
         basis_df = _build_panel(basis_series_map)

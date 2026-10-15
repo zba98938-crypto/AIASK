@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _utcnow_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
@@ -34,7 +37,8 @@ def _safe_float(value: Any) -> float | None:
         if value is None or value == "":
             return None
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/stock_deep_analysis/shared.py:38: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if number != number:
         return None

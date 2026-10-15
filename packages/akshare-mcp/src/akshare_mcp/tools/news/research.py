@@ -29,6 +29,9 @@ from ...utils import (
 from ..data_quality import build_quality_meta
 from ..fund_flow_common import _run_storage_call_sync
 from .helpers import _dedup_reports, _fetch_eastmoney_research
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _empty_degraded_response(data: dict, *, fallback_reason: str, source_chain: list[str]) -> dict:
@@ -200,7 +203,8 @@ def get_stock_research(
                             canonical_args=canonical_args,
                             alias_hits=alias_hits,
                         )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:204: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         # 2. 降级: 东财 datacenter 研报
@@ -214,7 +218,8 @@ def get_stock_research(
                     canonical_args=canonical_args,
                     alias_hits=alias_hits,
                 )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:218: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         # 3. 降级: AkShare
@@ -242,7 +247,8 @@ def get_stock_research(
                             canonical_args=canonical_args,
                             alias_hits=alias_hits,
                         )
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:246: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         return attach_argument_contract_meta(
@@ -330,9 +336,11 @@ def search_research(keyword: str = "", stock_code: str = "", days: int = 90) -> 
                                                               fields="ts_code,report_title,org_name,author_name,report_date,rating")
                                     if df_rc is not None and not df_rc.empty:
                                         df_ts = df_rc if df_ts is None or df_ts.empty else df_ts._append(df_rc, ignore_index=True)
-                                except Exception:
+                                except Exception as _swallowed:
+                                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:334: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                                     pass
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:336: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
 
                 if df_ts is not None and not df_ts.empty:
@@ -357,7 +365,8 @@ def search_research(keyword: str = "", stock_code: str = "", days: int = 90) -> 
                     reports = _filter_recent_reports(reports, since)
                     if reports:
                         return ok({"keyword": keyword, "stockCode": code, "reports": reports, "total": len(reports)})
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:361: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         # 2. 降级: 东财 datacenter
@@ -369,7 +378,8 @@ def search_research(keyword: str = "", stock_code: str = "", days: int = 90) -> 
                 if items:
                     reports = _filter_recent_reports([{"stockCode": code, **i} for i in items], since)
                     return ok({"keyword": keyword, "stockCode": code, "reports": reports, "total": len(reports)})
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:373: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         # 3. 降级: AkShare
@@ -397,7 +407,8 @@ def search_research(keyword: str = "", stock_code: str = "", days: int = 90) -> 
                     reports = _filter_recent_reports(reports, since)
                     if reports:
                         return ok({"keyword": keyword, "stockCode": code, "reports": reports, "total": len(reports)})
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:401: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         elif keyword:
             try:
@@ -454,7 +465,8 @@ def search_research(keyword: str = "", stock_code: str = "", days: int = 90) -> 
                                 "message": "已使用候选股票研报作为关键词检索补充结果",
                             }
                         )
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:458: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         # 终极降级: 查 DB research_reports 表（与 search_research_db 同源）
@@ -498,7 +510,8 @@ def search_research(keyword: str = "", stock_code: str = "", days: int = 90) -> 
                         "reports": reports, "total": len(reports),
                         "message": "结果来自数据库研报缓存",
                     })
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:502: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         return ok({"keyword": keyword, "stockCode": code, "reports": [], "total": 0, "message": "未找到匹配的研报"})
@@ -539,7 +552,8 @@ def get_analyst_ranking(year: str = "") -> dict:
                         if df is not None and not df.empty:
                             actual_year = str(try_year)
                             break
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:543: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
 
                 if df is not None and not df.empty:
@@ -574,7 +588,8 @@ def get_analyst_ranking(year: str = "") -> dict:
                             'source': 'tushare_report_rc',
                             'note': note,
                         })
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:578: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         # P3-5.20 fix: empty analysts → degraded=true(诊断报告 §5.20)
@@ -662,7 +677,8 @@ def get_research_reports(
                         canonical_args=canonical_args,
                         alias_hits=alias_hits,
                     )
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:666: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         # 1. AkShare 东财研报（支持 per-stock 过滤，字段完整）
@@ -691,7 +707,8 @@ def get_research_reports(
                             canonical_args=canonical_args,
                             alias_hits=alias_hits,
                         )
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:695: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         # 2. Tushare report_rc（需要日期范围才能有效过滤）
@@ -728,7 +745,8 @@ def get_research_reports(
                             canonical_args=canonical_args,
                             alias_hits=alias_hits,
                         )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:732: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         # 3. 东财 datacenter（RPT_RATINGCHANGE_DET）
@@ -832,7 +850,8 @@ def get_profit_forecast(
                         canonical_args=canonical_args,
                         alias_hits=alias_hits,
                     )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:836: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         # 2. Tushare forecast
@@ -849,7 +868,8 @@ def get_profit_forecast(
                         canonical_args=canonical_args,
                         alias_hits=alias_hits,
                     )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:853: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         # 3. AkShare
@@ -857,12 +877,14 @@ def get_profit_forecast(
             df = None
             try:
                 df = ak.stock_profit_forecast_em(symbol=code)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:861: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             if df is None or df.empty:
                 try:
                     df = ak.stock_profit_forecast_ths(symbol=code)
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:866: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             if df is not None and not df.empty:
                 try:
@@ -873,7 +895,8 @@ def get_profit_forecast(
                         canonical_args=canonical_args,
                         alias_hits=alias_hits,
                     )
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:877: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
 
         # P3-5.21 fix: 第四源 — 从研报正文回填盈利预测(诊断报告 §5.21)
@@ -886,7 +909,8 @@ def get_profit_forecast(
                     continue
                 try:
                     df_research = fn(symbol=code)
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:890: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     continue
                 if df_research is None or df_research.empty:
                     continue
@@ -926,7 +950,8 @@ def get_profit_forecast(
                             canonical_args=canonical_args,
                             alias_hits=alias_hits,
                         )
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/research.py:930: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     continue
 
         return attach_argument_contract_meta(

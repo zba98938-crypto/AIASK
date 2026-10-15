@@ -30,6 +30,9 @@ from .models import *  # noqa: F401,F403
 from .models import _CONTROL_SLASH_COMMANDS, _MEDIA_EXTENSIONS, _MEDIA_RE, _PHONE_PLATFORMS, _configured_from_env, _executable_command, _safe_json
 from .http_client import *  # noqa: F401,F403
 from . import http_client as _http
+import logging
+
+logger = logging.getLogger(__name__)
 
 class WebhookAdapter(BasePlatformAdapter):
     async def send(self, *, target: str, message: str, thread_id: str | None = None) -> dict[str, Any]:
@@ -357,7 +360,8 @@ class DiscordAdapter(BasePlatformAdapter):
 
             VerifyKey(bytes.fromhex(public_key)).verify(timestamp.encode("utf-8") + body, bytes.fromhex(signature))
             return True
-        except (ImportError, ValueError, BadSignatureError):
+        except (ImportError, ValueError, BadSignatureError) as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/gateway/adapters.py:361: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return False
 
 

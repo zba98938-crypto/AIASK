@@ -6,6 +6,9 @@ from typing import List, Dict, Any, Optional
 import numpy as np
 
 from .signal_quality_registry import get_default_signal_quality_registry
+import logging
+
+logger = logging.getLogger(__name__)
 
 # ── 新闻情绪关键词库 ──
 _BULLISH_KEYWORDS = [
@@ -69,13 +72,15 @@ class SentimentAnalyzer:
         ):
             try:
                 return parser(text)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/sentiment.py:73: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
         digits = "".join(ch for ch in text if ch.isdigit())
         if len(digits) >= 8:
             try:
                 return date.fromisoformat(f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}")
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/sentiment.py:79: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
         return None
 
@@ -604,7 +609,8 @@ class SentimentAnalyzer:
                     as_of=as_of,
                     payload=result,
                 )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/sentiment.py:608: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return result
     

@@ -15,6 +15,9 @@ from .general_tools import WorkspaceGuard, _sanitized_env
 from .paths import default_state_db_path
 from .session_store import now_iso
 from .paths import aiask_agent_home
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _dumps(value: Any) -> str:
@@ -308,14 +311,16 @@ class AgentJobStore:
         if minute.startswith("*/"):
             try:
                 step = max(1, min(int(minute[2:]), 59))
-            except ValueError:
+            except ValueError as _swallowed:
+                logger.warning("packages/agent/src/aiask_agent/scheduler.py:312: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
             next_minute = ((now.minute // step) + 1) * step
             candidate = now.replace(minute=0) + timedelta(minutes=next_minute)
             return candidate.timestamp()
         try:
             fixed = int(minute)
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/scheduler.py:319: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         if fixed < 0 or fixed > 59:
             return None

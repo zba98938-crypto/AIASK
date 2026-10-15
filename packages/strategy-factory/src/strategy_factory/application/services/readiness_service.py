@@ -18,6 +18,9 @@ from ...domain.constants import (
     resolve_factory_readiness_min_governed_active_families,
     resolve_event_runtime_mode,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 READINESS_CONTRACT_VERSION = "strategy_factory.readiness.v1"
 READINESS_AUTHORITY_CONTRACT_VERSION = "strategy_factory.readiness.authority.v1"
@@ -208,7 +211,8 @@ def _safe_optional_float(value: Any) -> float | None:
         return None
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/services/readiness_service.py:212: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -217,7 +221,8 @@ def _safe_optional_int(value: Any) -> int | None:
         return None
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/services/readiness_service.py:221: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

@@ -335,7 +335,8 @@ class LLMSearchEngine:
                 if lookahead.get("warnings"):
                     candidate.generation_trace["lookahead_warnings"] = lookahead["warnings"]
                 valid.append(candidate)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/engines/llm_engine.py:339: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
         return valid

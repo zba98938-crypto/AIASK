@@ -25,6 +25,9 @@ import traceback
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
+import logging
+
+logger = logging.getLogger(__name__)
 
 if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
@@ -496,7 +499,8 @@ def run_probe(doc_scan: dict[str, Any]) -> dict[str, Any]:
 
     try:
         tq.close()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/tdx_probe/probe_tdx_docs_full.py:500: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     derived = {

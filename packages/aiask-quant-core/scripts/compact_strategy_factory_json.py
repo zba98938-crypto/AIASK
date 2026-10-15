@@ -16,6 +16,9 @@ import sqlite3
 import sys
 from pathlib import Path
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[1]
@@ -141,7 +144,8 @@ COMPACT_STORAGE_MODES = {
 def json_size_bytes(value: Any) -> int:
     try:
         return len(json.dumps(value or {}, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8"))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/aiask-quant-core/scripts/compact_strategy_factory_json.py:145: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0
 
 

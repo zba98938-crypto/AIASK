@@ -159,14 +159,16 @@ def _normalize_committee_review(value: Optional[dict]) -> dict:
             continue
         try:
             normalized[key] = round(float(raw.get(key) or 0.0), 4)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/_quality_reporting_normalizers.py:163: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     for key in ("rank",):
         if raw.get(key) is None:
             continue
         try:
             normalized[key] = int(raw.get(key) or 0)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/_quality_reporting_normalizers.py:170: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     for key in ("is_champion",):
         if raw.get(key) is None:
@@ -268,7 +270,8 @@ def safe_metric_value(payload: Optional[dict], *keys: str) -> float:
         if key in data and data.get(key) is not None:
             try:
                 return float(data.get(key) or 0.0)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/_quality_reporting_normalizers.py:272: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return 0.0
     return 0.0
 
@@ -286,7 +289,8 @@ def optional_metric_value(payload: Optional[dict], *keys: str) -> float | None:
             continue
         try:
             return float(data[key])
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/_quality_reporting_normalizers.py:290: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
     return None
 
@@ -294,7 +298,8 @@ def optional_metric_value(payload: Optional[dict], *keys: str) -> float | None:
 def _safe_ratio(value: Any) -> float:
     try:
         return max(0.0, float(value or 0.0))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/_quality_reporting_normalizers.py:298: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0.0
 
 
@@ -303,7 +308,8 @@ def _safe_optional_float(value: Any) -> float | None:
         if value in (None, "", [], {}):
             return None
         return float(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/_quality_reporting_normalizers.py:307: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -425,7 +431,8 @@ def _derive_review_issue_buckets(
 def _is_near_zero(value: object, *, eps: float = _DEGENERATE_STAT_EPSILON) -> bool:
     try:
         return abs(float(value)) <= eps
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/_quality_reporting_normalizers.py:429: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
 
 
@@ -444,7 +451,8 @@ def has_degenerate_validation_statistics(validation_report: Optional[dict]) -> b
     for value in dict(rating.get("scores") or {}).values():
         try:
             score_values.append(float(value or 0.0))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/_quality_reporting_normalizers.py:448: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     zero_score_map = bool(score_values) and all(_is_near_zero(value) for value in score_values)
 

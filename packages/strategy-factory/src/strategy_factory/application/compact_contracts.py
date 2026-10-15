@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import json
 from typing import Any, Mapping
+import logging
+
+logger = logging.getLogger(__name__)
 
 COMPACT_PREVIEW_LIMIT = 12
 COMPACT_ARTIFACT_MAX_BYTES = 64 * 1024
@@ -107,7 +110,8 @@ SCALAR_METRIC_KEYS = (
 def json_size_bytes(value: Any) -> int:
     try:
         return len(json.dumps(value or {}, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8"))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/compact_contracts.py:111: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0
 
 

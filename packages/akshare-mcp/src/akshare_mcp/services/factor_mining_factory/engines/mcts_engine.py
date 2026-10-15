@@ -429,7 +429,8 @@ class MCTSSearchEngine:
                 "expression_dsl": expr,
             })
             return bool(compiled.get("valid"))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/engines/mcts_engine.py:433: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return False
 
     def _build_candidate(self, expr: str, index: int) -> FactorCandidate:

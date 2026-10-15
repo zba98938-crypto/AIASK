@@ -8,6 +8,9 @@ from .env_config import load_project_env, project_env_status, update_project_env
 from .model_client import MockModelClient, _openai_compatible_api_base, build_model_client_from_env
 from .model_providers import ModelProviderRegistry, ProviderUsageStore, prompt_cache_policy
 from .runtime import AgentRuntime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 AI_MODEL_PROVIDER_PRESETS: list[dict[str, Any]] = [
@@ -495,7 +498,8 @@ async def refresh_runtime_model_client(runtime: AgentRuntime) -> None:
                 closed = closer()
                 if hasattr(closed, "__await__"):
                     await closed
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/agent/src/aiask_agent/ai_payloads.py:499: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
 

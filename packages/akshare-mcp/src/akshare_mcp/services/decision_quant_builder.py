@@ -21,6 +21,9 @@ from ..utils import resolve_security_code
 from .decision_pipeline_shared import build_context_meta, clamp, safe_float
 from .decision_context_builder import _sanitize_warning_message
 from .signal_quality_registry import get_default_signal_quality_registry
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _pick_period_stat(container: dict[str, Any] | None, period: int) -> dict[str, Any]:
@@ -589,6 +592,7 @@ async def build_quant_context(
             as_of=str((ordered[-1] or {}).get("date") or ""),
             payload=result,
         )
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/decision_quant_builder.py:593: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return result

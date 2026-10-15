@@ -21,6 +21,9 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ── Result dataclass ──────────────────────────────────────────────────────────
@@ -339,7 +342,8 @@ class GreatExpectationsAdapter(DataValidationAdapter):
             self._available = True
             self._gx = gx
             self._pd = pd
-        except ImportError:
+        except ImportError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/adapters/data_validation_adapter.py:343: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     @staticmethod

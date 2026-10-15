@@ -2,6 +2,9 @@ import sqlite3
 import json
 
 from _integration_paths import default_sqlite_path
+import logging
+
+logger = logging.getLogger(__name__)
 
 conn = sqlite3.connect(str(default_sqlite_path()))
 
@@ -24,7 +27,8 @@ for row in cursor:
             for field in found_fields:
                 if field in params and params[field]:
                     found_fields[field] += 1
-        except:
+        except BaseException as _swallowed:
+            logger.warning("scripts/check_contract_fields.py:28: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
 print("Checked first 100 strategies:")

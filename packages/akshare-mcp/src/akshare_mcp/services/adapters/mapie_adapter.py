@@ -24,6 +24,9 @@ import math
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ── Result dataclass ──────────────────────────────────────────────────────────
@@ -201,7 +204,8 @@ class MapieConformalAdapter(ConformalPredictionAdapter):
             self._linear_regression = LinearRegression
             self._split_classifier = SplitConformalClassifier
             self._split_regressor = SplitConformalRegressor
-        except ImportError:
+        except ImportError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/adapters/mapie_adapter.py:205: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     @staticmethod

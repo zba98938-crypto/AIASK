@@ -12,6 +12,9 @@ from .services.readiness_service import (
     resolve_governed_pool_state,
     resolve_market_temperature_context,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 _VALIDATION_GRADE_ORDER: dict[str, int] = {
     "D": 0,
@@ -150,7 +153,8 @@ def _aggregate_submission_action_type_counts(submit_result: dict[str, Any]) -> d
 def _safe_int(value: Any) -> int:
     try:
         return int(value or 0)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/_cycle_success_aggregators.py:154: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0
 
 

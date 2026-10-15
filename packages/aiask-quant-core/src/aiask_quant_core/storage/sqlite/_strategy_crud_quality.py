@@ -33,7 +33,8 @@ class _StrategyCrudQualityMixin:
         def _quality_json_size_bytes(cls, value: Any) -> int:
             try:
                 return len(json.dumps(value or {}, ensure_ascii=False, default=str).encode("utf-8"))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/_strategy_crud_quality.py:37: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return 0
 
         @classmethod

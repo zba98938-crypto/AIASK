@@ -19,6 +19,9 @@ from __future__ import annotations
 import hashlib
 import json
 from typing import Any, Iterable
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 #: Prefixes identifying tables owned by the factory domain, i.e. the ones whose
@@ -105,7 +108,8 @@ def _normalize_column(row: Any) -> dict[str, Any]:
         except (KeyError, IndexError, TypeError):
             try:
                 return row[index]
-            except (IndexError, TypeError, KeyError):
+            except (IndexError, TypeError, KeyError) as _swallowed:
+                logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/factory_schema_fingerprint.py:109: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
 
     return {
@@ -129,7 +133,8 @@ async def collect_factory_schema(conn) -> dict[str, list[dict[str, Any]]]:
     for row in rows or []:
         try:
             name = str(row["name"])
-        except (KeyError, IndexError, TypeError):
+        except (KeyError, IndexError, TypeError) as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/factory_schema_fingerprint.py:133: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if not is_factory_table(name):
             continue

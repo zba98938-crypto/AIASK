@@ -25,6 +25,9 @@ from typing import Any
 from .connector_safety import financial_connector_safety_metadata
 from .paths import aiask_agent_home
 from .session_store import now_iso
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -248,7 +251,8 @@ class ConnectorManager:
                     description=info.get("description", ""),
                     metadata={"tool_count": info.get("tool_count", 0)},
                 ))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/connector_manager.py:252: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return results
 
@@ -278,7 +282,8 @@ class ConnectorManager:
                     description=plugin.get("description", ""),
                     metadata={"version": plugin.get("version", "")},
                 ))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/connector_manager.py:282: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return results
 

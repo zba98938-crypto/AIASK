@@ -10,6 +10,9 @@ from typing import Any, Optional
 import httpx
 
 from ..env_loader import load_mcp_env
+import logging
+
+logger = logging.getLogger(__name__)
 
 _TERMINAL_EVENT_STATUSES = {"filled", "cancelled", "rejected"}
 
@@ -30,7 +33,8 @@ def _safe_float(value: Any) -> float | None:
         if value in (None, ""):
             return None
         return float(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_live_broker_support.py:34: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 def _safe_int(value: Any) -> int | None:
@@ -38,7 +42,8 @@ def _safe_int(value: Any) -> int | None:
         if value in (None, ""):
             return None
         return int(float(value))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_live_broker_support.py:42: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 def _safe_text(*values: Any) -> str | None:

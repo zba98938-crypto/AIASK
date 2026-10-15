@@ -23,6 +23,9 @@ from .incubation import (
 )
 from .signal_tracker import _build_signal_tracking_artifacts
 from aiask_quant_core.storage.trade_audit_writer import record_trade_fill_from_order_and_trade
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _safe_float(value: Any, default: float = 0.0) -> float:
     try:
@@ -48,7 +51,8 @@ def _parse_affected_rows(value: Any) -> int:
         return 0
     try:
         return int(token.split()[-1])
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/acceptance_helpers.py:52: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0
 
 
@@ -62,7 +66,8 @@ def _coerce_trade_date(value: Any) -> Optional[date]:
         return None
     try:
         return date.fromisoformat(text[:10])
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/acceptance_helpers.py:66: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

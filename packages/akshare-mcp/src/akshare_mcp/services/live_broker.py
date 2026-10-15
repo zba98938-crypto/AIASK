@@ -25,6 +25,9 @@ from ._live_broker_support import (
     _safe_int,
     _safe_text,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 class LiveBrokerError(RuntimeError):
     """Raised when the broker gateway request fails."""
@@ -149,7 +152,8 @@ class BaseBrokerAdapter:
     async def close(self) -> None:
         try:
             await self._client.aclose()
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/live_broker.py:153: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     def is_configured(self) -> bool:
@@ -852,7 +856,8 @@ class TradierBrokerAdapter(BaseBrokerAdapter):
         if order_ref:
             try:
                 return await self.get_order(order_ref)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/live_broker.py:856: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         response_payload = dict(response.get("order") or response) if isinstance(response, dict) else {}
         response_payload.setdefault("symbol", symbol.upper())

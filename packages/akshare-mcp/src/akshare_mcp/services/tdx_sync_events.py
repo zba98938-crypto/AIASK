@@ -127,7 +127,8 @@ def _to_float(val: Any) -> Optional[float]:
     try:
         v = float(val)
         return v if v == v else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/tdx_sync_events.py:131: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -248,7 +249,8 @@ class _EventsSyncMixin:
                         data_source.get_divid_factors,
                         code, year_start, year_end,
                     )
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/services/tdx_sync_events.py:252: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     continue
                 bare = code.split(".")[0] if "." in code else code
                 for r in rows or []:

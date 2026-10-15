@@ -65,7 +65,8 @@ class DataSyncScheduler:
             try:
                 parts = env_time.split(":")
                 sync_time = time(int(parts[0]), int(parts[1]))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/data_sync_scheduler.py:69: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         env_startup = os.getenv("DATA_SYNC_ON_STARTUP", "").strip().lower()
@@ -184,7 +185,8 @@ class DataSyncScheduler:
                 "[DataSyncScheduler] startup sync done: %s",
                 {k: v for k, v in (result or {}).items() if k != "errors"},
             )
-        except asyncio.CancelledError:
+        except asyncio.CancelledError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/data_sync_scheduler.py:188: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         except Exception as e:
             logger.error("[DataSyncScheduler] startup sync error: %s", e, exc_info=True)

@@ -201,7 +201,8 @@ class RLAlphaGenEngine:
                     if evidence.get("passed"):
                         candidate.fitness = float(evidence.get("quality_score") or 0.0) / 20.0
                         candidates.append(candidate)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/engines/rl_engine.py:205: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
         return candidates
 
@@ -314,7 +315,8 @@ class RLAlphaGenEngine:
                 "expression_dsl": expression,
             })
             return bool(compiled.get("valid"))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/engines/rl_engine.py:318: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return False
 
     async def _compute_reward(self, expression: str, context: Any) -> float:
@@ -344,7 +346,8 @@ class RLAlphaGenEngine:
                 seed_exprs = {s.get("expression_dsl", "") for s in getattr(context, "seed_factors", [])}
                 if expression not in seed_exprs:
                     reward += 0.05
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/engines/rl_engine.py:348: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         evaluator = getattr(context, "quick_ic_evaluator", None)

@@ -5,6 +5,9 @@ import time
 import numpy as np
 from ...storage import get_db
 from ..manager_protocol import fail_with_meta, normalize_manager_kwargs, normalize_manager_payload, ok_with_meta
+import logging
+
+logger = logging.getLogger(__name__)
 
 _SECTOR_ALIAS_HINTS = {
     "白酒": ["酿酒", "酒"],
@@ -313,7 +316,8 @@ def register_sector_manager(mcp):
                         if rows:
                             source_chain.append('db.block_stocks')
                             return [{'code': str(row['stock_code'])} for row in rows if row.get('stock_code')], 'db_block_stocks'
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/sector_manager.py:317: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
 
                     stocks_res = await get_block_stocks(block_code)
@@ -346,7 +350,8 @@ def register_sector_manager(mcp):
                         try:
                             if raw_change is not None:
                                 realtime_returns.append(float(raw_change) / 100.0)
-                        except Exception:
+                        except Exception as _swallowed:
+                            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/sector_manager.py:350: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             pass
 
                     avg_return = None
@@ -455,7 +460,8 @@ def register_sector_manager(mcp):
                                     'strength': 'strong' if avg_chg > 2 else ('weak' if avg_chg < -1 else 'medium')
                                 })
                             sectors.sort(key=lambda x: x['return'], reverse=True)
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/sector_manager.py:459: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
                 
                 if not sectors:

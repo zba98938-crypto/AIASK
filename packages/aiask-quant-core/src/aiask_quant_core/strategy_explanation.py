@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 EXPLANATION_VERSION = "strategy_explanation.v1"
@@ -129,7 +132,8 @@ def _metric_summary(metrics: Any) -> dict[str, Any]:
 def _format_pct(value: Any) -> str | None:
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/aiask-quant-core/src/aiask_quant_core/strategy_explanation.py:133: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return f"{number:.1%}"
 
@@ -137,7 +141,8 @@ def _format_pct(value: Any) -> str | None:
 def _format_float(value: Any) -> str | None:
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/aiask-quant-core/src/aiask_quant_core/strategy_explanation.py:141: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return f"{number:.2f}"
 

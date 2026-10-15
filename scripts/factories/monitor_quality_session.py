@@ -8,6 +8,9 @@ import json
 import sys
 from pathlib import Path
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 def find_latest_session():
     """查找最新的 Quality Session"""
@@ -26,7 +29,8 @@ def parse_state(state_file):
     try:
         with open(state_file, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except:
+    except BaseException as _swallowed:
+        logger.warning("scripts/factories/monitor_quality_session.py:30: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 def parse_session_lock(lock_file):
@@ -37,7 +41,8 @@ def parse_session_lock(lock_file):
     try:
         with open(lock_file, 'r', encoding='utf-8') as f:
             return json.load(f)
-    except:
+    except BaseException as _swallowed:
+        logger.warning("scripts/factories/monitor_quality_session.py:41: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 def get_latest_rounds(rounds_dir, limit=5):
@@ -53,7 +58,8 @@ def get_latest_rounds(rounds_dir, limit=5):
             with open(round_file, 'r', encoding='utf-8') as f:
                 data = json.load(f)
                 results.append((round_file.stem, data))
-        except:
+        except BaseException as _swallowed:
+            logger.warning("scripts/factories/monitor_quality_session.py:57: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
 
     return results
@@ -72,7 +78,8 @@ def check_compensation_logic(log_file):
                     issues.append(f"Line {i}: {line.strip()[:100]}")
                 if 'stale_paper_position_closure' in line_lower:
                     issues.append(f"Line {i}: [WARN] Stale position closure: {line.strip()[:80]}")
-    except:
+    except BaseException as _swallowed:
+        logger.warning("scripts/factories/monitor_quality_session.py:76: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     return issues
@@ -108,7 +115,8 @@ def main():
                 now = datetime.now(deadline_dt.tzinfo)
                 remaining = (deadline_dt - now).total_seconds() / 3600
                 print(f"  剩余时间: {remaining:.1f} 小时")
-            except:
+            except BaseException as _swallowed:
+                logger.warning("scripts/factories/monitor_quality_session.py:112: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
     # 2. 状态统计

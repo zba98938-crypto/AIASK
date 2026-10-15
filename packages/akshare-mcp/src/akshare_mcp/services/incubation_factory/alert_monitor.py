@@ -106,7 +106,8 @@ class AlertMonitor:
                 last_run = datetime.fromisoformat(
                     timestamp_str.replace("Z", "+00:00")
                 )
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/alert_monitor.py:110: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
 
             now = datetime.now(timezone.utc)
@@ -200,7 +201,8 @@ class AlertMonitor:
                                 created.replace("Z", "+00:00")
                             )
                             break
-                        except (ValueError, TypeError):
+                        except (ValueError, TypeError) as _swallowed:
+                            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/alert_monitor.py:204: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             continue
 
             if last_promotion is None:

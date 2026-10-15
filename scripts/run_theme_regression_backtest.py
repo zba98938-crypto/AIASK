@@ -19,6 +19,9 @@ import json
 import os
 import sys
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[1]
 for pkg_src in [ROOT / "packages" / "akshare-mcp" / "src", ROOT / "packages" / "strategy-factory" / "src"]:
@@ -80,7 +83,8 @@ async def main():
             if isinstance(raw_tags, str):
                 try:
                     industry_tags = json.loads(raw_tags)
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("scripts/run_theme_regression_backtest.py:84: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
 
             if not industry_tags:

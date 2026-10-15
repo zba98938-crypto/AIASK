@@ -1,5 +1,8 @@
 from ._vector_common import *
 from ..utils import propagate_data_quality_to_top
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def search_similar_stocks(
     code: str,
@@ -186,7 +189,8 @@ async def search_similar_stocks(
                 financials = await db.get_financials(code, limit=1)
                 if financials:
                     target_financial_row = financials[0]
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/_vector_search_similar.py:190: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         if resolved_similarity_type in ['technical', 'both']:
             try:

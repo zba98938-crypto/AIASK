@@ -39,6 +39,8 @@ if str(STRATEGY_FACTORY_SRC) not in sys.path:
 
 from strategy_factory.runtime_bootstrap import ensure_factory_runtime
 
+logger = logging.getLogger(__name__)
+
 ensure_factory_runtime(
     project_root=PROJECT_ROOT,
     script_path=Path(__file__).resolve(),
@@ -64,7 +66,8 @@ def _load_project_env() -> None:
         from akshare_mcp.env_loader import load_mcp_env
 
         load_mcp_env(override=False)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/scripts/run_incubation_factory.py:68: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
 

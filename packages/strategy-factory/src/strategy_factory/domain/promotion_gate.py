@@ -37,7 +37,8 @@ def _finite_float(value: Any) -> Optional[float]:
         return None
     try:
         numeric = float(value)
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError, OverflowError) as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/domain/promotion_gate.py:41: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return numeric if math.isfinite(numeric) else None
 

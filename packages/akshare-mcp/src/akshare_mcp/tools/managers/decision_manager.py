@@ -131,7 +131,8 @@ def register_decision_manager(mcp):
                     if klines:
                         try:
                             await db.save_klines(code, klines)
-                        except Exception:
+                        except Exception as _swallowed:
+                            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/decision_manager.py:135: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             pass
                 
                 if not klines or len(klines) < 20:
@@ -177,7 +178,8 @@ def register_decision_manager(mcp):
                         return None
                     try:
                         return float(v)
-                    except (TypeError, ValueError):
+                    except (TypeError, ValueError) as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/decision_manager.py:181: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         return None
 
                 roe = _to_float_or_none(latest_financial.get('roe')) if latest_financial else None

@@ -39,7 +39,8 @@ def _safe_last_numeric(series: Any) -> float | None:
     val = series[-1]
     try:
         return float(val)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/technical_analysis_manager.py:43: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -369,7 +370,8 @@ def register_technical_analysis_manager(mcp):
                     if klines:
                         try:
                             await db.save_klines(code, klines)
-                        except Exception:
+                        except Exception as _swallowed:
+                            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/technical_analysis_manager.py:373: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             pass
 
                 if not klines:

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import sqlite3
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def ensure_session_store_schema(conn: sqlite3.Connection) -> None:
@@ -360,6 +363,7 @@ def ensure_session_store_schema(conn: sqlite3.Connection) -> None:
             USING fts5(kind, object_id, session_id, user_id, content, payload_json)
             """
         )
-    except sqlite3.OperationalError:
+    except sqlite3.OperationalError as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/session_store_schema.py:364: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     conn.commit()

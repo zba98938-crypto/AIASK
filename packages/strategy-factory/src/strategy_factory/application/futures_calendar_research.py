@@ -22,6 +22,9 @@ from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _resolve_repo_root() -> Path:
@@ -287,7 +290,8 @@ def _to_ohlcv_projection(series: pd.Series) -> pd.DataFrame:
 def _load_optional_text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8").strip()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/futures_calendar_research.py:291: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return ""
 
 class FuturesCalendarResearchAdapter:

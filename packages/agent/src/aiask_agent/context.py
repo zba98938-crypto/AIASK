@@ -6,6 +6,9 @@ from typing import Any, TYPE_CHECKING
 from uuid import uuid4
 
 from .env_config import load_project_env
+import logging
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .model_client import ModelClient
@@ -128,7 +131,8 @@ class ContextManager:
                         user_id=user_id,
                         research_topic="trajectory_compression_summary"
                     )
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/agent/src/aiask_agent/context.py:132: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
                     
             return summary

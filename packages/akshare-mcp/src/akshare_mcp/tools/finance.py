@@ -74,7 +74,8 @@ async def _stock_info_from_db(code: str) -> Optional[dict]:
                     "floatMarketCap": "",
                     "raw": dict(payload),
                 }
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/finance.py:78: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return None
 
@@ -112,7 +113,8 @@ def _stock_info_from_sqlite(code: str) -> Optional[dict]:
             }
         finally:
             conn.close()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/finance.py:116: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -128,6 +130,10 @@ from .financials_helpers import (
     _read_financial_cache_entry,
     _row_non_null_count,
 )
+import logging
+
+logger = logging.getLogger(__name__)
+
 def _call_with_retry(fn: Callable[[], T]) -> T:
     last_error: Optional[Exception] = None
     for _ in range(_FINANCE_RETRY):
@@ -836,7 +842,8 @@ def get_stock_info(
                             cm_val = db_row.get('circ_mv')
                             float_market_cap = f"{float(cm_val) * 10000:.0f}" if cm_val and cm_val == cm_val else ""
                             break
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/finance.py:840: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             payload = {
                 "code": code,

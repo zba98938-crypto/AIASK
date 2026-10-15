@@ -319,7 +319,8 @@ class MatchingEngine:
             if res and res.get('success') and res.get('data'):
                 d = res['data']
                 return d.get('price') or d.get('close') or d.get('now')
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/matching_engine.py:323: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return None
 
@@ -330,7 +331,8 @@ class MatchingEngine:
             res = await get_quote_snapshot_response(normalize_code(code), fallback_mode=FALLBACK_DB_ONLY)
             if res and res.get('success') and res.get('data'):
                 return res['data'].get('prev_close') or res['data'].get('pre_close')
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/matching_engine.py:334: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return None
 

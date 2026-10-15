@@ -19,6 +19,9 @@ from .decision_context_builder import build_stock_context, build_user_context
 from .decision_contracts import get_unified_decision_summary_payload
 from .decision_event_builder import build_event_context
 from .decision_quant_builder import build_quant_context
+import logging
+
+logger = logging.getLogger(__name__)
 
 ANALYSIS_STRATEGY = "stock_deep_analysis"
 ANALYSIS_VERSION = "stock-deep-analysis.v1"
@@ -53,7 +56,8 @@ def _safe_float(value: Any) -> float | None:
         if value is None or value == "":
             return None
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/stock_deep_analysis.py:57: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if number != number:
         return None

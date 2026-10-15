@@ -14,6 +14,9 @@ import shutil
 import subprocess
 import sys
 from typing import Iterable, Sequence
+import logging
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_RUNTIME_MODULES: tuple[str, ...] = ("numpy", "pandas", "httpx", "anyio")
 DEFAULT_EDITABLE_PACKAGES: tuple[str, ...] = (
@@ -46,7 +49,8 @@ def _is_direct_script_invocation(script_path: Path, argv: Sequence[str] | None =
         if first.endswith(".py"):
             try:
                 return Path(first).resolve() == target
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/runtime_bootstrap.py:50: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return False
     return False
 

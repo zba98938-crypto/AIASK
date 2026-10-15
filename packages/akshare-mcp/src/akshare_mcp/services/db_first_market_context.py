@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 _DOC_TYPE_ALIASES = {
@@ -29,13 +32,15 @@ def _coerce_date(value: Any) -> Optional[date]:
     ):
         try:
             return parser(text)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/db_first_market_context.py:33: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     digits = "".join(ch for ch in text if ch.isdigit())
     if len(digits) >= 8:
         try:
             return date.fromisoformat(f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}")
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/db_first_market_context.py:39: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
     return None
 
@@ -61,7 +66,8 @@ def _coerce_float(value: Any) -> Optional[float]:
         return None
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/db_first_market_context.py:65: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

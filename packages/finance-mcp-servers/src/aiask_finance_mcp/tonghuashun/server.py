@@ -27,6 +27,9 @@ from typing import Any
 
 from .._shared.redaction import redact_public_text, sanitize_public_payload
 from .._shared.trade_guard import trade_risk_side_effect
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 LIVE_TOOL_NAMES = {"ths_place_order", "ths_cancel_order"}
@@ -390,7 +393,8 @@ def main() -> None:
             continue
         try:
             request = json.loads(line)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as _swallowed:
+            logger.warning("packages/finance-mcp-servers/src/aiask_finance_mcp/tonghuashun/server.py:394: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         response = _handle_jsonrpc(request)
         if response is not None:

@@ -14,6 +14,9 @@ from ..domain.constants import (
     OPPORTUNITY_TARGET_SYMBOLS_PER_TASK,
 )
 from ..domain.targets import _normalize_research_task_contract
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class _MarketOpportunityScannerUtilityMixin:
@@ -21,7 +24,8 @@ class _MarketOpportunityScannerUtilityMixin:
     def _safe_float(value: Any) -> float:
         try:
             return float(value or 0.0)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/_opportunity_utils.py:25: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0.0
 
     @staticmethod

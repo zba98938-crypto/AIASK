@@ -20,6 +20,9 @@ from uuid import uuid4
 
 from .paths import aiask_agent_home, default_state_db_path
 from .session_store import now_iso
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 LOCKED_CONFIG_FIELDS = {
@@ -60,7 +63,8 @@ def _env_paths() -> list[Path]:
 def _pid_is_running(pid: object) -> bool:
     try:
         value = int(pid or 0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/rl_atropos.py:64: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     if value <= 0:
         return False
@@ -84,7 +88,8 @@ def _pid_is_running(pid: object) -> bool:
         os.kill(value, 0)
     except PermissionError:
         return True
-    except OSError:
+    except OSError as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/rl_atropos.py:88: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     return True
 
@@ -365,7 +370,8 @@ class RLAtroposManager:
         if pid:
             try:
                 os.kill(int(pid), signal.SIGTERM)
-            except OSError:
+            except OSError as _swallowed:
+                logger.warning("packages/agent/src/aiask_agent/rl_atropos.py:369: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         return self.store.update_run(run_id, status="stopped") or item
 

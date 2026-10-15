@@ -7,6 +7,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 from ._runtime_toggles import strategy_trade_prediction_promotion_gate_enabled
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 TRADE_PREDICTION_PROMOTION_SCORE_VERSION = "trade_prediction_score_v2"
@@ -48,7 +51,8 @@ def _safe_int(value: Any, default: int = 0) -> int:
 def _safe_float(value: Any) -> float | None:
     try:
         result = float(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/trade_prediction_promotion_gate.py:52: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if result != result:
         return None

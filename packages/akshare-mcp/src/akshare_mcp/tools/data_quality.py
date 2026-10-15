@@ -5,6 +5,9 @@ from __future__ import annotations
 import re
 from datetime import date, datetime, time, timezone
 from typing import Any, Iterable, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 STALE_AFTER_SEC = 24 * 60 * 60
 
@@ -52,7 +55,8 @@ def _parse_epoch_value(value: Any) -> Optional[datetime]:
             return None
         try:
             raw = float(text)
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/data_quality.py:56: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     if raw is None:
@@ -68,7 +72,8 @@ def _parse_epoch_value(value: Any) -> Optional[datetime]:
 
     try:
         return datetime.fromtimestamp(seconds, tz=timezone.utc).astimezone()
-    except (OverflowError, OSError, ValueError):
+    except (OverflowError, OSError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/data_quality.py:72: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -95,18 +100,21 @@ def parse_asof_time(value: Any) -> Optional[datetime]:
     if text.isdigit() and len(text) == 8:
         try:
             return datetime.strptime(text, "%Y%m%d").astimezone()
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/data_quality.py:99: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     if len(text) == 10:
         try:
             return datetime.fromisoformat(text).astimezone()
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/data_quality.py:105: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     try:
         return datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone()
-    except ValueError:
+    except ValueError as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/data_quality.py:110: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

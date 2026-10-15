@@ -5,6 +5,9 @@ from __future__ import annotations
 import os
 from pathlib import Path
 from typing import Iterable, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 LLM_ENV_KEYS = {
@@ -112,7 +115,8 @@ def load_mcp_env(
             continue
         try:
             content = env_path.read_text(encoding='utf-8', errors='replace')
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/env_loader.py:116: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         values = _parse_env_lines(content)
         for key, value in values.items():

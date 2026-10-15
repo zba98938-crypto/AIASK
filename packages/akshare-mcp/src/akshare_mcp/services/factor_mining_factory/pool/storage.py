@@ -188,7 +188,8 @@ def _decode_factor_row(row: dict[str, Any]) -> dict[str, Any]:
         if isinstance(record.get(json_field), str):
             try:
                 record[json_field] = json.loads(record[json_field])
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/pool/storage.py:192: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
     return record
 

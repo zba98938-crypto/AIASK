@@ -15,6 +15,9 @@ from .artifact_registry import (
     register_artifact,
     register_artifact_async,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 FACTOR_MEMORY_STRATEGY = "factor_candidate_memory"
 FACTOR_MEMORY_VERSION = "p2.v1"
@@ -153,13 +156,15 @@ async def list_factor_candidate_records_async(
         async_rows = await list_artifacts_async(limit=fetch_limit, strategy=FACTOR_MEMORY_STRATEGY)
         if isinstance(async_rows, list):
             summary_rows.extend([row for row in async_rows if isinstance(row, dict)])
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_candidate_storage.py:157: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     try:
         sync_rows = list_artifacts(limit=fetch_limit, strategy=FACTOR_MEMORY_STRATEGY)
         if isinstance(sync_rows, list):
             summary_rows.extend([row for row in sync_rows if isinstance(row, dict)])
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_candidate_storage.py:163: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     ordered_ids = []

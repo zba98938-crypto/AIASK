@@ -8,6 +8,9 @@ import time
 import traceback
 from datetime import datetime
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 TDX_PYPLUGINS = r"C:\new_tdx_test\PYPlugins\sys"
 if TDX_PYPLUGINS not in sys.path:
@@ -51,7 +54,8 @@ def _truncate(obj, depth=0, max_list=3, max_keys=20):
             except Exception:
                 head_repr = str(obj)[:300]
             return {"__df_shape__": str(shape), "__head_repr__": head_repr}
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/tdx_probe/probe_tdx_deep.py:55: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return f"<{type(obj).__name__}> {str(obj)[:200]}"
 

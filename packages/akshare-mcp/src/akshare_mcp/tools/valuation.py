@@ -31,6 +31,9 @@ from .valuation_peer import (
     _relative_valuation_impl,
     _get_historical_valuation_impl,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def register(mcp):
@@ -280,7 +283,8 @@ def register(mcp):
                     if v is None:
                         return None
                     return float(v)
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/valuation.py:284: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     return None
 
             def _first_number(row: dict, keys: list[str]):
@@ -729,7 +733,8 @@ def register(mcp):
                     if v is None:
                         return None
                     return float(v)
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/valuation.py:733: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     return None
 
             def _first_number(row: dict, keys: list[str]):

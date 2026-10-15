@@ -70,6 +70,9 @@ class DaemonStatus:
     last_error: str | None = None
 
 from ._gateway_daemon_listeners import _GatewayDaemonListenersMixin
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class GatewayDaemon(_GatewayDaemonListenersMixin):
@@ -187,7 +190,8 @@ class GatewayDaemon(_GatewayDaemonListenersMixin):
             task.cancel()
             try:
                 await asyncio.wait_for(asyncio.shield(task), timeout=5.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError, Exception):
+            except (asyncio.CancelledError, asyncio.TimeoutError, Exception) as _swallowed:
+                logger.warning("packages/agent/src/aiask_agent/gateway_daemon.py:191: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         self._tasks.clear()
@@ -336,7 +340,8 @@ class GatewayDaemon(_GatewayDaemonListenersMixin):
             if not sec_check["allowed"]:
                 logger.debug("GatewayDaemon: blocked %s:%s reason=%s", platform, sender_id, sec_check["reason"])
                 return
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/gateway_daemon.py:340: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass  # Security module not critical — degrade gracefully
 
         # 2. Check for control commands (/approve, /deny, /stop, /reset)
@@ -453,7 +458,8 @@ class GatewayDaemon(_GatewayDaemonListenersMixin):
                     message=response,
                     thread_id=event.get("thread_id"),
                 )
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/agent/src/aiask_agent/gateway_daemon.py:457: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
     def _resolve_session(self, event: dict[str, Any]) -> str:
@@ -493,7 +499,8 @@ class GatewayDaemon(_GatewayDaemonListenersMixin):
             )
             if entry and entry.get("metadata", {}).get("unified_id"):
                 return str(entry["metadata"]["unified_id"])
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/gateway_daemon.py:497: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return None
 

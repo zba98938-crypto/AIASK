@@ -106,7 +106,8 @@ class _MatrixNormalizersCoreMixin:
     def _safe_int(value: Any) -> int:
         try:
             return int(value or 0)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/stock_strategy_matrix_mixins/normalizers_core.py:110: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0
 
     @classmethod
@@ -474,6 +475,7 @@ class _MatrixNormalizersCoreMixin:
         for key, value in scores.items():
             try:
                 out[str(key).strip().lower()] = max(0.0, min(float(value), 1.0))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/stock_strategy_matrix_mixins/normalizers_core.py:478: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
         return out

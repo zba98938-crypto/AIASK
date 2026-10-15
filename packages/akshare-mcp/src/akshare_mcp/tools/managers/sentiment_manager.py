@@ -217,7 +217,8 @@ def register_sentiment_manager(mcp):
                                         source_chain.append('tushare.daily')
                                         logger.info(f"[Sentiment] Tushare: 涨{up_count} 跌{down_count}")
                                         break
-                                except Exception:
+                                except Exception as _swallowed:
+                                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/sentiment_manager.py:221: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                                     continue
                     except Exception as e:
                         logger.warning(f"[Sentiment] Tushare批量行情失败: {e}")

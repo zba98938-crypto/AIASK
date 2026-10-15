@@ -38,6 +38,9 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 SCRIPT = Path(__file__).resolve()
 REPO_ROOT = SCRIPT.parents[1]
@@ -263,7 +266,8 @@ def check_databases() -> list[tuple[str, str, str]]:
                     "SELECT COUNT(*) FROM strategy_quality_reports"
                 ).fetchone()[0]
                 detail += f", strategy_quality_reports={rows_in}"
-            except sqlite3.Error:
+            except sqlite3.Error as _swallowed:
+                logger.warning("scripts/check_local_install.py:267: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             finally:
                 conn.close()

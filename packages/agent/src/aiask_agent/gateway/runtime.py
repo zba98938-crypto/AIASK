@@ -33,6 +33,9 @@ from .http_client import *  # noqa: F401,F403
 from .http_client import _form_request, _form_request_async, _json_request, _json_request_async, _multipart_request
 from .adapters import *  # noqa: F401,F403
 from .router import *  # noqa: F401,F403
+import logging
+
+logger = logging.getLogger(__name__)
 
 class GatewayRuntime:
     def __init__(self, *, config: GatewayConfigStore | None = None, messages: GatewayMessageStore | None = None, directory: GatewayChannelDirectoryStore | None = None) -> None:
@@ -72,6 +75,7 @@ class GatewayRuntime:
         elif state in {"stopped", "failed"} and self.lock_path.exists():
             try:
                 self.lock_path.unlink()
-            except OSError:
+            except OSError as _swallowed:
+                logger.warning("packages/agent/src/aiask_agent/gateway/runtime.py:76: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         return payload

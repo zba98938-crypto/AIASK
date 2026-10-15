@@ -28,7 +28,8 @@ def _finite_float(value: Any) -> float | None:
         return None
     try:
         numeric = float(value)
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError, OverflowError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/metrics_recorder.py:32: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return numeric if math.isfinite(numeric) else None
 
@@ -272,7 +273,8 @@ class MetricsRecorder:
                 return None
             try:
                 return float(verification.get(key))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/metrics_recorder.py:276: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
 
         def _opt_int(key: str):
@@ -280,7 +282,8 @@ class MetricsRecorder:
                 return None
             try:
                 return int(verification.get(key))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/metrics_recorder.py:284: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
 
         primary_hit_rate = float(verification.get("primary_hit_rate") or 0.0)

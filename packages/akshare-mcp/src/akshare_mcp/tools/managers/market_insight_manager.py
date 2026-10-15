@@ -26,7 +26,8 @@ def _rounded_or_none(val, digits=2):
         return None
     try:
         return round(float(val), digits)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/market_insight_manager.py:30: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

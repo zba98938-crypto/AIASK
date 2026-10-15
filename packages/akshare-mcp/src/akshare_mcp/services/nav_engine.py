@@ -172,7 +172,8 @@ class NavEngine:
             if res and res.get('success') and res.get('data'):
                 d = res['data']
                 return d.get('price') or d.get('close')
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/nav_engine.py:176: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return None
 

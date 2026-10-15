@@ -14,6 +14,9 @@ from aiask_quant_core.storage import get_db
 from strategy_factory.api import normalize_factory_name
 
 from .intents import ActionIntentStore
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # How long to wait for an immediate startup crash before treating the worker as
@@ -65,7 +68,8 @@ def _startup_failure(process: subprocess.Popen[bytes]) -> tuple[int, str] | None
     """
     try:
         output_bytes = process.communicate(timeout=_STARTUP_GRACE_SECONDS)[0] or b""
-    except subprocess.TimeoutExpired:
+    except subprocess.TimeoutExpired as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/factory_dispatcher.py:69: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     exit_code = int(process.returncode or 0)
     if exit_code == 0:
@@ -108,9 +112,10 @@ async def _mark_launch_failed(
             exit_code=exit_code,
             error=error,
         )
-    except ValueError:
+    except ValueError as _swallowed:
         # Lost a race into a terminal state. The launch diagnostics above are
         # already persisted, so the failure is still traceable.
+        logger.warning("packages/agent/src/aiask_agent/factory_dispatcher.py:114: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
 

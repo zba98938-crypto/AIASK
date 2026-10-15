@@ -12,6 +12,9 @@ from typing import Any
 from ..data_source import data_source
 from ..storage import get_db, run_with_db_cleanup
 from ..utils import normalize_code, safe_float, safe_int, safe_stderr_print
+import logging
+
+logger = logging.getLogger(__name__)
 
 FALLBACK_DB_ONLY = "db_only"
 FALLBACK_DB_FIRST_LIVE = "db_first_live_fallback"
@@ -46,12 +49,14 @@ def _parse_asof(value: Any) -> datetime | None:
         text = text[:-1] + "+00:00"
     try:
         return datetime.fromisoformat(text).astimezone()
-    except ValueError:
+    except ValueError as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/market_data_access.py:50: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
         try:
             return datetime.strptime(text[: len(fmt)], fmt).astimezone()
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/market_data_access.py:55: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return None
 

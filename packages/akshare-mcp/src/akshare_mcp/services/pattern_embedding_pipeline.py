@@ -9,6 +9,9 @@ from typing import Any, Iterable, Optional
 
 from aiask_quant_core.vector_collection_scope import kline_collection_spec
 from .vector_search import vector_search_engine
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_codes(raw: Any) -> list[str]:
@@ -59,7 +62,8 @@ def _coerce_date(value: Any) -> Optional[date]:
         return None
     try:
         return date.fromisoformat(text[:10])
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/pattern_embedding_pipeline.py:63: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -193,7 +197,8 @@ async def _load_recent_klines(db, code: str, *, limit: int) -> list[dict[str, An
                     }
                     for row in rows
                 ]
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/pattern_embedding_pipeline.py:197: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     rows = await db.get_klines(code, limit=resolved_limit)
     return list(rows or [])[-resolved_limit:]

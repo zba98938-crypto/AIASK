@@ -351,7 +351,8 @@ class RuleSeedEngine:
         def _float(value: Any) -> float:
             try:
                 return float(value or 0.0)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/engines/rule_engine.py:355: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return 0.0
 
         def _family_rank(candidate: FactorCandidate) -> int:

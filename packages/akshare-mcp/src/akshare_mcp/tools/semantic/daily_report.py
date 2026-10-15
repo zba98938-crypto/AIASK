@@ -7,6 +7,9 @@ from datetime import datetime
 from ...storage import get_db
 from ...utils import ok, fail
 from ...data_source import data_source
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 _INDEX_NAME_HINTS = ("指数", "上证", "深证", "创业", "沪深", "中证", "综指", "成指")
@@ -19,7 +22,8 @@ def _parse_date_like(value: Optional[str]):
     for fmt in ("%Y-%m-%d", "%Y%m%d", "%Y/%m/%d"):
         try:
             return datetime.strptime(text[:10], fmt).date()
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/semantic/daily_report.py:23: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return None
 
@@ -226,7 +230,8 @@ def _fetch_index_quotes() -> dict:
                     'volume': idx_data.get('volume', 0),
                     'amount': idx_data.get('amount', 0)
                 }
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/semantic/daily_report.py:230: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     return market_summary
 
@@ -314,7 +319,8 @@ async def _fetch_stats(db, report_date: str) -> dict:
                 'limit_up_count': limit_up_count, 'limit_down_count': limit_down_count,
                 'total_count': up_count + down_count
             }
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/semantic/daily_report.py:318: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     # DB 无数据时，尝试 Tushare
@@ -340,9 +346,11 @@ async def _fetch_stats(db, report_date: str) -> dict:
                                 'total_count': up + down
                             }
                             break
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/semantic/daily_report.py:344: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/semantic/daily_report.py:346: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     # 仍无数据时，尝试涨停板接口
@@ -355,7 +363,8 @@ async def _fetch_stats(db, report_date: str) -> dict:
                 zt_data = zt_res['data']
                 if isinstance(zt_data, list):
                     stats['limit_up_count'] = len(zt_data)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/semantic/daily_report.py:359: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     return stats
@@ -379,7 +388,8 @@ async def _fetch_hot_sectors(db) -> list:
                     'change_pct': round(float(row['avg_change_pct'] or 0), 2),
                     'stock_count': row['stock_count'] or 0
                 })
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/semantic/daily_report.py:383: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     if not hot_sectors:
@@ -391,7 +401,8 @@ async def _fetch_hot_sectors(db) -> list:
                     normalized = _normalize_hot_sector_item(b)
                     if normalized['name']:
                         hot_sectors.append(normalized)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/semantic/daily_report.py:395: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     return hot_sectors
@@ -445,7 +456,8 @@ async def _fetch_capital_flow(db, report_date: str) -> dict:
                     'note': 'DB北向资金净流入代理主力资金',
                     'source': latest.get('source') or 'north_fund_flow',
                 }
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/semantic/daily_report.py:449: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     # 尝试 Tushare 获取主力资金
@@ -471,9 +483,11 @@ async def _fetch_capital_flow(db, report_date: str) -> dict:
                                 'source': 'tushare.moneyflow_hsgt',
                             }
                             break
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/semantic/daily_report.py:475: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/semantic/daily_report.py:477: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     return capital_flow

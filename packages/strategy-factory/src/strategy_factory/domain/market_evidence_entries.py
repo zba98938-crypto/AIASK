@@ -12,6 +12,9 @@ import math
 from collections import Counter
 from datetime import date, datetime, time, timezone
 from typing import Any, Mapping, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 _EMPTY_VALUES = (None, "", [], {})
 _DIRECTION_ALIASES = {
@@ -182,7 +185,8 @@ def _direction_from_expected_move(value: Any) -> Optional[str]:
     text = _string(value)
     try:
         numeric = float(text.rstrip("%"))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/domain/market_evidence_entries.py:186: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if "%" in text:
         numeric /= 100.0
@@ -219,7 +223,8 @@ def _coerce_iso_ts(value: Any) -> Optional[str]:
                 return None
             try:
                 dt = datetime(int(digits[:4]), int(digits[4:6]), int(digits[6:8]))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/domain/market_evidence_entries.py:223: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
@@ -233,7 +238,8 @@ def _evidence_time_is_post_hoc(evidence_time: Any, prediction_as_of: Any) -> boo
         return False
     try:
         return datetime.fromisoformat(ev_ts) > datetime.fromisoformat(as_of_ts)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/domain/market_evidence_entries.py:237: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
 
 

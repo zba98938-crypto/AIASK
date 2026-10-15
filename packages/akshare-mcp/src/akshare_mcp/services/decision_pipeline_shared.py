@@ -7,6 +7,9 @@ from typing import Any, Iterable
 
 from ..tools.data_quality import build_quality_meta, normalize_reason_list, parse_asof_time
 from ..utils import now_iso
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def clamp(value: float, low: float, high: float) -> float:
@@ -18,7 +21,8 @@ def safe_float(value: Any) -> float | None:
         if value is None or value == "":
             return None
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/decision_pipeline_shared.py:22: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -27,7 +31,8 @@ def safe_int(value: Any) -> int | None:
         if value is None or value == "":
             return None
         return int(float(value))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/decision_pipeline_shared.py:31: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 #: Environment variable naming the conda environment that carries the AIASK
@@ -109,9 +112,10 @@ def _conda_env_roots(name: str) -> list[Path]:
                 candidate = line.strip()
                 if candidate and Path(candidate).name == name:
                     roots.append(Path(candidate))
-        except OSError:
+        except OSError as _swallowed:
             # An unreadable registry only costs us this one source; the
             # conventional locations below are still tried.
+            logger.warning("scripts/_integration_paths.py:115: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     for base in (

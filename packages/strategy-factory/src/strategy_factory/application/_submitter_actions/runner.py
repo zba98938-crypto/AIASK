@@ -220,7 +220,8 @@ def _parse_win_rate_from_reason(reason: str) -> Optional[float]:
         return None
     try:
         return float(f"{int(nums[0])}.{nums[1]}")
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/_submitter_actions/runner.py:224: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -2810,7 +2811,8 @@ class _StrategySubmitterActionsMixin:
                     continue
                 try:
                     numeric = float(value)
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as _swallowed:
+                    logger.warning("packages/strategy-factory/src/strategy_factory/application/_submitter_actions/runner.py:2814: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     continue
                 if numeric == numeric and numeric not in (float("inf"), float("-inf")):
                     return float(numeric)

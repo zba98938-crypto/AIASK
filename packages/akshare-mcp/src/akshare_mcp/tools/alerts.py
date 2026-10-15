@@ -59,7 +59,8 @@ async def _indicator_alert_exists(code: str, indicator: str, condition: str, *, 
                 condition,
             )
         return row is not None
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/alerts.py:63: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
 
 
@@ -92,7 +93,8 @@ def _combo_row_to_alert(row: Any) -> dict[str, Any] | None:
     if isinstance(conds, str):
         try:
             conds = json.loads(conds)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/alerts.py:96: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
     if not isinstance(conds, list):
         return None

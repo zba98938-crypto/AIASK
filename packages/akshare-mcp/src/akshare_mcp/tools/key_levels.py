@@ -329,7 +329,8 @@ async def _get_realtime_price_for_calibration(code: str) -> float | None:
         if isinstance(rt, dict) and rt.get("success"):
             p = float(rt.get("data", {}).get("price", 0))
             return p if p > 0 else None
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/key_levels.py:333: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

@@ -306,12 +306,14 @@ def register_paper_trading_manager(mcp):
                 try:
                     from ...services.matching_engine import get_matching_engine
                     _matching_running = bool(get_matching_engine().status().get('running'))
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/paper_trading_manager.py:310: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
                 try:
                     from ...services.nav_engine import get_nav_engine
                     _nav_running = bool(get_nav_engine().status().get('running'))
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/paper_trading_manager.py:315: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
                 _bypass_warnings: list[str] = []
                 if not _matching_running:

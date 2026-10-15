@@ -86,7 +86,8 @@ def load_provider_env(*, override: bool = False) -> dict[str, Any]:
     for distribution, module_name in _PROVIDER_PACKAGES:
         try:
             module = importlib.import_module(f"{module_name}.env_loader")
-        except ImportError:
+        except ImportError as _swallowed:
+            logger.warning("scripts/factories/_runner_bootstrap.py:90: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         loader = getattr(module, "load_mcp_env", None) or getattr(module, "load_env", None)
         if not callable(loader):

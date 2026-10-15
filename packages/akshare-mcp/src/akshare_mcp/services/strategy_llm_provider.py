@@ -130,6 +130,9 @@ class StrategyLLMConfig:
 from ._strategy_llm_provider_normalize import _StrategyLLMProviderNormalizeMixin
 from ._strategy_llm_provider_prompt import _StrategyLLMProviderPromptMixin
 from ._strategy_llm_provider_runtime import _StrategyLLMProviderRuntimeMixin
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class StrategyLLMProvider(_StrategyLLMProviderNormalizeMixin, _StrategyLLMProviderPromptMixin, _StrategyLLMProviderRuntimeMixin):
@@ -156,7 +159,8 @@ class StrategyLLMProvider(_StrategyLLMProviderNormalizeMixin, _StrategyLLMProvid
             try:
                 if client is not None:
                     await client.aclose()
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/strategy_llm_provider.py:160: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             self._runtime_loop_id = None
 

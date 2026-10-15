@@ -12,6 +12,9 @@ from uuid import uuid4
 
 from .paths import default_state_db_path
 from .session_store import now_iso
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class ProcessRegistry:
@@ -245,7 +248,8 @@ class ProcessRegistry:
     def _metadata_pid(metadata: dict[str, Any]) -> int | None:
         try:
             pid = int(metadata.get("pid") or 0)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/process_registry.py:249: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         return pid if pid > 0 else None
 
@@ -267,12 +271,14 @@ class ProcessRegistry:
                     return int(exit_code.value) == 259
                 finally:
                     kernel32.CloseHandle(handle)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/agent/src/aiask_agent/process_registry.py:271: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return False
         try:
             os.kill(pid, 0)
             return True
-        except ProcessLookupError:
+        except ProcessLookupError as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/process_registry.py:276: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return False
         except PermissionError:
             return True
@@ -286,13 +292,15 @@ class ProcessRegistry:
     def _cwd_allowed(cwd: str, roots: tuple[Path, ...]) -> bool:
         try:
             path = Path(cwd).expanduser().resolve()
-        except OSError:
+        except OSError as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/process_registry.py:290: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return False
         for root in roots:
             try:
                 path.relative_to(root.expanduser().resolve())
                 return True
-            except ValueError:
+            except ValueError as _swallowed:
+                logger.warning("packages/agent/src/aiask_agent/process_registry.py:296: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
         return False
 
@@ -305,7 +313,8 @@ class ProcessRegistry:
             if tail:
                 try:
                     fh.seek(max(0, path.stat().st_size - limit))
-                except OSError:
+                except OSError as _swallowed:
+                    logger.warning("packages/agent/src/aiask_agent/process_registry.py:309: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             raw = fh.read(limit)
         return raw.decode("utf-8", errors="replace")

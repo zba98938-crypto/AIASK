@@ -38,7 +38,8 @@ def _resolve_forward_days() -> list[int]:
             continue
         try:
             val = int(tok)
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/signal_tracker.py:42: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if val > 0 and val not in out:
             out.append(val)
@@ -107,11 +108,13 @@ def _coerce_event_date(value: Any) -> Optional[date]:
     normalized = text[:-1] + "+00:00" if text.endswith("Z") else text
     try:
         return datetime.fromisoformat(normalized).date()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/signal_tracker.py:111: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     try:
         return date.fromisoformat(text[:10])
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/signal_tracker.py:115: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -120,7 +123,8 @@ def _coerce_optional_float(value: Any) -> Optional[float]:
         return None
     try:
         return float(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/signal_tracker.py:124: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -171,7 +175,8 @@ def _normalize_signal_events(
     for sequence, raw_event in enumerate(list(events or [])):
         try:
             index = int(raw_event.get("index") or 0)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/signal_tracker.py:175: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if index < 0 or index >= max_length:
             continue
@@ -724,7 +729,8 @@ class SignalTracker:
         for raw_budget in budget_candidates:
             try:
                 max_active_symbols = max(max_active_symbols, int(raw_budget or 0))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/signal_tracker.py:728: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
         resolved = [code for code in ordered if code not in excluded_symbols]
@@ -882,7 +888,8 @@ class SignalTracker:
                 for row in list(klines or []):
                     try:
                         closes.append(float(row.get("close")))
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/signal_tracker.py:886: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
                 if len(closes) < 20:
                     continue
@@ -966,7 +973,8 @@ class SignalTracker:
                         limit=200,
                     )
                     generated = len(list(todays or []))
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/services/signal_tracker.py:970: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
         except Exception as exc:
             errors.append(f"sync_signals_to_orders:{exc}")
@@ -1270,7 +1278,8 @@ class SignalTracker:
             return None
         try:
             return date.fromisoformat(text[:10])
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/signal_tracker.py:1274: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     def _build_close_series(self, klines: List[dict]) -> List[tuple[date, float]]:
@@ -1281,7 +1290,8 @@ class SignalTracker:
                 continue
             try:
                 close = float(kline.get("close") or 0.0)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/signal_tracker.py:1285: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             if close <= 0:
                 continue
@@ -1369,7 +1379,8 @@ class SignalTracker:
                     ),
                 )
             )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/signal_tracker.py:1373: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         for provider_name, loader in providers:

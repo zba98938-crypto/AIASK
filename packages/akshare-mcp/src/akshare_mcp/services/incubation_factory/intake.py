@@ -27,7 +27,8 @@ _GRADE_RANKS: dict[str, int] = {
 def _resolve_db_async_method(db: Any, name: str) -> Any:
     try:
         method = getattr(db, name)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/intake.py:31: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if not callable(method):
         return None
@@ -454,7 +455,8 @@ class IncubationIntake:
                 event_type="incubation_factory.gate3_record_only_candidate_recognized",
                 limit=1,
             )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/intake.py:458: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return False
         token = str(candidate_id or "").strip()
         for event in events or []:

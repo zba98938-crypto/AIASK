@@ -157,6 +157,9 @@ print(f"[gray] 本次新增 {len(new_rows)} 条 reports", flush=True)
 
 import json
 from collections import Counter
+import logging
+
+logger = logging.getLogger(__name__)
 
 submission_lanes = Counter()
 validation_grades = Counter()
@@ -169,7 +172,8 @@ for row in new_rows:
     rid, sid, ts, sum_json = row
     try:
         sm = json.loads(sum_json) if sum_json else {}
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/dev_v1_ops/gray/_gray_phase1_runner.py:173: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         continue
     lane = sm.get("submission_lane")
     grade = sm.get("validation_grade")

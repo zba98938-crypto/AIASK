@@ -11,6 +11,9 @@ import json
 import os
 from collections.abc import Mapping
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_JSON_FIELD_MAX_BYTES = 64 * 1024
@@ -355,7 +358,8 @@ def json_size_bytes(value: Any) -> int:
     try:
         normalized = {} if value is None else value
         return len(json.dumps(normalized, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8"))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/strategy_factory_json_budget.py:359: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0
 
 

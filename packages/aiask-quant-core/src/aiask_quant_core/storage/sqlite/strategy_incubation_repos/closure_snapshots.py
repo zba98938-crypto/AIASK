@@ -9,6 +9,9 @@ from ._base import (
     _safe_rules_dict,
     _string,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class _ClosureSnapshotsMixin:
@@ -44,7 +47,8 @@ class _ClosureSnapshotsMixin:
             return None
         try:
             return date.fromisoformat(raw[:10])
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/strategy_incubation_repos/closure_snapshots.py:48: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     async def get_latest_execution_audit_snapshot(self, strategy_id: str) -> Optional[dict]:

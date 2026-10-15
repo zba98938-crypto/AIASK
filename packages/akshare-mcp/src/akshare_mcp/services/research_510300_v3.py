@@ -39,6 +39,9 @@ from aiask_quant_core._validation_support import (
 )
 from .backtest.engine import BacktestEngine
 from .validation import PurgedKFoldCV, WalkForwardValidator
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 MONTHLY_CONTRIBUTION = 10_000.0
@@ -691,7 +694,8 @@ def resolve_if_futures(end_date: str) -> tuple[ResolvedInstrument, pd.DataFrame,
                 "contract_multiplier": _safe_int(row.get("合约乘数"), FUTURES_FALLBACK_COST["contract_multiplier"]),
                 "fallback_triggered": False,
             }
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/research_510300_v3.py:695: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     resolved = ResolvedInstrument(
         category="futures",

@@ -8,6 +8,9 @@ import time
 from datetime import datetime
 from typing import Any, Callable
 from uuid import uuid4
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 _RUN_NOW_TASK: asyncio.Task | None = None
@@ -133,7 +136,8 @@ def _apply_scheduler_overrides(scheduler: Any, params: dict[str, Any]) -> dict[s
         try:
             scheduler.batch_size = max(1, int(params.get("batch_size") or 1))
             overrides["batch_size"] = scheduler.batch_size
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/quant_mgr_scheduler.py:137: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     if params.get("max_codes") is not None and not overrides.get("universe_size"):
@@ -143,7 +147,8 @@ def _apply_scheduler_overrides(scheduler: Any, params: dict[str, Any]) -> dict[s
             scheduler._skip_dynamic_universe = True
             overrides["universe_size"] = len(scheduler.universe)
             overrides["max_codes"] = max_codes
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/quant_mgr_scheduler.py:147: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     return overrides
 
@@ -163,7 +168,8 @@ def _run_scheduler_thread(*, job_id: str, params: dict[str, Any]) -> None:
             finally:
                 try:
                     await close_db()
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/quant_mgr_scheduler.py:167: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
 
         asyncio.run(_main())

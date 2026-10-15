@@ -23,6 +23,9 @@ from .quant_definitions import (
     _normalize_factor_name,
     _safe_float,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ── Slippage model map ──
@@ -466,7 +469,8 @@ async def _prefetch_market_data(
                     if isinstance(rows, list) and rows:
                         result[code]["klines"] = rows
                         meta["kline_batch_hits"] += 1
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/quant_engine.py:470: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
     # 2) Kline：并发回退

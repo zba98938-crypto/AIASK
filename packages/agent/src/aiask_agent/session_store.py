@@ -45,6 +45,9 @@ from .session_store_utils import (
     redact_audit_text,
     sanitize_for_audit,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class AgentSessionStore(SessionStoreBrokerMixin, SessionStoreEvidenceMixin, SessionStoreHandoffMixin, SessionStoreUserDataMixin):
@@ -396,7 +399,8 @@ class AgentSessionStore(SessionStoreBrokerMixin, SessionStoreEvidenceMixin, Sess
                         "DELETE FROM aiask_search_fts WHERE kind = ? AND object_id = ?",
                         [("message", str(message_id)) for message_id in message_ids],
                     )
-                except sqlite3.OperationalError:
+                except sqlite3.OperationalError as _swallowed:
+                    logger.warning("packages/agent/src/aiask_agent/session_store.py:400: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
                 conn.execute(
                     "UPDATE sessions SET updated_at = ? WHERE session_id = ?",

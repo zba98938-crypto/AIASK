@@ -8,6 +8,9 @@ from typing import Any
 from uuid import uuid4
 
 from .tools.policy import ToolPolicy
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 TOOL_NAME = "agent_code_graph_query"
@@ -88,7 +91,8 @@ def _allowed_roots(policy: ToolPolicy) -> list[Path]:
             continue
         try:
             roots.append(Path(raw).resolve())
-        except OSError:
+        except OSError as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/code_graph.py:92: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     roots.append(_repo_root())
     unique: list[Path] = []
@@ -104,7 +108,8 @@ def _allowed_roots(policy: ToolPolicy) -> list[Path]:
 def _is_relative_to(path: Path, parent: Path) -> bool:
     try:
         path.relative_to(parent)
-    except ValueError:
+    except ValueError as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/code_graph.py:108: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     return True
 
@@ -147,7 +152,8 @@ def _default_graph_dir_candidates(roots: list[Path]) -> list[Path]:
 def _mtime(path: Path) -> float:
     try:
         return path.stat().st_mtime
-    except OSError:
+    except OSError as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/code_graph.py:151: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0.0
 
 

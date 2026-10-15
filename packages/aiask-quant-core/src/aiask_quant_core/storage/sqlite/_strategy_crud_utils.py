@@ -32,7 +32,8 @@ class _StrategyCrudUtilsMixin:
             normalized = raw[:-1] + '+00:00' if raw.endswith('Z') else raw
             try:
                 return datetime.fromisoformat(normalized)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/_strategy_crud_utils.py:36: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
 
         @staticmethod
@@ -49,11 +50,13 @@ class _StrategyCrudUtilsMixin:
             normalized = raw[:-1] + '+00:00' if raw.endswith('Z') else raw
             try:
                 return datetime.fromisoformat(normalized).date()
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/_strategy_crud_utils.py:53: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             try:
                 return date.fromisoformat(raw.split('T', 1)[0])
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/_strategy_crud_utils.py:57: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
 
         @staticmethod
@@ -93,7 +96,8 @@ class _StrategyCrudUtilsMixin:
         def _encode_sqlite_python(values: Any) -> Optional[str]:
             try:
                 vector = [float(item) for item in list(values or [])]
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/_strategy_crud_utils.py:97: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
             if not vector:
                 return None

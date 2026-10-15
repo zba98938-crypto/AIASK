@@ -4,6 +4,9 @@ import os
 import re
 from pathlib import Path
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 _LOADED_ENV_PATH: Path | None = None
@@ -187,7 +190,8 @@ def _dotenv_values(path: Path) -> dict[str, str]:
 
         parsed = dotenv_values(path)
         return {str(key): str(value) for key, value in parsed.items() if key and value is not None}
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/env_config.py:191: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     try:
         return _parse_env_lines(path.read_text(encoding="utf-8", errors="replace"))

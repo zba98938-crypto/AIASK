@@ -17,6 +17,9 @@ from urllib.error import URLError
 from urllib.request import Request, urlopen
 
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
 
 SOURCE_NAME = "akshare"
 _STRICT_STOCK_CODE_PATTERNS = (
@@ -281,8 +284,9 @@ def safe_stderr_print(*args: Any, sep: str = " ", end: str = "\n") -> None:
         flush = getattr(stream, "flush", None)
         if callable(flush):
             flush()
-    except Exception:
+    except Exception as _swallowed:
         # Never let diagnostics logging mask the original exception.
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/utils.py:286: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return
 
 
@@ -304,7 +308,8 @@ def safe_float(val: Any) -> Optional[float]:
         if val is None or pd.isna(val):
             return None
         return float(val)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/utils.py:308: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -314,7 +319,8 @@ def safe_int(val: Any) -> Optional[int]:
         if val is None or pd.isna(val):
             return None
         return int(float(val))
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/utils.py:318: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -346,7 +352,8 @@ def parse_numeric(val: Any) -> Optional[float]:
     s = s.replace(",", "")
     try:
         return float(s) * multiplier
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/utils.py:350: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -491,7 +498,8 @@ async def _lookup_stock_info_fallback_async(code: str) -> Optional[dict[str, Any
             klines = await db.get_klines(code, limit=1)
             if klines:
                 return _minimal_confirmed_stock_info(code, source="db.kline_1d")
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/utils.py:495: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     try:
@@ -517,7 +525,8 @@ async def _lookup_stock_info_fallback_async(code: str) -> Optional[dict[str, Any
                         "list_date": row.get("list_date"),
                     },
                 )
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/utils.py:521: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     try:
@@ -526,7 +535,8 @@ async def _lookup_stock_info_fallback_async(code: str) -> Optional[dict[str, Any
         rows = await asyncio.to_thread(data_source.get_kline, code, "daily", 1)
         if rows:
             return _minimal_confirmed_stock_info(code, source="data_source.get_kline")
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/utils.py:530: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     return None
@@ -555,7 +565,8 @@ def _lookup_stock_info_fallback_sync(code: str) -> Optional[dict[str, Any]]:
         rows = data_source.get_kline(code, "daily", 1)
         if rows:
             return _minimal_confirmed_stock_info(code, source="data_source.get_kline")
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/utils.py:559: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return None
 
@@ -573,7 +584,8 @@ async def lookup_existing_stock_info_async(code: str) -> Optional[dict[str, Any]
             payload = await db.get_stock_info(normalized)
             if _stock_info_payload_is_usable(payload):
                 return dict(payload)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/utils.py:577: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     try:
@@ -583,7 +595,8 @@ async def lookup_existing_stock_info_async(code: str) -> Optional[dict[str, Any]
         payload = response.get("data") if isinstance(response, dict) and response.get("success") else None
         if _stock_info_payload_is_usable(payload):
             return dict(payload)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/utils.py:587: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     return await _lookup_stock_info_fallback_async(normalized)
@@ -601,7 +614,8 @@ def lookup_existing_stock_info_sync(code: str) -> Optional[dict[str, Any]]:
         payload = response.get("data") if isinstance(response, dict) and response.get("success") else None
         if _stock_info_payload_is_usable(payload):
             return dict(payload)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/utils.py:605: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return _lookup_stock_info_fallback_sync(normalized)
 
@@ -789,12 +803,14 @@ def parse_date_input(value: str) -> Optional[date]:
     for fmt in ("%Y-%m-%d", "%Y%m%d", "%Y/%m/%d"):
         try:
             return datetime.strptime(s, fmt).date()
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/utils.py:793: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     if re.fullmatch(r"\d{6}", s):
         try:
             return datetime.strptime(s + "01", "%Y%m%d").date()
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/utils.py:798: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
     return None
 

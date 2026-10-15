@@ -25,6 +25,9 @@ from __future__ import annotations
 import datetime
 from dataclasses import dataclass, field
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ── 工具函数 ──────────────────────────────────────────────────────────────────
@@ -52,7 +55,8 @@ def _parse_datetime(value: str | datetime.datetime | None) -> datetime.datetime 
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=datetime.timezone.utc)
             return dt
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/pit_utils.py:56: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return None
 

@@ -26,6 +26,9 @@ from strategy_factory.api.runtime import (
     envelope_from_runtime_result,
     utc_now_iso,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 #: Canonical four-factory membership. SignalTracker is deliberately absent — it
@@ -108,7 +111,8 @@ def _extract_json_payload(stdout: str) -> dict[str, Any] | None:
     try:
         parsed = json.loads(text)
         return parsed if isinstance(parsed, dict) else None
-    except json.JSONDecodeError:
+    except json.JSONDecodeError as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/factory_cli.py:112: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     lines = text.splitlines()
     for start in range(len(lines)):
@@ -117,7 +121,8 @@ def _extract_json_payload(stdout: str) -> dict[str, Any] | None:
             continue
         try:
             parsed = json.loads(candidate)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/factory_cli.py:121: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if isinstance(parsed, dict):
             return parsed
@@ -361,12 +366,14 @@ def _pid_alive(pid: int) -> bool:
         return False
     try:
         os.kill(pid, 0)
-    except ProcessLookupError:
+    except ProcessLookupError as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/factory_cli.py:365: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     except PermissionError:
         # Exists but owned by another user.
         return True
-    except OSError:
+    except OSError as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/factory_cli.py:370: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     return True
 

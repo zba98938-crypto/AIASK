@@ -10,6 +10,9 @@ from ..services.event_extraction import extract_events
 from ..services.sentiment import sentiment_analyzer
 from ..storage import get_db
 from ..utils import ok, fail, resolve_existing_security_code_async, resolve_security_code
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _to_float(value: Any) -> float | None:
@@ -17,7 +20,8 @@ def _to_float(value: Any) -> float | None:
         if value is None or value == "":
             return None
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/sentiment.py:21: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -39,7 +43,8 @@ def _to_utc_datetime(value: Any) -> datetime | None:
             return None
         try:
             dt = datetime.fromisoformat(text.replace("Z", "+00:00"))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/sentiment.py:43: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
     if dt.tzinfo is None:
         return dt.replace(tzinfo=timezone.utc)
@@ -83,7 +88,8 @@ def _validate_index_close(code: str, close: float | None) -> bool:
     lo, hi = bounds
     try:
         return lo <= float(close) <= hi
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/sentiment.py:87: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
 
 
@@ -209,7 +215,8 @@ def register(mcp):
                             code,
                         )
                         news_headlines = [r['content'][:200] for r in rows if r.get('content')]
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/sentiment.py:213: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             if hasattr(db, "list_market_headline_labels"):
                 try:
@@ -227,7 +234,8 @@ def register(mcp):
                     )
                     if row:
                         fund_flow_data = dict(row)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/sentiment.py:231: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
             result = sentiment_analyzer.analyze_sentiment(
@@ -253,7 +261,8 @@ def register(mcp):
                 limit_up = await db.get_limit_up_stats()
                 if limit_up:
                     breadth_data = limit_up
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/sentiment.py:257: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             result = sentiment_analyzer.calculate_fear_greed_index(
                 index_klines=index_klines or None,
@@ -635,7 +644,8 @@ def register(mcp):
                             f"[update_user_profile] users upsert failed: "
                             f"{type(exc_user).__name__}: {exc_user}"
                         )
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/sentiment.py:639: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
                 await conn.execute(
                     """INSERT INTO user_profile_snapshots

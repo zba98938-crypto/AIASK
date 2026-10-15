@@ -58,7 +58,8 @@ def _configure_stdio_utf8() -> None:
             kernel32 = ctypes.windll.kernel32
             kernel32.SetConsoleCP(65001)
             kernel32.SetConsoleOutputCP(65001)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_market_event_ingest.py:62: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name, None)
@@ -67,7 +68,8 @@ def _configure_stdio_utf8() -> None:
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")
             continue
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_market_event_ingest.py:71: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         buffer = getattr(stream, "buffer", None)
         if buffer is None:
@@ -83,7 +85,8 @@ def _configure_stdio_utf8() -> None:
                     line_buffering=True,
                 ),
             )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_market_event_ingest.py:87: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
 
@@ -175,7 +178,8 @@ def _count_nested_ints(value: Any, keys: set[str]) -> int:
             if key in keys:
                 try:
                     total += int(item or 0)
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("scripts/factories/run_market_event_ingest.py:179: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             elif isinstance(item, (dict, list, tuple)):
                 total += _count_nested_ints(item, keys)
@@ -248,7 +252,8 @@ async def _sleep_or_stop(stop_event: asyncio.Event, seconds: int) -> None:
         return
     try:
         await asyncio.wait_for(stop_event.wait(), timeout=seconds)
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as _swallowed:
+        logger.warning("scripts/factories/run_market_event_ingest.py:252: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return
 
 
@@ -264,7 +269,8 @@ async def _run(args: argparse.Namespace) -> int:
     for signum in (signal.SIGINT, signal.SIGTERM):
         try:
             signal.signal(signum, request_stop)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_market_event_ingest.py:268: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     logger.info("=" * 80)

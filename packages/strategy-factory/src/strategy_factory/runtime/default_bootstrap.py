@@ -75,7 +75,8 @@ def _configurator_importable(path: str) -> bool:
     module_name = path.partition(":")[0]
     try:
         return importlib.util.find_spec(module_name) is not None
-    except (ImportError, ValueError):
+    except (ImportError, ValueError) as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/runtime/default_bootstrap.py:79: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
 
 

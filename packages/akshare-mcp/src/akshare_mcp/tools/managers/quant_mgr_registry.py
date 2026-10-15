@@ -15,6 +15,9 @@ from ...services import (
 )
 from .quant_mgr_artifact_common import _payload_from_artifact_row
 from .quant_mgr_helpers import _as_code_list, _safe_float
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 ACTIVE_REGISTRY_STAGES = {"governed", "challenger", "champion"}
@@ -106,7 +109,8 @@ def _normalize_validation_params(payload: dict[str, Any]) -> dict[str, int]:
         value = raw.get(key)
         try:
             parsed = int(value)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/quant_mgr_registry.py:110: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if parsed > 0:
             normalized[key] = parsed

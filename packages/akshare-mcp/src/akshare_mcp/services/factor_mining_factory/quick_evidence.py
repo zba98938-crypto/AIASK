@@ -221,5 +221,6 @@ class QuickEvidenceEvaluator:
             trace = dict(getattr(candidate, "generation_trace", None) or {})
             trace["quick_evidence"] = dict(evidence)
             candidate.generation_trace = trace
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/quick_evidence.py:225: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass

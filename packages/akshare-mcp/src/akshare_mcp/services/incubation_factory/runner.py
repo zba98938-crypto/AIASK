@@ -769,7 +769,8 @@ class IncubationFactoryRunner:
         for value in candidates:
             try:
                 days = int(float(value))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/runner.py:773: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             if days > 0:
                 return min(days, 365)
@@ -787,7 +788,8 @@ class IncubationFactoryRunner:
                 return value
             try:
                 return datetime.fromisoformat(str(value).replace("Z", "+00:00")).date()
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/runner.py:791: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
         return None
 
@@ -805,7 +807,8 @@ class IncubationFactoryRunner:
         except Exception:
             try:
                 return date.fromisoformat(text[:10])
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/runner.py:809: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
 
     @staticmethod
@@ -924,7 +927,8 @@ class IncubationFactoryRunner:
             try:
                 signals = list(await get_signals(sid, limit=1) or []) if get_signals is not None else []
                 orders = list(await list_orders(sid, limit=1) or []) if list_orders is not None else []
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/runner.py:928: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             if signals and not orders:
                 latest_signal_date = (signals[0] or {}).get("signal_date")
@@ -1120,7 +1124,8 @@ class IncubationFactoryRunner:
                 strategy["_exit_signal_count"] = exit_signal_count
                 strategy["_open_positions"] = open_positions
                 candidates.append(strategy)
-            except Exception:  # noqa: BLE001
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/runner.py:1124: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
         return candidates[:limit], len(candidates)
@@ -1365,7 +1370,8 @@ class IncubationFactoryRunner:
                     if list_evidence is not None
                     else []
                 )
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/runner.py:1369: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             if (trades or positions) and not evidence:
                 candidates.append(strategy)
@@ -1749,7 +1755,8 @@ class IncubationFactoryRunner:
         def _safe_int(value: Any) -> int:
             try:
                 return int(value or 0)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/runner.py:1753: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return 0
 
         score_capable = any(
@@ -1781,7 +1788,8 @@ class IncubationFactoryRunner:
                     if trades:
                         score += 100
                         has_audit_evidence = True
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/runner.py:1785: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             if hasattr(db, "list_strategy_trade_positions"):
                 try:
@@ -1792,7 +1800,8 @@ class IncubationFactoryRunner:
                     if positions:
                         score += 75
                         has_audit_evidence = True
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/runner.py:1796: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             if hasattr(db, "list_strategy_paper_orders"):
                 try:
@@ -1800,7 +1809,8 @@ class IncubationFactoryRunner:
                     if orders:
                         score += 25
                         has_order_intent = True
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/runner.py:1804: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             if hasattr(db, "get_signals"):
                 try:
@@ -1808,7 +1818,8 @@ class IncubationFactoryRunner:
                     if signals:
                         score += 5
                         has_signal = True
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/runner.py:1812: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             return {
                 "score": score,
@@ -2332,7 +2343,8 @@ class IncubationFactoryRunner:
         try:
             from akshare_mcp.storage import close_db
             await close_db()
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/runner.py:2336: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     def status(self) -> dict[str, Any]:

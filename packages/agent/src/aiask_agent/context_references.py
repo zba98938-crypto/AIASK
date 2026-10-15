@@ -16,6 +16,9 @@ from .general_tools import WorkspaceGuard, _limit_bytes
 from .numeric import bounded_float, bounded_int
 from .session_store import AgentSessionStore, now_iso
 from .tools.policy import build_policy_from_env
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 PROJECT_CONTEXT_FILENAMES = (
@@ -255,12 +258,14 @@ def _is_private_target(url: str) -> bool:
         return True
     try:
         infos = socket.getaddrinfo(host, None)
-    except socket.gaierror:
+    except socket.gaierror as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/context_references.py:259: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     for info in infos:
         try:
             ip = ipaddress.ip_address(info[4][0])
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/context_references.py:264: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast:
             return True

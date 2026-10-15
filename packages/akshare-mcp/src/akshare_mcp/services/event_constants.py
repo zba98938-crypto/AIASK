@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 SOURCE_TIER_A = "tier_a"
 SOURCE_TIER_B = "tier_b"
@@ -51,7 +54,8 @@ def _coerce_date_text(value: Any) -> str:
         return ""
     try:
         return datetime.fromisoformat(text.replace("Z", "+00:00")).isoformat()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/event_constants.py:55: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     digits = "".join(ch for ch in text if ch.isdigit())
     if len(digits) >= 8:

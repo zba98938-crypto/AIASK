@@ -20,6 +20,9 @@ import time
 from typing import Any, Optional
 
 from ..utils import ok, fail, resolve_existing_security_code_async
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _safe_call(coro_factory, label: str, results: dict, errors: dict) -> None:
@@ -59,7 +62,8 @@ def _extract_intrinsic_per_share(label: str, payload: Any) -> tuple[float | None
             num = float(val)
             if num > 0:
                 return num, path
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/valuation_consensus.py:63: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
 
     # 有些工具返回嵌套 valuation 子字典
@@ -73,7 +77,8 @@ def _extract_intrinsic_per_share(label: str, payload: Any) -> tuple[float | None
                 num = float(val)
                 if num > 0:
                     return num, f"data.valuation.{key}"
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/valuation_consensus.py:77: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
     return None, f"{label}:no_per_share_field"
@@ -214,13 +219,15 @@ def register(mcp):
                         fin = await db.get_financials(resolved_code, limit=1)
                         if fin:
                             fin_payload = dict(fin[0])
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/valuation_consensus.py:218: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
                     try:
                         info = await db.get_stock_info(resolved_code)
                         if info:
                             info_payload = dict(info)
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/valuation_consensus.py:224: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
                 if fin_payload:
                     # F-N07-1 修复：字段名与 db.get_financials 实际列对齐。
@@ -293,7 +300,8 @@ def register(mcp):
                                     )
                                     or None
                                 )
-                        except Exception:
+                        except Exception as _swallowed:
+                            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/valuation_consensus.py:297: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             pass
                 if dividend and dividend > 0:
                     ddm_per_share = _simple_ddm_per_share(

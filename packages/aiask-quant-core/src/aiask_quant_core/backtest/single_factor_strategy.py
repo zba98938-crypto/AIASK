@@ -14,6 +14,9 @@ from typing import Any, Dict, Optional
 import numpy as np
 
 from .strategy_base import IStrategy
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SingleFactorStrategy(IStrategy):
@@ -53,7 +56,8 @@ class SingleFactorStrategy(IStrategy):
             if value is None or value == "":
                 return None
             return float(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/backtest/single_factor_strategy.py:57: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     def _fundamental_score(self, kind: str) -> Optional[float]:

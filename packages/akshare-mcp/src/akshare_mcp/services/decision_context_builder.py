@@ -18,6 +18,9 @@ from ..tools.semantic.industry_chain import get_industry_chain
 from ..utils import resolve_security_code
 from .market_data_access import FALLBACK_DB_ONLY, get_quote_snapshot_response
 from .decision_pipeline_shared import build_context_meta, clamp, latest_timestamp, safe_float, safe_int, unique_texts
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_preferences(raw: Any) -> dict[str, Any]:
@@ -607,8 +610,9 @@ async def build_user_context(user_id: str | None) -> dict[str, Any]:
                                 created_at = datetime.fromisoformat(
                                     created_at.replace("Z", "+00:00")
                                 )
-                            except (TypeError, ValueError):
+                            except (TypeError, ValueError) as _swallowed:
                                 # 解析失败 → 跳过此条 snapshot
+                                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/decision_context_builder.py:612: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                                 continue
                         if created_at is None:
                             continue

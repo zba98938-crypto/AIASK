@@ -4,6 +4,9 @@ import inspect
 from pathlib import Path
 import sys
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _ensure_monorepo_package_path(package_name: str) -> None:
@@ -33,7 +36,8 @@ def _load_mcp_and_helpers():
 def _safe_source_path(obj: Any) -> str | None:
     try:
         path = inspect.getsourcefile(obj) or inspect.getfile(obj)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tool_registry.py:37: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return str(Path(path).resolve()) if path else None
 
@@ -41,7 +45,8 @@ def _safe_source_path(obj: Any) -> str | None:
 def _safe_signature(obj: Any) -> str | None:
     try:
         return str(inspect.signature(obj))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tool_registry.py:45: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

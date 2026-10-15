@@ -14,6 +14,9 @@ from ..manager_protocol import (
     fail_with_meta,
     ok_with_meta,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:  # pragma: no cover - auth context is only available when HTTP auth is enabled
     from mcp.server.auth.middleware.auth_context import get_access_token
@@ -62,7 +65,8 @@ def _authenticated_actor_user_id() -> str | None:
         return None
     try:
         access_token = get_access_token()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/user_manager.py:66: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if access_token is None:
         return None

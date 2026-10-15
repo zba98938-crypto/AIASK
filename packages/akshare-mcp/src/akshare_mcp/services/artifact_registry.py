@@ -25,7 +25,8 @@ def _get_db():
     try:
         from ..storage import get_db
         return get_db()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/artifact_registry.py:29: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -106,7 +107,8 @@ def get_artifact(artifact_id: str) -> dict | None:
             loop = asyncio.get_running_loop()
             if loop.is_running():
                 track_background_task(_safe_get(db, aid), name=f"artifact-get:{aid}")
-        except RuntimeError:
+        except RuntimeError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/artifact_registry.py:110: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     return None

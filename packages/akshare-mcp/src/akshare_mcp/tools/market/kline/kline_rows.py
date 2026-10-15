@@ -36,6 +36,9 @@ try:
 except ImportError:
     ak = None
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
 
 _KLINE_TOTAL_TIMEOUT = float(os.getenv("KLINE_TOTAL_TIMEOUT", "45"))
 _MINUTE_KLINE_TIMEOUTS = _parse_timeout_list("AKSHARE_MINUTE_KLINE_TIMEOUTS", [4.0, 8.0])
@@ -58,7 +61,8 @@ def _is_db_data_fresh(klines: list[dict], max_stale_days: int = _DB_STALE_DAYS) 
         last_dt = datetime.strptime(str(last_date)[:10], "%Y-%m-%d")
         days = (datetime.now() - last_dt).days
         return days <= max_stale_days
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/kline/kline_rows.py:62: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
 
 

@@ -27,6 +27,9 @@ from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable
+import logging
+
+logger = logging.getLogger(__name__)
 
 if sys.platform == "win32":
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
@@ -90,7 +93,8 @@ def _as_number(value: Any) -> float | None:
             return None
         try:
             return float(stripped)
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("scripts/tdx_probe/probe_tdx_data_quality.py:94: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
     return None
 
@@ -117,14 +121,16 @@ def _walk_scalars(value: Any, depth: int = 0):
             for item in arr:
                 yield item.item() if hasattr(item, "item") else item
             return
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/tdx_probe/probe_tdx_data_quality.py:121: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     if hasattr(value, "__iter__") and not isinstance(value, (bytes, bytearray)):
         try:
             for child in value:
                 yield from _walk_scalars(child, depth + 1)
             return
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/tdx_probe/probe_tdx_data_quality.py:128: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     yield str(value)
 
@@ -147,7 +153,8 @@ def _shape(value: Any) -> dict[str, Any]:
                         "index_last": str(child.index[-1]) if len(child.index) else None,
                         "columns": [str(c) for c in list(child.columns)[:20]],
                     }
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("scripts/tdx_probe/probe_tdx_data_quality.py:151: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             info["dataframe_fields"] = fields
     elif isinstance(value, list):
@@ -158,7 +165,8 @@ def _shape(value: Any) -> dict[str, Any]:
             info["columns"] = [str(c) for c in list(getattr(value, "columns", []))[:40]]
             info["index_first"] = str(value.index[0]) if len(value.index) else None
             info["index_last"] = str(value.index[-1]) if len(value.index) else None
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/tdx_probe/probe_tdx_data_quality.py:162: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     return info
 
@@ -187,7 +195,8 @@ def _sample(value: Any, depth: int = 0, max_items: int = 4, max_keys: int = 30) 
                 "__shape__": list(value.shape),
                 "__head__": value.head(3).to_string()[:1000],
             }
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/tdx_probe/probe_tdx_data_quality.py:191: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     return str(value)[:500]
 
@@ -204,12 +213,14 @@ def classify_value(value: Any) -> dict[str, Any]:
         try:
             if bool(value.empty):
                 return {"quality": "empty", "reason": "empty DataFrame"}
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/tdx_probe/probe_tdx_data_quality.py:208: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     try:
         if hasattr(value, "__len__") and len(value) == 0:
             return {"quality": "empty", "reason": "len == 0"}
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/tdx_probe/probe_tdx_data_quality.py:213: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     scalars = list(_walk_scalars(value))
@@ -500,7 +511,8 @@ def main() -> None:
 
     try:
         tq.close()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/tdx_probe/probe_tdx_data_quality.py:504: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     derived = build_derived(cases, {

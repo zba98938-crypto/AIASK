@@ -430,7 +430,8 @@ class GeneticProgrammingEngine:
                     },
                     fitness=fitness[idx],
                 ))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/engines/gp_engine.py:434: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
         return candidates

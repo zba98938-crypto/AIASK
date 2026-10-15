@@ -10,6 +10,9 @@ from ..services.stock_profile_pipeline import build_stock_profile_payload
 from ..storage import get_db
 from ..tools.finance import get_stock_info
 from ..utils import normalize_code
+import logging
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_GROUP_ID = "default"
 DEFAULT_GROUP_NAME = "我的自选"
@@ -24,7 +27,8 @@ def _safe_float(value: Any) -> float | None:
         if not math.isfinite(parsed):
             return None
         return parsed
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/resources/stock_and_watchlist.py:28: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

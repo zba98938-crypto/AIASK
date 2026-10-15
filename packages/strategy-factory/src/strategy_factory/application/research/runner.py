@@ -457,7 +457,8 @@ class ResearchPlaneRunner:
         for key in ("min_days", "target_days", "max_days", "alpha_half_life"):
             try:
                 value = int(float(horizon.get(key)))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/research/runner.py:461: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             if value > 0:
                 return max(1, min(20, value))
@@ -723,7 +724,8 @@ class ResearchPlaneRunner:
             for k in recent:
                 try:
                     recent_volume_sum += float((k or {}).get("volume") or 0.0)
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as _swallowed:
+                    logger.warning("packages/strategy-factory/src/strategy_factory/application/research/runner.py:727: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     continue
             suspended = bool(recent) and recent_volume_sum <= 0.0
             return code, len(klist), suspended

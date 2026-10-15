@@ -17,6 +17,9 @@ import pandas as pd
 from strategy_factory.api.semantic_contract import apply_target_symbol_policy, normalize_research_task_contract
 
 from ..env_loader import load_mcp_env
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     from .strategy_llm_provider import StrategyLLMRequestError as _PublicStrategyLLMRequestError
@@ -135,7 +138,8 @@ class _StrategyLLMProviderRuntimeMixin:
         async def _ensure_runtime_async_state(self) -> None:
             try:
                 loop = asyncio.get_running_loop()
-            except RuntimeError:
+            except RuntimeError as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_strategy_llm_provider_runtime.py:139: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return
             loop_id = id(loop)
             if getattr(self, "_runtime_loop_id", None) == loop_id:
@@ -145,7 +149,8 @@ class _StrategyLLMProviderRuntimeMixin:
             if client is not None and not client_is_customized:
                 try:
                     await client.aclose()
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_strategy_llm_provider_runtime.py:149: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             self._request_semaphore = asyncio.Semaphore(max(1, int(self.config.max_concurrency or 1)))
             if client is None or not client_is_customized:
@@ -212,7 +217,8 @@ class _StrategyLLMProviderRuntimeMixin:
             try:
                 status_code = getattr(getattr(exc, "response", None), "status_code", None)
                 return int(status_code) if status_code is not None else None
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_strategy_llm_provider_runtime.py:216: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
 
         @staticmethod
@@ -237,7 +243,8 @@ class _StrategyLLMProviderRuntimeMixin:
                 return None
             try:
                 return max(0.0, float(raw))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_strategy_llm_provider_runtime.py:241: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
 
         def _retry_backoff_delay(self, attempt: int, exc: Exception, *, base_delay: float, max_delay: float = 15.0) -> float:
@@ -762,7 +769,8 @@ class _StrategyLLMProviderRuntimeMixin:
                             timeout=timeout,
                         )
                         return parsed, body, content, "chat_stream_replay"
-                    except StrategyLLMProviderCompatibilityError:
+                    except StrategyLLMProviderCompatibilityError as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_strategy_llm_provider_runtime.py:766: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
                 if allow_response_format_replay and self._should_retry_without_response_format(
                     exc,

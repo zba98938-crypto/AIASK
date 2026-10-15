@@ -30,6 +30,9 @@ import time
 from datetime import datetime
 from pathlib import Path
 from collections import Counter
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _aiask_root() -> Path:
     override = os.getenv("AIASK_PROJECT_ROOT")
@@ -121,7 +124,8 @@ def analyze_new_reports(prev_max_id: int) -> dict:
     for rid, sid, sj in rows:
         try:
             sm = json.loads(sj) if sj else {}
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/dev_v1_ops/gray/_gray_phase_full.py:125: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         lane = str(sm.get("submission_lane") or "")
         grade = str(sm.get("validation_grade") or "")

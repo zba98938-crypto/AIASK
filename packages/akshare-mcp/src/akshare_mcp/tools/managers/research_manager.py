@@ -12,6 +12,9 @@ from ..manager_protocol import (
     normalize_manager_kwargs,
     ok_with_meta,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_limit(value, default: int = 10, minimum: int = 1, maximum: int = 50) -> int:
@@ -108,7 +111,8 @@ def register_research_manager(mcp):
                             'count': reports_data.get('total', 0),
                             'source': 'real_data'
                         }, source_chain=['research_manager', 'news.get_stock_research'])
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/research_manager.py:112: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
                 
                 # 降级：尝试 Tushare forecast
@@ -136,7 +140,8 @@ def register_research_manager(mcp):
                                     'count': len(reports),
                                     'source': 'tushare'
                                 }, source_chain=['research_manager', 'tushare.report_rc'])
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/research_manager.py:140: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
 
                 # P1-3.4 fix: db.research_reports 回退(诊断报告 §3.4 manager 与 db 脱节)
@@ -174,7 +179,8 @@ def register_research_manager(mcp):
                             'fallback_used': True,
                             'fallback_reason': 'tushare_and_news_failed',
                         }, source_chain=['research_manager', 'tushare.report_rc', 'db.research_reports'])
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/research_manager.py:178: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
 
                 return _ok({
@@ -217,7 +223,8 @@ def register_research_manager(mcp):
                                     'total': total,
                                     'source': 'tushare'
                                 }, source_chain=['research_manager', 'tushare.report_rc'])
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/research_manager.py:221: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
 
                 # P1-3.4 fix: db.research_reports 回退聚合 ratings(同 get_reports 修复)
@@ -256,7 +263,8 @@ def register_research_manager(mcp):
                                 'fallback_used': True,
                                 'fallback_reason': 'tushare_failed',
                             }, source_chain=['research_manager', 'tushare.report_rc', 'db.research_reports'])
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/research_manager.py:260: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
 
                 return _ok({

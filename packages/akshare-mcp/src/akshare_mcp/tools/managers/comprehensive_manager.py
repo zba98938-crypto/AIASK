@@ -208,7 +208,8 @@ def register_comprehensive_manager(mcp):
                             change_pct = float(rtd.get('changePercent') or rtd.get('change_pct') or 0)
                             volume = float(rtd.get('volume') or 0)
                             price_source = rtd.get('backend_used') or rtd.get('source') or 'db.stock_quotes'
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/comprehensive_manager.py:212: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
 
                     # 降级到日K线

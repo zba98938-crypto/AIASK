@@ -12,6 +12,9 @@ import hashlib
 import json
 from datetime import date, datetime, time, timedelta, timezone
 from typing import Any, Mapping, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 TRADE_PREDICTION_CONTRACT_VERSION = "strategy_factory.trade_prediction_contract.v1"
 TRADE_PREDICTION_CONTRACT_READY = "ready"
@@ -179,7 +182,8 @@ def _coerce_iso_ts(value: Any) -> Optional[str]:
             try:
                 dt = parser(normalized)
                 break
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/trade_prediction_contract.py:183: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
         if dt is None:
             digits = "".join(ch for ch in text if ch.isdigit())
@@ -187,7 +191,8 @@ def _coerce_iso_ts(value: Any) -> Optional[str]:
                 return None
             try:
                 dt = datetime(int(digits[:4]), int(digits[4:6]), int(digits[6:8]))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/trade_prediction_contract.py:191: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
@@ -206,7 +211,8 @@ def _coerce_iso_date(value: Any) -> Optional[str]:
         return None
     try:
         return date.fromisoformat(text[:10]).isoformat()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/trade_prediction_contract.py:210: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     ts = _coerce_iso_ts(text)
     return ts[:10] if ts else None
@@ -248,13 +254,15 @@ def _horizon_business_days(value: Any) -> Optional[int]:
     if token.isdigit():
         try:
             return max(1, min(20, int(token)))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/trade_prediction_contract.py:252: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
     digits = "".join(ch for ch in token if ch.isdigit())
     if digits and token.endswith(("d", "day", "days")):
         try:
             return max(1, min(20, int(digits)))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/trade_prediction_contract.py:258: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
     return None
 
@@ -274,7 +282,8 @@ def _safe_int(value: Any) -> Optional[int]:
         if value in _EMPTY_VALUES:
             return None
         return int(float(value))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/trade_prediction_contract.py:278: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -317,7 +326,8 @@ def _derive_target_date_from_horizon(prediction_as_of: Any, horizon: Any) -> Opt
         return None
     try:
         base = datetime.fromisoformat(resolved_as_of.replace("Z", "+00:00")).date()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/trade_prediction_contract.py:321: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return _add_business_days(base, days).isoformat()
 
@@ -377,7 +387,8 @@ def _direction_from_expected_move(value: Any) -> Optional[str]:
         for key in ("return", "return_pct", "pct", "move", "expected_return"):
             try:
                 numeric = float(payload.get(key))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/trade_prediction_contract.py:381: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             if numeric > 0:
                 return "up"
@@ -392,7 +403,8 @@ def _direction_from_expected_move(value: Any) -> Optional[str]:
         numeric = float(text.rstrip("%"))
         if "%" in text:
             numeric = numeric / 100.0
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/trade_prediction_contract.py:396: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if numeric > 0:
         return "up"
@@ -437,7 +449,8 @@ def _coerce_confidence(value: Any) -> Optional[float]:
         if value in _EMPTY_VALUES:
             return None
         resolved = float(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/trade_prediction_contract.py:441: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if resolved < 0.0 or resolved > 1.0:
         return None

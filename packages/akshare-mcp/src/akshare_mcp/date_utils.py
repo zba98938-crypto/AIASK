@@ -2,6 +2,9 @@
 from datetime import datetime, timedelta, date
 import os
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
 
 _latest_trade_date_cache: date = None
 _latest_trade_date_ts: float = 0
@@ -34,7 +37,8 @@ def get_latest_trading_date() -> str:
                 _latest_trade_date_cache = last_date
                 _latest_trade_date_ts = datetime.now().timestamp()
                 return last_date.strftime("%Y%m%d")
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/date_utils.py:38: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     # Fallback: try reading from local DB
@@ -50,7 +54,8 @@ def get_latest_trading_date() -> str:
                 _latest_trade_date_cache = d
                 _latest_trade_date_ts = datetime.now().timestamp()
                 return d.strftime("%Y%m%d")
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/date_utils.py:54: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     
     # Fallback: Today if weekday, else previous Friday

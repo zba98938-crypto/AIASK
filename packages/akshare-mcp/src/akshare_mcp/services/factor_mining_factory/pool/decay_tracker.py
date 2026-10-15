@@ -154,5 +154,6 @@ class DecayTracker:
                 return None
             half_life = 1.0 / lambda_param
             return half_life if math.isfinite(half_life) and half_life > 0 else None
-        except (ZeroDivisionError, ValueError):
+        except (ZeroDivisionError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/pool/decay_tracker.py:158: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None

@@ -19,6 +19,9 @@ from ._strategy_autonomy_context import (
 from .artifact_registry import register_experiment
 from .strategy_reviewer import MultiAgentStrategyReviewer
 from .strategy_spec import StrategySpec
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class CommitteeReviewService:
@@ -57,7 +60,8 @@ class CommitteeReviewService:
         value = review.get("final_score")
         try:
             return float(value)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_strategy_autonomy_services.py:61: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0.0
 
     def review_candidates(

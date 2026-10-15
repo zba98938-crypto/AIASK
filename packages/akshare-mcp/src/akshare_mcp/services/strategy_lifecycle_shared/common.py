@@ -162,7 +162,8 @@ def _safe_float(value: Any) -> Optional[float]:
         if value is None:
             return None
         return float(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/strategy_lifecycle_shared/common.py:166: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

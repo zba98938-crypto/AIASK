@@ -52,6 +52,9 @@ from ._research_context_sources import (
     load_governed_candidate_pool,
     load_model_registry_lineage,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class FactorResearchBuilder(FactorResearchBuilderSupportMixin):
@@ -156,7 +159,8 @@ class FactorResearchBuilder(FactorResearchBuilderSupportMixin):
                 if abs(float(labels.get(key) or 0.0)) > 1e-12:
                     all_zero = False
                     break
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/research/factor_research_builder.py:160: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         unknown_oos = (
             not bool(labels.get("oos_pass"))
@@ -184,7 +188,8 @@ class FactorResearchBuilder(FactorResearchBuilderSupportMixin):
             try:
                 if float(current_ic) < 0.0:
                     return False
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/research/factor_research_builder.py:188: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         if quality_status == "quarantine":
             return False

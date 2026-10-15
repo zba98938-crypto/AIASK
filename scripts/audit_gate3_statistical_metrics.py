@@ -54,7 +54,8 @@ def _configure_stdio_utf8() -> None:
     try:
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/audit_gate3_statistical_metrics.py:58: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
 
@@ -317,7 +318,8 @@ def _summarize_metric(
                 fv = obs.get("first_half_ic")
                 try:
                     real_values.append(float(fv))
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("scripts/audit_gate3_statistical_metrics.py:321: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
         else:
             cls = _classify_value(obs)
@@ -325,7 +327,8 @@ def _summarize_metric(
             if cls == "present_real":
                 try:
                     real_values.append(float(obs))
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("scripts/audit_gate3_statistical_metrics.py:329: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
 
     n = sum(classifications.values())

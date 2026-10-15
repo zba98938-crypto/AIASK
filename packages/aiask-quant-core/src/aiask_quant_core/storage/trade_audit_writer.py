@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 from datetime import date, datetime
 from typing import Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _safe_float(value: Any, default: Optional[float] = None) -> Optional[float]:
@@ -41,7 +44,8 @@ def _coerce_ts(value: Any) -> Any:
     ):
         try:
             return parser(text)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/trade_audit_writer.py:45: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return value
 

@@ -24,6 +24,9 @@ from .helpers import (
 )
 from .notices import fetch_market_notice_head, get_stock_notices
 from .research import get_research_reports, get_stock_research
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 @cached(ttl=1800.0)
@@ -98,7 +101,8 @@ def get_stock_news(
                 db_news = list((db_context or {}).get("news") or [])
                 if db_news:
                     return _respond(ok(db_news[:limit]))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/news_feed.py:102: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         items = _try_tushare_anns(start_date.isoformat(), end_date.isoformat(), code, limit)

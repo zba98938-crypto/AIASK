@@ -28,6 +28,9 @@ import time
 from typing import Any, Optional
 
 from ..utils import ok, fail, resolve_existing_security_code_async
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 _DIRECTION_NORMALIZE = {
@@ -94,7 +97,8 @@ def _extract_decision_from_payload(label: str, payload: Any) -> dict:
             try:
                 out["score"] = round(float(val), 2)
                 break
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/decision_consensus.py:98: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
     # reason

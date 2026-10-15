@@ -16,6 +16,9 @@ from ..services.technical_analysis import TechnicalAnalysis as _TA
 from ..storage import get_db
 from ..utils import fail, ok, resolve_existing_security_code_async
 from .key_levels import compute_key_levels
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 async def compute_stop_levels(
@@ -125,7 +128,8 @@ async def compute_stop_levels(
                 if resistances_above:
                     nearest = min(resistances_above, key=lambda x: x["price"])
                     structure_stop = round(nearest["price"] * 1.01, 2)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/stop_levels.py:129: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     # 推荐止损: 取 ATR 止损和结构止损中更保守的

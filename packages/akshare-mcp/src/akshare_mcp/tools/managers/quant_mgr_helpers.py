@@ -74,7 +74,8 @@ def _as_code_list(value: Any) -> list[str]:
             parsed = json.loads(text)
             if isinstance(parsed, list):
                 return [str(v).strip() for v in parsed if str(v).strip()]
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/quant_mgr_helpers.py:78: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return [x.strip() for x in text.split(",") if x.strip()]
     return [str(value).strip()] if str(value).strip() else []
@@ -100,13 +101,15 @@ def _parse_date_value(value: Any) -> Optional[date]:
     ):
         try:
             return parser(text)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/quant_mgr_helpers.py:104: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     digits = "".join(ch for ch in text if ch.isdigit())
     if len(digits) >= 8:
         try:
             return date.fromisoformat(f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}")
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/quant_mgr_helpers.py:110: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
     return None
 
@@ -180,7 +183,8 @@ async def _load_valuation_snapshot(
                     "price": _safe_float(payload.get("price"), default=0.0),
                     "as_of_date": _parse_date_value(payload.get("time")),
                 }
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/quant_mgr_helpers.py:184: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     # Fallback: 从 stocks 表取静态 PE/PB（适用于因子计算场景）
@@ -202,7 +206,8 @@ async def _load_valuation_snapshot(
                         "market_cap": _safe_float(payload.get("market_cap"), default=0.0),
                         "source": "stocks_table",
                     }
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/quant_mgr_helpers.py:206: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     if hasattr(db, "get_stock_info"):

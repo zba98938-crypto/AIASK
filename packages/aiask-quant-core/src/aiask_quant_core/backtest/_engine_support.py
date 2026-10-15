@@ -19,6 +19,9 @@ from .strategies import (
     _backtest_momentum_jit,
     _backtest_rsi_jit,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 _SLIPPAGE_NOTE = "JIT路径使用均值化滑点估算，实际交易成本可能偏高"
@@ -224,7 +227,8 @@ def _extract_benchmark_returns(
                     continue
                 try:
                     by_date[day] = float(row.get("close", 0) or 0)
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as _swallowed:
+                    logger.warning("packages/aiask-quant-core/src/aiask_quant_core/backtest/_engine_support.py:228: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     continue
             closes = []
             for day in strategy_dates:
@@ -665,12 +669,14 @@ def _build_strategy_masks(
         if klines and hasattr(runtime_instance, "generate_entry_exit_masks_from_klines"):
             try:
                 return runtime_instance.generate_entry_exit_masks_from_klines(klines)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/aiask-quant-core/src/aiask_quant_core/backtest/_engine_support.py:669: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         if execution_semantic_mode == "compiled_dsl" or hasattr(runtime_instance, "generate_entry_exit_masks"):
             try:
                 return runtime_instance.generate_entry_exit_masks(closes, volumes)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/aiask-quant-core/src/aiask_quant_core/backtest/_engine_support.py:674: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
     if strategy == "ma_cross":

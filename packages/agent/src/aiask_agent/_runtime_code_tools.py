@@ -36,6 +36,9 @@ from .todo import FinancialTodoStore
 from .tools.policy import FINANCE_SAFE_TOOLSET, GENERAL_FULL_TOOLSET, ToolPolicy, ToolPolicyEngine
 from .tools.schemas import TOOL_SCHEMAS
 from .memory import FinancialMemoryStore
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_SYSTEM_PROMPT = (
@@ -502,7 +505,8 @@ class _RuntimeCodeToolsMixin:
                 if socket_path is not None:
                     try:
                         socket_path.unlink()
-                    except FileNotFoundError:
+                    except FileNotFoundError as _swallowed:
+                        logger.warning("packages/agent/src/aiask_agent/_runtime_code_tools.py:506: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
         return aiask_envelope(
             proc.returncode == 0 and not timed_out,

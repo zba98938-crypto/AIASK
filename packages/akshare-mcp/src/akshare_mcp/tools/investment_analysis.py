@@ -5,6 +5,9 @@ import statistics
 from ..storage import get_db
 from ..services.factor_calculator import factor_calculator
 from ..utils import ok, fail, resolve_existing_security_code_async
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -82,9 +85,11 @@ async def get_investment_analysis(code: str) -> dict:
                                 'market_cap': 'total_mv',
                             }.get(key, key)
                             valuation[normalized_key] = round(float(val), 2)
-                        except (ValueError, TypeError):
+                        except (ValueError, TypeError) as _swallowed:
+                            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/investment_analysis.py:86: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             pass
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/investment_analysis.py:88: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         result["basic_info"] = {
             "code": code,
@@ -109,7 +114,8 @@ async def get_investment_analysis(code: str) -> dict:
                         valuation["industry_relative_pe"] = round(float(valuation["pe"]) / float(valuation["industry_median_pe"]), 4)
                 if peer_pbs:
                     valuation["industry_median_pb"] = round(float(statistics.median(peer_pbs)), 2)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/investment_analysis.py:113: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         result["valuation"] = valuation
 
@@ -139,10 +145,12 @@ async def get_investment_analysis(code: str) -> dict:
                     if val is not None:
                         try:
                             fundamentals[key] = round(float(val), 2)
-                        except (ValueError, TypeError):
+                        except (ValueError, TypeError) as _swallowed:
+                            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/investment_analysis.py:143: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             pass
                 fundamentals["report_count"] = len(fin_rows) if isinstance(fin_rows, list) else 1
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/investment_analysis.py:146: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         result["fundamentals"] = fundamentals
 
@@ -151,24 +159,29 @@ async def get_investment_analysis(code: str) -> dict:
         if len(closes) >= 15:
             try:
                 technical["rsi_14"] = round(factor_calculator.calculate_rsi(closes, 14), 2)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/investment_analysis.py:155: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             try:
                 technical["rsi_6"] = round(factor_calculator.calculate_rsi(closes, 6), 2)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/investment_analysis.py:159: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         if len(closes) >= 26:
             try:
                 technical["macd"] = round(factor_calculator.calculate_macd(closes), 4)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/investment_analysis.py:164: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             try:
                 technical["macd_signal"] = round(factor_calculator.calculate_macd_signal(closes), 4)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/investment_analysis.py:168: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             try:
                 technical["macd_hist"] = round(factor_calculator.calculate_macd_hist(closes), 4)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/investment_analysis.py:172: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         # 均线排列
@@ -201,7 +214,8 @@ async def get_investment_analysis(code: str) -> dict:
                     momentum[f"mom_{label}"] = round(
                         factor_calculator.calculate_momentum(closes, days), 4
                     )
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/investment_analysis.py:205: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
         market_regime = "neutral"
         if momentum.get("mom_20d") is not None:
@@ -219,14 +233,16 @@ async def get_investment_analysis(code: str) -> dict:
                 risk["volatility_20d"] = round(
                     factor_calculator.calculate_volatility(closes, 20), 4
                 )
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/investment_analysis.py:223: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         if len(closes) >= 61:
             try:
                 risk["volatility_60d"] = round(
                     factor_calculator.calculate_volatility(closes, 60), 4
                 )
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/investment_analysis.py:230: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         # 最大回撤（近 250 日）
         if len(closes) >= 20:

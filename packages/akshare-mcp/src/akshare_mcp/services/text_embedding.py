@@ -15,6 +15,9 @@ from typing import Any, Optional
 import httpx
 
 from ..env_loader import load_mcp_env
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class StrategyTextEmbeddingError(RuntimeError):
@@ -147,7 +150,8 @@ class StrategyTextEmbeddingService:
             return True
         try:
             return bool(getattr(client, "is_closed"))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/text_embedding.py:151: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return False
 
     def _client_state(self) -> str:
@@ -177,7 +181,8 @@ class StrategyTextEmbeddingService:
             return
         try:
             await client.aclose()
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/text_embedding.py:181: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         self._sentence_transformer = None
 
@@ -365,7 +370,8 @@ class StrategyTextEmbeddingService:
         try:
             status_code = getattr(getattr(exc, "response", None), "status_code", None)
             return int(status_code) if status_code is not None else None
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/text_embedding.py:369: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     @staticmethod
@@ -379,7 +385,8 @@ class StrategyTextEmbeddingService:
             return None
         try:
             return max(0.0, float(raw))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/text_embedding.py:383: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     @staticmethod
@@ -389,7 +396,8 @@ class StrategyTextEmbeddingService:
             if response is None:
                 return ""
             return str(getattr(response, "text", "") or "")
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/text_embedding.py:393: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return ""
 
     def _is_retryable_unknown_model_error(self, exc: Exception) -> bool:

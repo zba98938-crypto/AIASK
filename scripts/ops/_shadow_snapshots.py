@@ -43,6 +43,9 @@ from _shadow_common import (
     utc_now,
     write_json,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _dimension_values(prediction: dict[str, Any], outcome: dict[str, Any], dimension: str) -> list[str]:
     aliases = {
@@ -84,7 +87,8 @@ def _safe_float(value: Any) -> float | None:
         if value in (None, ""):
             return None
         return float(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/ops/_shadow_snapshots.py:88: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

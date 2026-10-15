@@ -12,6 +12,9 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from .numeric import bounded_float, bounded_int
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _is_private_target(url: str) -> bool:
@@ -20,13 +23,15 @@ def _is_private_target(url: str) -> bool:
         return True
     try:
         infos = socket.getaddrinfo(host, None)
-    except socket.gaierror:
+    except socket.gaierror as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/native_web_utils.py:24: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     for info in infos:
         address = info[4][0]
         try:
             ip = ipaddress.ip_address(address)
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/native_web_utils.py:30: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast:
             return True

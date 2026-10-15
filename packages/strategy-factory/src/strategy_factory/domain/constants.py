@@ -60,6 +60,10 @@ FACTOR_CONCENTRATION_FREEZE_RATIO: float = float(os.environ.get("STRATEGY_FACTOR
 
 # 优化 6：因子→策略映射覆盖（JSON 格式环境变量）
 import json as _json
+import logging
+
+logger = logging.getLogger(__name__)
+
 _FACTOR_MAPPING_OVERRIDES_RAW = os.environ.get("STRATEGY_FACTORY_FACTOR_MAPPING_OVERRIDES", "").strip()
 FACTOR_STRATEGY_MAPPING_OVERRIDES: Dict[str, tuple[str, ...]] = {}
 if _FACTOR_MAPPING_OVERRIDES_RAW:
@@ -68,7 +72,8 @@ if _FACTOR_MAPPING_OVERRIDES_RAW:
         FACTOR_STRATEGY_MAPPING_OVERRIDES = {
             str(k): tuple(str(v) for v in vs) for k, vs in _parsed.items()
         }
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/domain/constants.py:72: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
 FACTOR_STRATEGY_MAPPING: Dict[str, tuple[str, ...]] = {
@@ -933,13 +938,15 @@ def _resolve_pipeline_stage_max_tokens(stage: str, legacy_default: int) -> int:
     if specific is not None:
         try:
             return max(128, int(str(specific).strip()))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/domain/constants.py:937: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     global_override = os.getenv("STRATEGY_PIPELINE_STAGE_MAX_TOKENS")
     if global_override is not None:
         try:
             return max(128, int(str(global_override).strip()))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/domain/constants.py:943: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     return legacy_default
 

@@ -38,6 +38,9 @@ import ast
 import json
 import sys
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -87,7 +90,8 @@ def scan(root: Path) -> list[dict]:
             continue
         try:
             tree = ast.parse(path.read_text(encoding="utf-8-sig", errors="ignore"))
-        except SyntaxError:
+        except SyntaxError as _swallowed:
+            logger.warning("scripts/check_silent_exception_swallows.py:91: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         for node in ast.walk(tree):
             if not isinstance(node, ast.ExceptHandler):

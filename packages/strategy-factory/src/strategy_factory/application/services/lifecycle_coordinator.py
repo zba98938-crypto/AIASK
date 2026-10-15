@@ -45,7 +45,8 @@ async def _update_strategy_status(*args, **kwargs):
         patched = getattr(submitter_runner, "_update_strategy_status", None)
         if callable(patched) and patched is not _update_strategy_status:
             return await patched(*args, **kwargs)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/services/lifecycle_coordinator.py:49: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return await _local_update_strategy_status(*args, **kwargs)
 

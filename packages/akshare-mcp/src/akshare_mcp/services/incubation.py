@@ -28,7 +28,8 @@ def _safe_rules_dict(value) -> dict:
             parsed = json.loads(value)
             if isinstance(parsed, dict):
                 return parsed
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation.py:32: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     return {}
 
@@ -196,7 +197,8 @@ def _parse_datetime(value) -> Optional[datetime]:
     else:
         try:
             dt = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation.py:200: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)
@@ -350,7 +352,8 @@ def _resolve_strategy_target_codes(strategy: dict) -> set[str]:
     for raw_budget in budget_candidates:
         try:
             max_active_symbols = max(max_active_symbols, int(raw_budget or 0))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation.py:354: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
 
     resolved = [code for code in ordered if code not in excluded_symbols]
@@ -595,7 +598,8 @@ async def _infer_symbol_regime_from_db(db, code: str) -> dict:
             # calendar labels and corrupting the price path.
             if all(dates) and len(set(dates)) == len(dates):
                 rows.sort(key=lambda row: str((row or {}).get("date") or ""))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation.py:599: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         closes = [
             (r or {}).get("close")
@@ -637,9 +641,11 @@ def _resolve_signal_regime(strategy: dict, regime: Optional[dict]) -> dict:
                     labels["sentiment_regime"] = (
                         "fear" if fg_val < 30 else "greed" if fg_val > 70 else "neutral"
                     )
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation.py:641: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation.py:643: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return labels
 
@@ -954,7 +960,8 @@ class StrategyIncubationService:
             klines = await db.get_klines(code, limit=1)
             if klines:
                 return float(klines[-1].get('close') or 0) or None
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation.py:958: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         return None
 
@@ -971,7 +978,8 @@ class StrategyIncubationService:
                 )
                 if klines:
                     return float((klines[-1] or {}).get('close') or 0.0) or None
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation.py:975: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         return await self._latest_price(db, code_token)
 
@@ -1169,7 +1177,8 @@ class StrategyIncubationService:
                     try:
                         if str(raw_signal_date)[:10] > str(signal_date):
                             continue
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation.py:1173: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
                 if str(item.get('status') or 'pending') not in {'pending', 'submitted'}:
                     continue

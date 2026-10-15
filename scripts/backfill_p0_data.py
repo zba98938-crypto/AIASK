@@ -35,6 +35,9 @@ import traceback
 from datetime import date, datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT / "packages" / "akshare-mcp" / "src"))
@@ -171,7 +174,8 @@ async def _backfill_dragon_tiger(db) -> dict[str, Any]:
                                 json.dumps(r.to_dict(), ensure_ascii=False, default=str),
                             )
                             inserted += 1
-                        except Exception:
+                        except Exception as _swallowed:
+                            logger.warning("scripts/backfill_p0_data.py:175: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             continue
             after = await _load_table_status(db, "dragon_tiger_list", "date")
             print(f"  inserted: {inserted}")

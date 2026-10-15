@@ -7,6 +7,9 @@ from typing import Any, Optional
 
 from .common import _safe_float, _safe_int, _string
 from .confidence import evaluate_execution_audit_gate
+import logging
+
+logger = logging.getLogger(__name__)
 
 # P-1: warmup 长期滞留治理阈值。停留超过此天数且前向有效样本仍低于最低毕业门,
 # 视为信号频率/质量过低,冻结待修以释放 observe 池容量。阈值偏保守,需后续运营校准。
@@ -105,7 +108,8 @@ def _parse_time(value: Any) -> Optional[datetime]:
         except ValueError:
             try:
                 dt = datetime.fromisoformat(f"{text}T00:00:00+00:00")
-            except ValueError:
+            except ValueError as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/strategy_lifecycle_shared/incubation.py:109: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
     if dt.tzinfo is None:
         dt = dt.replace(tzinfo=timezone.utc)

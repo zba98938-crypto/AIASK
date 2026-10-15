@@ -16,6 +16,9 @@ from __future__ import annotations
 import math
 from datetime import datetime, timezone
 from typing import Any, Mapping, Optional, Sequence
+import logging
+
+logger = logging.getLogger(__name__)
 
 _FACTOR_FAMILY_TYPES = {"quality_factor", "value_factor", "growth_factor"}
 
@@ -41,7 +44,8 @@ def _to_float(value: Any) -> Optional[float]:
         if value is None:
             return None
         result = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/fundamental_runtime_contract.py:45: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if math.isnan(result) or math.isinf(result):
         return None
@@ -109,6 +113,7 @@ async def build_fundamental_runtime_contract_from_db(
         return None
     try:
         rows = await getter(code, limit=int(limit))
-    except Exception:  # noqa: BLE001 - 数据不可用不得阻断
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/fundamental_runtime_contract.py:113: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return build_fundamental_runtime_contract(strategy_type, rows or [], code=code)

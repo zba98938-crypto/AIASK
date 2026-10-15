@@ -32,6 +32,9 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _now() -> str:
@@ -71,7 +74,8 @@ def _largest_rows(conn: sqlite3.Connection, top: int = 10) -> list[dict[str, Any
             ).fetchone()
             max_bytes = int(row[0] or 0)
             rows.append({"table": table, "max_row_bytes": max_bytes})
-        except sqlite3.DatabaseError:
+        except sqlite3.DatabaseError as _swallowed:
+            logger.warning("scripts/ops/db_soak.py:75: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     rows.sort(key=lambda r: r["max_row_bytes"], reverse=True)
     return rows[:top]

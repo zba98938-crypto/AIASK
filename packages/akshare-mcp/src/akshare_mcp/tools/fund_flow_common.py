@@ -179,7 +179,8 @@ def _load_sector_flow_legacy_cache_file() -> Optional[list[dict]]:
         if _SECTOR_FLOW_CACHE_MAX_AGE > 0 and (time.time() - ts) > _SECTOR_FLOW_CACHE_MAX_AGE:
             return None
         return data
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/fund_flow_common.py:183: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -188,14 +189,16 @@ def _load_sector_flow_cache() -> Optional[list[dict]]:
         cached_data = cache.get(_SECTOR_FLOW_CACHE_KEY, _SECTOR_FLOW_CACHE_MAX_AGE)
         if isinstance(cached_data, list) and cached_data:
             return cached_data
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/fund_flow_common.py:192: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     legacy_cached = _load_sector_flow_legacy_cache_file()
     if legacy_cached:
         try:
             cache.set(_SECTOR_FLOW_CACHE_KEY, legacy_cached)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/fund_flow_common.py:199: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return legacy_cached
     return None
@@ -206,5 +209,6 @@ def _save_sector_flow_cache(data: list[dict]) -> None:
         if not isinstance(data, list) or not data:
             return
         cache.set(_SECTOR_FLOW_CACHE_KEY, data)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/fund_flow_common.py:210: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return

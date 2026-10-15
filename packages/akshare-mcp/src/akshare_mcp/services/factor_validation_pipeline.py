@@ -66,6 +66,9 @@ from ._factor_validation_pipeline_support import (
     _build_turnover_report,
     _build_cost_capacity_report,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _build_validation_rating(
     cross_section_summary: dict[str, Any],
@@ -692,6 +695,7 @@ async def validate_factor_candidate_pipeline(
                 factor_name=factor_name,
                 payload=result,
             )
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_validation_pipeline.py:696: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return result

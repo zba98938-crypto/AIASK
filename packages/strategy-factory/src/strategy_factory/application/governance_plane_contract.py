@@ -8,6 +8,9 @@ from __future__ import annotations
 
 # --- governance_plane_contract_parts/normalizers.py ---
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 GOVERNANCE_PLANE_CONTRACT_VERSION = "strategy_factory.governance_plane.v1"
 GATE_ARTIFACT_CONTRACT_VERSION = "strategy_factory.gate_artifact.v1"
@@ -544,7 +547,8 @@ def _validation_total_score(item: dict[str, Any], *, raw: bool) -> float | None:
                 continue
             try:
                 return float(value)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/governance_plane_contract.py:548: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
     return None
 
@@ -572,7 +576,8 @@ def _metric_payload(item: dict[str, Any], *keys: str) -> float | None:
                 continue
             try:
                 return float(value)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/governance_plane_contract.py:576: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
     return None
 

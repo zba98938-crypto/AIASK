@@ -17,6 +17,9 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from _integration_paths import default_sqlite_path, ensure_runtime_dirs, runtime_home
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _aiask_root() -> Path:
     override = os.getenv("AIASK_PROJECT_ROOT")
@@ -94,7 +97,8 @@ def analyze_new_data(prev: dict) -> dict:
     for rid, sj in qr_rows:
         try:
             sm = json.loads(sj) if sj else {}
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/dev_v1_ops/gray/_test_density_cycle.py:98: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         lane = str(sm.get("submission_lane") or "")
         grade = str(sm.get("validation_grade") or "")
@@ -145,7 +149,8 @@ def analyze_new_data(prev: dict) -> dict:
                       "bulk_stock_matrix_planned_family_counts"]:
                 if k in sm:
                     run_summary[k] = sm[k]
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/dev_v1_ops/gray/_test_density_cycle.py:149: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     con.close()

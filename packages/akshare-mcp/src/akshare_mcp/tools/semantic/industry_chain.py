@@ -2,6 +2,9 @@
 
 from typing import Optional
 from ...utils import ok, fail
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # 预置产业链数据
@@ -242,7 +245,8 @@ def get_industry_chain(keyword: Optional[str] = None, chain_id: Optional[str] = 
                                 'midstream': [],
                                 'downstream': down,
                             })
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/semantic/industry_chain.py:246: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             if not result:
                 # P3-5.13 fix: not_found 显式标 quality_flags(诊断报告 §5.13)

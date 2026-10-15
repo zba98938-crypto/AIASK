@@ -12,13 +12,17 @@ from .strategies import (
     _backtest_rsi_jit,
 )
 from .engine import backtest_engine
+import logging
+
+logger = logging.getLogger(__name__)
 
 # 可选的Ray支持
 RAY_AVAILABLE = False
 try:
     import ray
     RAY_AVAILABLE = True
-except ImportError:
+except ImportError as _swallowed:
+    logger.warning("packages/aiask-quant-core/src/aiask_quant_core/backtest/parallel.py:22: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
     pass
 
 

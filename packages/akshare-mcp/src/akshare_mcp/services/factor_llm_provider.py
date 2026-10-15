@@ -16,6 +16,9 @@ import httpx
 from pydantic import BaseModel, ConfigDict, Field, TypeAdapter, ValidationInfo, field_validator
 
 from akshare_mcp.env_loader import load_mcp_env
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class FactorLLMRequestError(RuntimeError):
@@ -371,7 +374,8 @@ class FactorLLMProvider:
             return True
         try:
             return bool(getattr(self._client, "is_closed"))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_llm_provider.py:375: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return False
 
     def _client_state(self) -> str:
@@ -407,7 +411,8 @@ class FactorLLMProvider:
             result = close()
             if asyncio.iscoroutine(result):
                 await result
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_llm_provider.py:411: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     def is_enabled(self) -> bool:

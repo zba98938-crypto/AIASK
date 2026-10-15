@@ -1757,7 +1757,8 @@ def _first_float_value(payload: Optional[dict], *keys: str) -> Optional[float]:
             continue
         try:
             return float(data.get(key) or 0.0)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/submission_gate/runner.py:1761: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return None
 
@@ -2158,7 +2159,8 @@ async def _build_family_returns_from_klines(
         for code in symbols:
             try:
                 rows = await get_klines(code, limit=max(min_len * 2, 120))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/submission_gate/runner.py:2162: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             closes = np.asarray(
                 [float(r.get("close") or 0.0) for r in (rows or []) if r.get("close") is not None],
@@ -2187,7 +2189,8 @@ async def _build_family_returns_from_klines(
         if family.ndim != 2 or family.shape[0] < 12 or family.shape[1] < 2:
             return None
         return family
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/submission_gate/runner.py:2191: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -2694,7 +2697,8 @@ def _optional_metric_value(payload: Optional[dict], *keys: str) -> float | None:
             continue
         try:
             value = float(data.get(key))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/submission_gate/runner.py:2698: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         if not np.isfinite(value):
             return None
@@ -3680,7 +3684,8 @@ def _assign_statistical_metric(
         return
     try:
         numeric = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/submission_gate/runner.py:3684: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return
     if not np.isfinite(numeric):
         return

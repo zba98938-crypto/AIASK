@@ -9,6 +9,9 @@ from ._base import (
     _safe_rules_dict,
     _string,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class _ExecutionAcceptanceMixin:
@@ -42,7 +45,8 @@ class _ExecutionAcceptanceMixin:
         def _is_full_ratio(value) -> bool:
             try:
                 return float(value) >= 0.999999
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/strategy_incubation_repos/execution_acceptance.py:46: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return False
 
         realized_trade_count = int(audit_summary.get("realized_trade_count") or 0)

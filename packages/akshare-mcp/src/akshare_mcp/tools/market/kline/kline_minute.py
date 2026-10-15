@@ -62,6 +62,9 @@ from .kline_rows import (
     _process_kline_akshare,
     _validated_kline_rows,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _parse_minute_period(period: str) -> Optional[int]:
     raw = str(period or "").strip().lower()
@@ -69,7 +72,8 @@ def _parse_minute_period(period: str) -> Optional[int]:
         raw = raw[:-1]
     try:
         minutes = int(raw)
-    except ValueError:
+    except ValueError as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/kline/kline_minute.py:73: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if minutes in (1, 5, 15, 30, 60):
         return minutes
@@ -246,7 +250,8 @@ def _get_minute_kline_from_tencent(code: str, minutes: int, limit: int) -> list[
                     "amount": safe_float(row[6]) if len(row) > 6 else 0.0,
                     "source": "tencent",
                 })
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/kline/kline_minute.py:250: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
         return results
     except Exception:

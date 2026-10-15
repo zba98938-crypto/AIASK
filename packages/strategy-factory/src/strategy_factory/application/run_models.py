@@ -8,6 +8,9 @@ from enum import Enum
 from typing import Any, Mapping, Optional
 
 from ..infrastructure.env_loader import load_strategy_llm_env
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class StageStatus(str, Enum):
@@ -275,7 +278,8 @@ _LLM_PROVIDER_ERROR_SUMMARY_KEYS = (
 def _safe_count(value: Any) -> int:
     try:
         return int(value or 0)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/run_models.py:279: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0
 
 

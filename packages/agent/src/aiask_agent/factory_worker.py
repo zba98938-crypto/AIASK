@@ -12,6 +12,9 @@ from typing import Any
 from uuid import uuid4
 
 from aiask_quant_core.storage import close_db, get_db
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 RUNNER_FILES = {
@@ -73,7 +76,8 @@ def _last_json(stdout: str) -> dict[str, Any]:
             continue
         try:
             value, end = decoder.raw_decode(stdout[index:])
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/factory_worker.py:77: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if isinstance(value, dict) and end > best_length:
             best = value

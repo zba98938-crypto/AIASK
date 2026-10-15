@@ -78,7 +78,8 @@ class TradingCalendar:
             self._external_calendar = "cn_stock_holidays"
             logger.info("TradingCalendar: using cn-stock-holidays")
             return
-        except ImportError:
+        except ImportError as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/domain/trading_calendar.py:82: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         # 尝试 pandas_market_calendars
@@ -87,7 +88,8 @@ class TradingCalendar:
             self._external_calendar = mcal.get_calendar("SSE")
             logger.info("TradingCalendar: using pandas_market_calendars (SSE)")
             return
-        except (ImportError, Exception):
+        except (ImportError, Exception) as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/domain/trading_calendar.py:91: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         logger.info("TradingCalendar: using built-in holiday list (fallback)")
@@ -100,7 +102,8 @@ class TradingCalendar:
                 import cn_stock_holidays.data as csh_data
                 holidays = set(csh_data.get_holidays())
                 return d not in holidays and (d.weekday() < 5 or d in self._workdays)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/domain/trading_calendar.py:104: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         if self._external_calendar is not None and hasattr(self._external_calendar, "valid_days"):
@@ -110,7 +113,8 @@ class TradingCalendar:
                     pd.Timestamp(d), pd.Timestamp(d)
                 )
                 return len(valid) > 0
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/domain/trading_calendar.py:114: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         # Fallback：使用内置节假日列表

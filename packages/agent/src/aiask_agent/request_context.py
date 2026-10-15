@@ -4,6 +4,9 @@ import time
 from typing import Any
 
 from .settings_payloads import local_profile_payload
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def request_user_id_from_payload(payload: dict[str, Any] | None, *, headers: Any | None = None) -> str:
@@ -25,7 +28,8 @@ def request_context_payload(payload: dict[str, Any] | None, *, headers: Any | No
             return ""
         try:
             return str(headers.get(name) or "")
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/request_context.py:29: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return ""
 
     return {

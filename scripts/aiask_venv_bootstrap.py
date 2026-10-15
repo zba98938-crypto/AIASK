@@ -45,6 +45,9 @@ import subprocess
 import sys
 from pathlib import Path
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     from _integration_paths import default_venv_dir
@@ -136,7 +139,8 @@ def _probe_python_version(executable: str | Path) -> tuple[int, int, int] | None
             text=True,
             timeout=15,
         )
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/aiask_venv_bootstrap.py:140: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if proc.returncode != 0:
         return None
@@ -145,7 +149,8 @@ def _probe_python_version(executable: str | Path) -> tuple[int, int, int] | None
         return None
     try:
         return int(parts[0]), int(parts[1]), int(parts[2])
-    except ValueError:
+    except ValueError as _swallowed:
+        logger.warning("scripts/aiask_venv_bootstrap.py:149: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -201,7 +206,8 @@ def _resolve_base_python(explicit: str | None) -> dict[str, Any]:
                     text=True,
                     timeout=15,
                 )
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("scripts/aiask_venv_bootstrap.py:205: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             if proc.returncode != 0:
                 continue
@@ -210,7 +216,8 @@ def _resolve_base_python(explicit: str | None) -> dict[str, Any]:
                 continue
             try:
                 version = (int(parts[0]), int(parts[1]), int(parts[2]))
-            except ValueError:
+            except ValueError as _swallowed:
+                logger.warning("scripts/aiask_venv_bootstrap.py:214: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
         if _version_supported(version[:2]):
             return {"launcher": launcher, "version": version}

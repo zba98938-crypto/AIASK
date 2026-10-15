@@ -11,6 +11,9 @@ from uuid import uuid4
 from .paths import aiask_agent_home
 from .session_store import AgentSessionStore, now_iso, sanitize_for_audit
 from .tools.policy import build_policy_from_env
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 URL_KEYS = ("url", "link", "source_url", "href", "web_url")
@@ -445,17 +448,20 @@ def _path_allowed_for_artifact_read(path: Path) -> bool:
     roots: list[Path] = []
     try:
         roots.append(aiask_agent_home().expanduser().resolve())
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/evidence.py:449: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     try:
         roots.extend(Path(root).expanduser().resolve() for root in build_policy_from_env().workspace_roots)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/evidence.py:453: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     for root in roots:
         try:
             path.relative_to(root)
             return True
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/evidence.py:459: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return False
 
@@ -473,7 +479,8 @@ def _sha256_file(path: Path) -> str | None:
 def _read_preview(path: Path, *, limit: int = 4000) -> str | None:
     try:
         raw = path.read_bytes()[:limit]
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/evidence.py:477: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if b"\x00" in raw:
         return None

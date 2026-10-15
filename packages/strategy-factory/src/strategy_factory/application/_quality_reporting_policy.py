@@ -14,6 +14,9 @@ from ._quality_reporting_normalizers import (
     logger,
     normalize_quality_gate_result,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 PROVISIONAL_MIN_STATISTICAL_CHECKS_PASSED = 2
@@ -32,7 +35,8 @@ def _required_metric(payload: Optional[dict], *keys: str) -> float | None:
             continue
         try:
             return float(data[key])
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/_quality_reporting_policy.py:36: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
     return None
 

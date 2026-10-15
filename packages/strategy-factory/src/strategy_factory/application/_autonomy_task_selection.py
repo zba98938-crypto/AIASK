@@ -15,6 +15,9 @@ from ..domain.constants import (
     AUTONOMY_MAX_RESEARCH_TASKS,
     AUTONOMY_RESERVED_BULK_RESEARCH_TASKS,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def apply_scheduler_planning_controls(
@@ -258,13 +261,15 @@ def merge_autonomy_tasks_with_budget(
     def _safe_int(value: Any) -> int:
         try:
             return int(value or 0)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/_autonomy_task_selection.py:262: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0
 
     def _safe_float(value: Any) -> float:
         try:
             return float(value or 0.0)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/_autonomy_task_selection.py:268: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0.0
 
     def _feedback_blocked(task: dict[str, Any]) -> bool:

@@ -11,6 +11,9 @@ import asyncio
 import os
 import sys
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "packages" / "akshare-mcp" / "src"))
@@ -81,7 +84,8 @@ async def main():
                         row.get("computed_at"),
                     )
                     inserted += 1
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("scripts/backfill_classic_factor_ic.py:85: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass  # Duplicate, skip
 
             total_inserted += inserted

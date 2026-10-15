@@ -17,6 +17,9 @@ from ..data_source import data_source
 from ..provider_contracts import attach_provider_contract_meta
 from ..utils import resolve_security_code
 from .manager_protocol import ERR_INTERNAL, ERR_PARAM, fail_with_meta, ok_with_meta
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _dedupe_chain(items: list[str]) -> list[str]:
@@ -173,7 +176,8 @@ def register(mcp):
                 try:
                     _dt.datetime.strptime(v, "%Y%m%d")
                     return True
-                except ValueError:
+                except ValueError as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/basic_data.py:177: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     return False
 
             if not _valid_yyyymmdd(start_date):

@@ -12,6 +12,9 @@ from ..manager_protocol import (
     normalize_manager_payload,
     ok_with_meta,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_kwargs(kwargs: dict) -> dict:
@@ -35,7 +38,8 @@ def _safe_float(val):
         return None
     try:
         return float(val)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/portfolio_manager.py:39: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

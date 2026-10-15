@@ -45,7 +45,8 @@ class _LineageMixin:
                 if isinstance(raw, str):
                     try:
                         item[json_field] = __import__("json").loads(raw)
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/strategy_ai_repos/lineage.py:49: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
             result.append(item)
         return result
@@ -195,7 +196,8 @@ class _LineageMixin:
             if isinstance(raw, str):
                 try:
                     item[json_field] = _json.loads(raw)
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/strategy_ai_repos/lineage.py:199: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
         return {"event_id": event_id_str, "updated": 1, "event": item}
 

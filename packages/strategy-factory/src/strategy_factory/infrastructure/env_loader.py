@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 LLM_ENV_KEYS = {
@@ -101,7 +104,8 @@ def load_strategy_llm_env(*, explicit_path: str | None = None) -> Path | None:
             continue
         try:
             values = _parse_env_lines(env_path.read_text(encoding="utf-8", errors="replace"))
-        except OSError:
+        except OSError as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/infrastructure/env_loader.py:105: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         for key, value in values.items():
             if not _is_llm_env_key(key):

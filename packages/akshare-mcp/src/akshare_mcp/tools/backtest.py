@@ -12,12 +12,15 @@ from .manager_protocol import fail_with_meta, ok_with_meta
 from .market import get_kline_data
 from .pit_middleware import build_pit_meta_simple
 
+logger = logging.getLogger(__name__)
+
 # 检查Ray是否可用
 RAY_AVAILABLE = False
 try:
     from ..services.backtest import ParallelBacktestEngine
     RAY_AVAILABLE = True
-except ImportError:
+except ImportError as _swallowed:
+    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/backtest.py:21: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
     pass
 
 
@@ -124,7 +127,8 @@ async def _fetch_klines_batch_global(
                 if normalized:
                     klines_dict[code] = normalized
                     source_counter["sqlite_batch"] += 1
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/backtest.py:128: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     missing_codes = [c for c in normalized_codes if c not in klines_dict]

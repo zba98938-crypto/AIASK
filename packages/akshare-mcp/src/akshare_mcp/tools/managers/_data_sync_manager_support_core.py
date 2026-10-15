@@ -32,7 +32,8 @@ def _normalize_kwargs(kwargs: dict) -> dict:
             extra = json.loads(raw or "{}")
             if isinstance(extra, dict):
                 kwargs = {**kwargs, **extra}
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_data_sync_manager_support_core.py:36: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     return kwargs
 
@@ -561,7 +562,8 @@ async def _execute_sync_task(
                     final_status,
                     task_id,
                 )
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_data_sync_manager_support_core.py:565: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     return {
@@ -725,7 +727,8 @@ async def _count_enabled_schedules(db, *, task_type: str) -> int:
                 str(task_type or "").strip().lower(),
             )
             return int(value or 0)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_data_sync_manager_support_core.py:729: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0
 
 async def _ensure_runtime_warmup_schedule(db, *, task_type: str) -> dict:

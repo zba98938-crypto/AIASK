@@ -384,7 +384,8 @@ class PaperTradingBridge:
                 strategy_id,
             )
             return dict(row) if row else None
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/research/paper_trading_bridge.py:388: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     async def _find_existing_bridge_order(

@@ -4,6 +4,9 @@ import shutil
 import tempfile
 from pathlib import Path
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 INCLUDE_PATHS = (
@@ -99,7 +102,8 @@ def _relative(path: Path, root: Path) -> str:
 def _is_inside(path: Path, parent: Path) -> bool:
     try:
         path.relative_to(parent)
-    except ValueError:
+    except ValueError as _swallowed:
+        logger.warning("scripts/code_graph/build_aiask_graphify_corpus.py:103: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     return True
 
@@ -132,7 +136,8 @@ def _is_allowed_file(path: Path, workspace: Path) -> bool:
     try:
         if path.stat().st_size > MAX_FILE_BYTES:
             return False
-    except OSError:
+    except OSError as _swallowed:
+        logger.warning("scripts/code_graph/build_aiask_graphify_corpus.py:136: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     return True
 

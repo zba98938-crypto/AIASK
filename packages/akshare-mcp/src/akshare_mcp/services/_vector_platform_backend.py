@@ -29,19 +29,22 @@ class _StrategyVectorPlatformBackendMixin:
             if callable(client_state):
                 try:
                     return str(client_state() or '').strip().lower() == 'closed'
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_vector_platform_backend.py:33: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     return False
             client_state = getattr(service, '_client_state', None)
             if callable(client_state):
                 try:
                     return str(client_state() or '').strip().lower() == 'closed'
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_vector_platform_backend.py:39: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     return False
             is_closed = getattr(service, 'is_closed', None)
             if callable(is_closed):
                 try:
                     return bool(is_closed())
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_vector_platform_backend.py:45: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     return False
             return False
 
@@ -121,7 +124,8 @@ class _StrategyVectorPlatformBackendMixin:
                         fallback = str(db.get_vector_backend() or '').strip().lower()
                         if fallback in {'sqlite_python', 'index', 'python'}:
                             return fallback
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_vector_platform_backend.py:125: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
                 return str(getattr(self.engine, 'backend', 'index') or 'index')
             if requested in {'sqlite_python', 'index', 'python'}:

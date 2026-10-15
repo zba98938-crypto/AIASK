@@ -195,7 +195,8 @@ async def _execution_state_cache_signature(db, strategy_id: str) -> dict[str, An
             ):
                 signature[key] = _string(merged.get(key)) or None
             return signature
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/strategy_lifecycle_shared/overview.py:199: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     if hasattr(db, "get_paper_order_summary"):
@@ -204,7 +205,8 @@ async def _execution_state_cache_signature(db, strategy_id: str) -> dict[str, An
             signature["order_count"] = _safe_int(order_summary.get("total_orders"))
             signature["filled_order_count"] = _safe_int(order_summary.get("filled_orders"))
             signature["trade_count"] = _safe_int(order_summary.get("total_trades"))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/strategy_lifecycle_shared/overview.py:208: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     if hasattr(db, "get_paper_nav_rows"):
         try:
@@ -213,7 +215,8 @@ async def _execution_state_cache_signature(db, strategy_id: str) -> dict[str, An
             if nav_rows:
                 signature["latest_nav_date"] = _string(nav_rows[0].get("nav_date")) or None
                 signature["latest_nav_created_at"] = _string(nav_rows[0].get("created_at")) or None
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/strategy_lifecycle_shared/overview.py:217: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     return signature
 
@@ -737,7 +740,8 @@ async def build_incubation_overview(
         risk_flags.append(f"\u6700\u5927\u56de\u64a4 {mdd:.1%} > {DEPRECATION_THRESHOLDS['mdd_critical']:.0%}")
     try:
         from ...config._strategy_factory_toggles import _as_bool  # type: ignore
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/strategy_lifecycle_shared/overview.py:741: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     try:
         import os as _os

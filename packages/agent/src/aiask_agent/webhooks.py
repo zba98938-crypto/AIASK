@@ -11,6 +11,9 @@ from uuid import uuid4
 
 from .paths import default_state_db_path
 from .session_store import now_iso
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class WebhookStore:
@@ -118,7 +121,8 @@ class WebhookStore:
         if isinstance(deliver_value, str) and deliver_value.strip().startswith("{"):
             try:
                 deliver_value = json.loads(deliver_value)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/agent/src/aiask_agent/webhooks.py:122: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         return {
             "webhook": {k: v for k, v in item.items() if k != "secret"},

@@ -48,7 +48,8 @@ def _calc_date_staleness(raw_date: Any) -> int | None:
             date_format = "%Y%m%d" if len(date_text) == 8 and date_text.isdigit() else "%Y-%m-%d"
             parsed = datetime.strptime(date_text, date_format)
         return max(0, (datetime.now().date() - parsed.date()).days)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/db_freshness.py:52: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -66,7 +67,8 @@ def _row_value(row: Any, key: str, default: Any = None) -> Any:
 def _safe_int(value: Any) -> int:
     try:
         return int(value or 0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/db_freshness.py:70: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0
 
 
@@ -75,7 +77,8 @@ def _safe_float(value: Any) -> float | None:
         return None
     try:
         parsed = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/db_freshness.py:79: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return parsed if math.isfinite(parsed) else None
 

@@ -27,6 +27,9 @@ sys.path.insert(0, str(ROOT / "packages" / "aiask-quant-core" / "src"))
 sys.path.insert(0, str(ROOT / "packages" / "akshare-mcp" / "src"))
 
 from _integration_paths import default_sqlite_path
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     from aiask_quant_core.storage.sqlite import get_db
@@ -190,7 +193,8 @@ class FactoryHealthDiagnostics:
                                 "cmdline": " ".join(cmdline[:5]),
                             }
                         )
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as _swallowed:
+                    logger.warning("scripts/factories/diagnose_factory_health.py:194: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
 
             if not found_processes:

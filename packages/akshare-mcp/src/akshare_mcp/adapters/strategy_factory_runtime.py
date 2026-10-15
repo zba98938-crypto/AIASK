@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 from typing import Any, Callable
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_strategy_factory_db_provider() -> Callable[[], Any]:
@@ -69,7 +72,8 @@ def _strategy_autonomy_service_runtime() -> Any:
     autonomy_service = get_strategy_autonomy_service()
     try:
         setattr(autonomy_service, "requires_repository_task_persistence", True)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/adapters/strategy_factory_runtime.py:73: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return autonomy_service
 

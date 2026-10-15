@@ -7,6 +7,9 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .base import dedupe_text
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _dict_or_empty(value: Any) -> dict[str, Any]:
@@ -49,14 +52,16 @@ def _parse_timestamp(value: Any) -> datetime | None:
             if parsed.tzinfo is None:
                 parsed = parsed.replace(tzinfo=timezone.utc)
             return parsed
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/provider_contracts/quality.py:53: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     try:
         parsed = datetime.fromisoformat(text)
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=timezone.utc)
         return parsed
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/provider_contracts/quality.py:60: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

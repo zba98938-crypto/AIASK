@@ -11,6 +11,9 @@ import statistics
 from ..storage import get_db
 from ..utils import ok, fail
 from .finance import normalize_financial_payload
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 _METRIC_ALIASES: dict[str, tuple[str, ...]] = {
@@ -24,7 +27,8 @@ _METRIC_ALIASES: dict[str, tuple[str, ...]] = {
 def _safe_float(value):
     try:
         return float(value) if value is not None else None
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/valuation_peer.py:28: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -163,7 +167,8 @@ async def _relative_valuation_impl(
             fin_res = await _api_get_financials(code)
             if fin_res and fin_res.get('success') and fin_res.get('data'):
                 target_financial = [fin_res['data']]
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/valuation_peer.py:167: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     def _latest_row(rows):
@@ -302,7 +307,8 @@ async def _relative_valuation_impl(
                 fin_res = await _api_get_financials(peer_code)
                 if fin_res and fin_res.get('success') and fin_res.get('data'):
                     peer_financial = [fin_res['data']]
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/valuation_peer.py:306: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         peer_fin_row = normalize_financial_payload(_latest_row(peer_financial) or {}, include_aliases=False) or {}
         valid = False
@@ -624,7 +630,8 @@ async def _get_historical_valuation_impl(
             if value is None:
                 return None
             return float(value)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/valuation_peer.py:628: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     def _normalize_date(value) -> str | None:
@@ -633,7 +640,8 @@ async def _get_historical_valuation_impl(
         try:
             if hasattr(value, 'strftime'):
                 return value.strftime('%Y-%m-%d')
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/valuation_peer.py:637: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         text = str(value).strip()
         if not text:

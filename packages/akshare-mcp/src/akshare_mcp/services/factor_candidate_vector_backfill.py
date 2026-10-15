@@ -6,6 +6,9 @@ from typing import Any
 
 from .factor_candidate_storage import list_factor_candidate_records_async
 from .factor_research_memory import build_factor_candidate_vector_profile
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_codes(raw: Any) -> list[str]:
@@ -44,7 +47,8 @@ async def _profile_exists(db, *, entity_id: str, version: str) -> bool:
             version=version,
             limit=1,
         )
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_candidate_vector_backfill.py:48: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     return bool(rows)
 

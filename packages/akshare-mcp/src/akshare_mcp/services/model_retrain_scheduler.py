@@ -57,7 +57,8 @@ def _parse_datetime_like(value: Any) -> datetime | None:
         try:
             parsed = parser(raw)
             return parsed.astimezone() if parsed.tzinfo is not None else parsed.astimezone()
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/model_retrain_scheduler.py:61: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return None
 
@@ -229,7 +230,8 @@ class ModelRetrainScheduler:
         if interval_hours not in (None, ""):
             try:
                 return timedelta(hours=max(1, int(interval_hours)))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/model_retrain_scheduler.py:233: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         if hint in {"hourly", "intraday_hourly"}:
             return timedelta(hours=1)

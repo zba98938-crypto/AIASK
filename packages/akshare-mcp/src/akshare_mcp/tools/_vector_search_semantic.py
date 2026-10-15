@@ -1,4 +1,7 @@
 from ._vector_common import *
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _robust_semantic_exclusion_terms(text):
@@ -279,9 +282,11 @@ async def semantic_stock_search(
                                     'pe_ratio': None,
                                     'pb_ratio': None,
                                 })
-                        except Exception:
+                        except Exception as _swallowed:
+                            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/_vector_search_semantic.py:283: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             continue
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/_vector_search_semantic.py:285: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
 
             # 对每个token做搜索（全量token中最多取前6个）

@@ -37,7 +37,8 @@ def _safe_rules_dict(value) -> dict:
             parsed = json.loads(value)
             if isinstance(parsed, dict):
                 return parsed
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/strategy_incubation_repos/_base.py:41: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     return {}
 
@@ -76,7 +77,8 @@ def _coerce_ts(value: Any) -> Any:
     ):
         try:
             return parser(text)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/strategy_incubation_repos/_base.py:80: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return value
 

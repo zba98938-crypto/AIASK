@@ -1,4 +1,7 @@
 from __future__ import annotations
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _bind_server_helpers() -> None:
@@ -88,7 +91,8 @@ def main(argv: list[str] | None = None) -> None:
         print(f"aiask-agent listening on http://{args.host}:{args.port} (legacy-http)", flush=True)
         try:
             server.serve_forever()
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/server_cli.py:92: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         finally:
             server.server_close()

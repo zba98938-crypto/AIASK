@@ -27,6 +27,9 @@ from ...utils import (
 )
 from ..fund_flow_common import _run_storage_call_sync
 from .helpers import _RETRY_SLEEP_SECONDS, _try_tushare_anns
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 _NOTICE_NODE_MAP = {
@@ -303,7 +306,8 @@ def get_stock_notices(
                             "partial": False,
                         }
                     ))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/notices.py:307: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         # 0. Try Tushare Pro announcements first
@@ -320,7 +324,8 @@ def get_stock_notices(
                         "partial": False,
                     }
                 ))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/notices.py:324: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         # 1. 单股票优先用东财区间接口，避免全市场逐日扫描导致 partial/超时。
@@ -386,7 +391,8 @@ def get_stock_notices(
                             last_error = exc
                             if _RETRY_SLEEP_SECONDS > 0:
                                 time.sleep(_RETRY_SLEEP_SECONDS)
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/news/notices.py:390: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     continue
                 if df is None or df.empty or "代码" not in df.columns:
                     continue

@@ -5,6 +5,9 @@ from __future__ import annotations
 from collections import defaultdict
 from datetime import date, datetime
 from typing import Any, Iterable, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_codes(raw: Any) -> list[str]:
@@ -50,13 +53,15 @@ def _coerce_date(value: Any) -> Optional[date]:
         return None
     try:
         return date.fromisoformat(text[:10])
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/vector_backfill.py:54: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     digits = "".join(ch for ch in text if ch.isdigit())
     if len(digits) >= 8:
         try:
             return date.fromisoformat(f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}")
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/vector_backfill.py:60: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
     return None
 

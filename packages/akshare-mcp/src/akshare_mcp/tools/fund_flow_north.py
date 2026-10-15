@@ -35,6 +35,8 @@ from .fund_flow_common import (
 logger,
 )
 
+logger = logging.getLogger(__name__)
+
 
 def _with_provider_contract(result: dict, tool_name: str, **kwargs: Any) -> dict:
     return attach_tool_provider_contract_meta(result, tool_name=tool_name, **kwargs)
@@ -58,7 +60,8 @@ def _parse_date(value: Any) -> Optional[date]:
             return datetime.strptime(s, "%Y-%m-%d").date()
         if len(s) >= 8:
             return datetime.strptime(s[:8], "%Y%m%d").date()
-    except ValueError:
+    except ValueError as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/fund_flow_north.py:62: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return None
 
@@ -201,7 +204,8 @@ def _get_anchor_date() -> date:
     try:
         s = get_latest_trading_date()
         return datetime.strptime(s, "%Y%m%d").date()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/fund_flow_north.py:205: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return date.today()
 
@@ -322,7 +326,8 @@ def _hkex_extract_table_value(table: dict, idx: Optional[int]) -> Any:
         return None
     try:
         return tr[idx].get("td", [[None]])[0][0]
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/fund_flow_north.py:326: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -369,7 +374,8 @@ def _north_fund_from_hkex(days: int) -> list[dict]:
             if payload.endswith(";"):
                 payload = payload[:-1]
             data = json.loads(payload)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/fund_flow_north.py:373: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
 
         sh_dqb = None
@@ -757,7 +763,8 @@ def get_north_fund_holding(stock_code: str) -> dict:
                     source_chain=["tqcenter.gpjy.GP06"],
                     data_timestamp=str(tdx_payload.get("trade_date") or "") or None,
                 )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/fund_flow_north.py:761: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         items = _fetch_eastmoney_datacenter(

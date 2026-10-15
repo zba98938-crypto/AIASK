@@ -8,6 +8,9 @@ from typing import Optional, List
 import statistics
 import math
 import random
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -287,7 +290,8 @@ def _run_dcf_distribution(
             intrinsic = float(pv_result["intrinsic_value"])
             if math.isfinite(intrinsic):
                 values.append(intrinsic)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/valuation_engine.py:291: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
 
     payload = {

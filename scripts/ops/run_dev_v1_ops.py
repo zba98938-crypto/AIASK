@@ -49,6 +49,9 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from _integration_paths import default_sqlite_path, ensure_runtime_dirs, runtime_home
+import logging
+
+logger = logging.getLogger(__name__)
 
 ensure_runtime_dirs()
 DB_PATH = default_sqlite_path()
@@ -63,7 +66,8 @@ def _configure_stdio_utf8() -> None:
             kernel32 = ctypes.windll.kernel32
             kernel32.SetConsoleCP(65001)
             kernel32.SetConsoleOutputCP(65001)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/ops/run_dev_v1_ops.py:67: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     for name in ("stdout", "stderr"):
         s = getattr(sys, name, None)
@@ -72,13 +76,15 @@ def _configure_stdio_utf8() -> None:
         try:
             s.reconfigure(encoding="utf-8", errors="replace")
             continue
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/ops/run_dev_v1_ops.py:76: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         buf = getattr(s, "buffer", None)
         if buf is not None:
             try:
                 setattr(sys, name, io.TextIOWrapper(buf, encoding="utf-8", errors="replace", line_buffering=True))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("scripts/ops/run_dev_v1_ops.py:82: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
 
@@ -208,7 +214,8 @@ def cmd_status(args: argparse.Namespace) -> int:
     for rid, sj in cur.fetchall():
         try:
             sm = json.loads(sj) if sj else {}
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/ops/run_dev_v1_ops.py:212: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         lane = str(sm.get("submission_lane") or "")
         lanes[lane] += 1
@@ -534,7 +541,8 @@ async def _intake_async(timeout: int) -> int:
                 pl = json.loads(pl_json) if pl_json else {}
                 for k, v in pl.items():
                     print(f"           {k}: {v}")
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("scripts/ops/run_dev_v1_ops.py:538: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
     con.close()
 

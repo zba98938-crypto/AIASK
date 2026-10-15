@@ -26,6 +26,9 @@ from _integration_paths import (
     resolve_python_interpreter,
     runtime_home,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 MIN_PYTHON = (3, 12)
@@ -124,7 +127,8 @@ def _path_is_inside(path: Path, base: Path) -> bool:
     try:
         path.resolve().relative_to(base.resolve())
         return True
-    except ValueError:
+    except ValueError as _swallowed:
+        logger.warning("scripts/aiask_readiness.py:128: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
 
 

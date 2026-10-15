@@ -40,6 +40,9 @@ from .gateway import (
 )
 from .numeric import bounded_float, bounded_int
 from .session_store import AgentSessionStore, now_iso
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 InboundCallback = Callable[[dict[str, Any]], Awaitable[None]]
@@ -208,7 +211,8 @@ class _GatewayDaemonListenersMixin:
 
                 mail.logout()
 
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/agent/src/aiask_agent/_gateway_daemon_listeners.py:212: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
             await asyncio.sleep(interval)
@@ -385,7 +389,8 @@ class _GatewayDaemonListenersMixin:
 
                         try:
                             event = json.loads(raw)
-                        except (json.JSONDecodeError, TypeError):
+                        except (json.JSONDecodeError, TypeError) as _swallowed:
+                            logger.warning("packages/agent/src/aiask_agent/_gateway_daemon_listeners.py:389: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             continue
 
                         event_type = str(event.get("type") or event.get("MsgType") or "")
@@ -484,7 +489,8 @@ class _GatewayDaemonListenersMixin:
                         while self._running:
                             try:
                                 raw = await asyncio.wait_for(ws.recv(), timeout=heartbeat_interval / 1000 + 10)
-                            except asyncio.TimeoutError:
+                            except asyncio.TimeoutError as _swallowed:
+                                logger.warning("packages/agent/src/aiask_agent/_gateway_daemon_listeners.py:488: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                                 continue
 
                             event = json.loads(raw)
@@ -526,7 +532,8 @@ class _GatewayDaemonListenersMixin:
                         hb_task.cancel()
                         try:
                             await hb_task
-                        except (asyncio.CancelledError, Exception):
+                        except (asyncio.CancelledError, Exception) as _swallowed:
+                            logger.warning("packages/agent/src/aiask_agent/_gateway_daemon_listeners.py:530: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             pass
 
             except (OSError, ConnectionError):
@@ -592,7 +599,8 @@ class _GatewayDaemonListenersMixin:
                         while self._running:
                             try:
                                 raw = await asyncio.wait_for(ws.recv(), timeout=heartbeat_interval / 1000 + 10)
-                            except asyncio.TimeoutError:
+                            except asyncio.TimeoutError as _swallowed:
+                                logger.warning("packages/agent/src/aiask_agent/_gateway_daemon_listeners.py:596: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                                 continue
                             event = json.loads(raw)
                             op, s, t, d = event.get("op", 0), event.get("s"), event.get("t", ""), event.get("d") or {}
@@ -622,7 +630,8 @@ class _GatewayDaemonListenersMixin:
                         hb_task.cancel()
                         try:
                             await hb_task
-                        except (asyncio.CancelledError, Exception):
+                        except (asyncio.CancelledError, Exception) as _swallowed:
+                            logger.warning("packages/agent/src/aiask_agent/_gateway_daemon_listeners.py:626: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             pass
 
             except (OSError, ConnectionError):

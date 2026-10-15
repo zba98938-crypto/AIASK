@@ -36,7 +36,8 @@ def _normalize_kwargs(kwargs: dict) -> dict:
             extra = json.loads(raw or "{}")
             if isinstance(extra, dict):
                 kwargs = {**kwargs, **extra}
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_paper_trading_manager_support.py:40: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     if "code" not in kwargs:
         kwargs["code"] = kwargs.get("stock_code") or kwargs.get("symbol")
@@ -47,7 +48,8 @@ def _safe_float(value):
         if value is None or value == "":
             return None
         return float(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_paper_trading_manager_support.py:51: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 def _db_supports_acquire(db) -> bool:
@@ -59,7 +61,8 @@ def _safe_int(value):
         if value is None or value == "":
             return None
         return int(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_paper_trading_manager_support.py:63: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 def _canonical_stock_code(code: str | None) -> str:
@@ -249,7 +252,8 @@ async def _get_previous_close(code: str, db, quote: dict | None = None) -> float
                 prev_close = _safe_float(klines[-1].get('close'))
             if prev_close is not None and prev_close > 0:
                 return prev_close
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_paper_trading_manager_support.py:253: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return None
 
@@ -281,7 +285,8 @@ async def _get_sellable_quantity(conn, account_id: str, code: str) -> int:
     )
     try:
         return max(int(sellable or 0), 0)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_paper_trading_manager_support.py:285: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0
 
 async def _validate_sell_request(conn, account_id: str, code: str, shares: int) -> str | None:
@@ -374,7 +379,8 @@ async def _refresh_account_prices(db, account_id: str) -> list[dict]:
         # list 不能加 attribute, 通过 trailing dict sentinel 传出
         # 改用旁路: 设置 _refresh_status 字段后,上层用聚合
         pass
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_paper_trading_manager_support.py:378: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     return refreshed_positions_list
@@ -716,7 +722,8 @@ async def _upsert_trade_position_snapshot(conn, payload: dict) -> None:
             payload.get("closed_at"),
             payload.get("last_trade_time"),
         )
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_paper_trading_manager_support.py:720: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return
 
 
@@ -741,7 +748,8 @@ async def _refresh_trade_position_from_fills(conn, position_id: str) -> None:
         payload = _aggregate_trade_position(dict(existing or {}), [dict(item) for item in fills])
         payload["position_id"] = str(position_id)
         await _upsert_trade_position_snapshot(conn, payload)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_paper_trading_manager_support.py:745: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return
 
 
@@ -784,7 +792,8 @@ async def _record_trade_position_fill(
                 "payload": {"source": source},
             },
         )
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_paper_trading_manager_support.py:788: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return
 
 async def _fill_order(conn, account_id: str, code: str, trade_type: str,

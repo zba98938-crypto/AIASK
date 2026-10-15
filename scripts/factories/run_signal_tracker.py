@@ -26,7 +26,8 @@ def _configure_stdio_utf8() -> None:
             kernel32 = ctypes.windll.kernel32
             kernel32.SetConsoleCP(65001)
             kernel32.SetConsoleOutputCP(65001)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_signal_tracker.py:30: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name, None)
@@ -35,7 +36,8 @@ def _configure_stdio_utf8() -> None:
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")
             continue
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_signal_tracker.py:39: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         buffer = getattr(stream, "buffer", None)
         if buffer is not None:
@@ -50,7 +52,8 @@ def _configure_stdio_utf8() -> None:
                         line_buffering=True,
                     ),
                 )
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("scripts/factories/run_signal_tracker.py:54: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
 
@@ -62,6 +65,8 @@ if str(STRATEGY_FACTORY_SRC) not in sys.path:
     sys.path.insert(0, str(STRATEGY_FACTORY_SRC))
 
 from strategy_factory.runtime_bootstrap import ensure_factory_runtime
+
+logger = logging.getLogger(__name__)
 
 ensure_factory_runtime(
     project_root=PROJECT_ROOT,

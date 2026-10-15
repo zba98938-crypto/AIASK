@@ -43,7 +43,8 @@ def _configure_stdio_utf8() -> None:
             kernel32 = ctypes.windll.kernel32
             kernel32.SetConsoleCP(65001)
             kernel32.SetConsoleOutputCP(65001)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_factor_mining_factory.py:47: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name, None)
@@ -52,7 +53,8 @@ def _configure_stdio_utf8() -> None:
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")
             continue
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_factor_mining_factory.py:56: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         buffer = getattr(stream, "buffer", None)
         if buffer is not None:
@@ -67,7 +69,8 @@ def _configure_stdio_utf8() -> None:
                         line_buffering=True,
                     ),
                 )
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("scripts/factories/run_factor_mining_factory.py:71: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
 
@@ -145,7 +148,8 @@ def _load_dotenv():
         from strategy_factory.infrastructure.env_loader import load_strategy_llm_env
 
         load_strategy_llm_env(explicit_path=str(env_path))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/factories/run_factor_mining_factory.py:149: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
 

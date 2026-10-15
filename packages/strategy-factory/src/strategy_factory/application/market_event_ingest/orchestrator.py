@@ -347,7 +347,8 @@ class MarketEventIngestOrchestrator:
         if isinstance(value, str):
             try:
                 return datetime.fromisoformat(value.replace("Z", "+00:00"))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/market_event_ingest/orchestrator.py:351: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         return datetime.now(timezone.utc)
 

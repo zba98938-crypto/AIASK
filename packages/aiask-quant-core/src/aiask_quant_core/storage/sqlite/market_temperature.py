@@ -5,6 +5,9 @@ from __future__ import annotations
 import json
 from datetime import date, datetime
 from typing import Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _json_text(value: Any, default: Any) -> str:
@@ -42,7 +45,8 @@ def _safe_float(value: Any) -> Optional[float]:
         return None
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/market_temperature.py:46: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

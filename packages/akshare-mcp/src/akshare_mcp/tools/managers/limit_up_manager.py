@@ -169,7 +169,8 @@ def register_limit_up_manager(mcp):
                                             source_chain.append('tushare.stk_limit')
                                             date = check_date  # 更新为实际有数据的日期
                                             break
-                                except Exception:
+                                except Exception as _swallowed:
+                                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/limit_up_manager.py:173: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                                     continue
                     except Exception as e:
                         logger.warning(f"[LimitUp] Tushare stk_limit 失败: {e}")

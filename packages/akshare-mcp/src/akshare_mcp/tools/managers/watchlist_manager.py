@@ -7,6 +7,9 @@ import uuid
 from ...storage import get_db
 from ...utils import ok, fail
 from ..manager_protocol import normalize_manager_payload
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_GROUP_ID = "default"
@@ -28,7 +31,8 @@ def _normalize_kwargs(kwargs: dict) -> dict:
             extra = json.loads(raw or "{}")
             if isinstance(extra, dict):
                 kwargs = {**kwargs, **extra}
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/watchlist_manager.py:32: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     if "code" not in kwargs or not kwargs.get("code"):
@@ -56,7 +60,8 @@ def _normalize_codes(value) -> list[str]:
             parsed = json.loads(text)
             if isinstance(parsed, list):
                 return [str(item).strip() for item in parsed if str(item).strip()]
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/watchlist_manager.py:60: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return [item.strip() for item in text.split(",") if item.strip()]
     return [str(value).strip()] if str(value).strip() else []

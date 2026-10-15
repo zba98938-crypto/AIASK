@@ -18,6 +18,9 @@ from .factor_candidate_storage import (
     save_factor_candidate_record,
 )
 from .text_embedding import get_strategy_text_embedding_service
+import logging
+
+logger = logging.getLogger(__name__)
 
 _FACTOR_MEMORY_VECTOR_DIM = 128
 
@@ -118,7 +121,8 @@ def _cosine_similarity(left: list[float] | np.ndarray, right: list[float] | np.n
     try:
         lv = np.asarray(left if left is not None else [], dtype=np.float64)
         rv = np.asarray(right if right is not None else [], dtype=np.float64)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_research_memory.py:122: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0.0
     if lv.ndim != 1 or rv.ndim != 1 or len(lv) == 0 or len(lv) != len(rv):
         return 0.0

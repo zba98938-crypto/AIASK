@@ -19,6 +19,9 @@ from _db_sync_common import (
     _require_tushare,
     _to_ts_code,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def sync_stocks_tdx() -> dict[str, Any]:
     """从 TDX 本地 vipdoc 列举股票代码并写入 stocks 表。"""
@@ -41,7 +44,8 @@ async def sync_stocks_tdx() -> dict[str, Any]:
                 (code, "", market),
             )
             n += 1
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/_db_sync_tasks.py:45: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     conn.commit()
     conn.close()
@@ -65,7 +69,8 @@ async def sync_calendar_tdx() -> dict[str, Any]:
                 (f"{d[:4]}-{d[4:6]}-{d[6:8]}",),
             )
             n += 1
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/_db_sync_tasks.py:69: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     conn.commit()
     conn.close()
@@ -446,7 +451,8 @@ async def sync_stock_fund_flow(db, codes: list[str]) -> dict[str, Any]:
                              buy_md - sell_md, buy_sm - sell_sm),
                         )
                         count += 1
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("scripts/_db_sync_tasks.py:450: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             await asyncio.sleep(0.35)
 
@@ -489,7 +495,8 @@ async def sync_dragon_tiger(db) -> dict[str, Any]:
                              float(row.get("net_amount") or 0)),
                         )
                         count += 1
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("scripts/_db_sync_tasks.py:493: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             await asyncio.sleep(0.5)
 
@@ -563,7 +570,8 @@ async def sync_margin_detail(db, codes: list[str]) -> dict[str, Any]:
                             ),
                         )
                         count += 1
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("scripts/_db_sync_tasks.py:567: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             await asyncio.sleep(0.4)
 

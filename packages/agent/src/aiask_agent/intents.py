@@ -18,6 +18,9 @@ from .financial_safety import (
 from .paths import default_intent_db_path
 from .session_store_utils import redact_audit_text, sanitize_for_audit
 from .tool_risk import CONFIRM_REQUIRED_STRATEGY_ACTIONS
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 INTENT_STATUSES = (
@@ -176,7 +179,8 @@ def _loads(value: str | None, default: Any) -> Any:
 def _parse_datetime(value: Any) -> datetime | None:
     try:
         parsed = datetime.fromisoformat(str(value))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/intents.py:180: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if parsed.tzinfo is None:
         return parsed.replace(tzinfo=timezone.utc)

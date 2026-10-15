@@ -10,6 +10,9 @@ from ...utils import (
     resolve_existing_security_code_async,
 )
 from ..investment_analysis import get_investment_analysis
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _maybe_float(value):
@@ -17,7 +20,8 @@ def _maybe_float(value):
         if value is None:
             return None
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/semantic/diagnosis.py:21: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

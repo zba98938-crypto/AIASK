@@ -234,7 +234,8 @@ class FactorMiningFactory:
                 failed_pattern_memory=context.failed_pattern_memory,
                 successful_pattern_memory=context.successful_pattern_memory,
             )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/factory.py:238: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return context
 
@@ -280,7 +281,8 @@ class FactorMiningFactory:
         for row in rows:
             try:
                 report = json.loads(str(row.get("report") or "{}"))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/factory.py:284: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             quality_summary = dict(report.get("quality_summary") or {})
             for item in list(quality_summary.get("strict_candidate_results") or []):
@@ -569,7 +571,8 @@ class FactorMiningFactory:
         def _float(value: Any) -> float:
             try:
                 return float(value or 0.0)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/factory.py:573: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return 0.0
 
         def _score(candidate: Any) -> tuple[float, float, float, float, float, float]:
@@ -622,7 +625,8 @@ class FactorMiningFactory:
     def _safe_int(value: Any) -> int:
         try:
             return int(value or 0)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/factory.py:626: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0
 
     def _build_ic_evaluator(self, db, context):

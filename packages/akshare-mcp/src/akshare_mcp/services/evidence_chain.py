@@ -35,7 +35,8 @@ def _get_db():
     try:
         from ..storage.sqlite import get_db
         return get_db()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/evidence_chain.py:39: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

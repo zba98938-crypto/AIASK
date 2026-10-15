@@ -145,7 +145,8 @@ class PaperTradingScheduler:
         if callable(get_klines):
             try:
                 return list(await get_klines(code, limit=limit) or [])
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/research/paper_trading_scheduler.py:149: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         # Fallback: 直接查表
         try:
@@ -164,7 +165,8 @@ class PaperTradingScheduler:
                 "SELECT id, current_capital FROM paper_accounts "
                 "WHERE account_type = 'strategy_incubation' AND status = 'active'"
             )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/research/paper_trading_scheduler.py:168: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return
 
         for acct in (accounts or []):

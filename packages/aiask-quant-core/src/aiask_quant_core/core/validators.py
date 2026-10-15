@@ -8,6 +8,8 @@ import os
 from typing import Any, Optional
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 
+logger = logging.getLogger(__name__)
+
 _logger = logging.getLogger(__name__)
 
 
@@ -47,7 +49,8 @@ class StockQuote(BaseModel):
         try:
             # 如果是浮点数，转换为整数
             return int(float(v))
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/core/validators.py:51: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     @field_validator('volume')
@@ -100,7 +103,8 @@ class KlineData(BaseModel):
         try:
             # 如果是浮点数，转换为整数
             return int(float(v))
-        except (ValueError, TypeError):
+        except (ValueError, TypeError) as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/core/validators.py:104: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     @field_validator('volume')
@@ -177,7 +181,8 @@ def _check_index_close_in_range(code: object, close: object) -> bool:
         return True
     try:
         close_value = float(close)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/aiask-quant-core/src/aiask_quant_core/core/validators.py:181: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     return 1000.0 <= close_value <= 30000.0
 

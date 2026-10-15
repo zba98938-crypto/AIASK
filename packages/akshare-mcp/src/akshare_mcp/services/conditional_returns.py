@@ -10,6 +10,9 @@ from .factor_calculator import factor_calculator
 from .screen_engine import engine as screen_engine
 from .technical_analysis import TechnicalAnalysis
 from . import screen_conditions as _screen_conditions  # noqa: F401
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # FIX-6: 显式声明 _declared_condition_value 能识别的直读字段集合与前缀，
@@ -111,7 +114,8 @@ def _safe_series_value(series: list[float], idx: int) -> float | None:
     value = series[idx]
     try:
         value = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/conditional_returns.py:115: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if not np.isfinite(value):
         return None
@@ -123,7 +127,8 @@ def _compare(left: float | None, op: str, right: Any) -> bool:
         return False
     try:
         right_value = float(right)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/conditional_returns.py:127: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
 
     operator = str(op or "==").strip().lower()
@@ -153,7 +158,8 @@ def _declared_condition_value(window: list[dict[str, Any]], field: str) -> float
         raw = latest.get(field_key)
         try:
             value = float(raw)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/conditional_returns.py:157: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         return float(value) if np.isfinite(value) else None
 
@@ -185,21 +191,24 @@ def _declared_condition_value(window: list[dict[str, Any]], field: str) -> float
     if field_key.startswith("ma_"):
         try:
             period = int(field_key.split("_", 1)[1])
-        except (IndexError, ValueError):
+        except (IndexError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/conditional_returns.py:189: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         return _safe_series_value(TechnicalAnalysis.calculate_sma(closes, period), idx)
 
     if field_key.startswith("ema_"):
         try:
             period = int(field_key.split("_", 1)[1])
-        except (IndexError, ValueError):
+        except (IndexError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/conditional_returns.py:196: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         return _safe_series_value(TechnicalAnalysis.calculate_ema(closes, period), idx)
 
     if field_key.startswith("rsi_"):
         try:
             period = int(field_key.split("_", 1)[1])
-        except (IndexError, ValueError):
+        except (IndexError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/conditional_returns.py:203: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         series = factor_calculator.calculate_rsi(closes, period=period, as_series=True)
         arr = np.asarray(series, dtype=np.float64)
@@ -215,12 +224,14 @@ def _declared_condition_value(window: list[dict[str, Any]], field: str) -> float
     if field_key.startswith("roc_"):
         try:
             period = int(field_key.split("_", 1)[1])
-        except (IndexError, ValueError):
+        except (IndexError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/conditional_returns.py:219: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         value = factor_calculator.calculate_roc(closes, period=period)
         try:
             value = float(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/conditional_returns.py:224: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         return float(value) if np.isfinite(value) else None
 

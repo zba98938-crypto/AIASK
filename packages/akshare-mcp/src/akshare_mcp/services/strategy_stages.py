@@ -883,7 +883,8 @@ def _north_fund_inflow(snapshot: dict[str, Any]) -> float:
             continue
         try:
             return float(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/strategy_stages.py:887: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return 0.0
 
@@ -1789,7 +1790,8 @@ def validate_stage_output(stage_id: str, output: dict[str, Any]) -> bool:
         return True
     try:
         return validator(output)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/strategy_stages.py:1793: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
 
 

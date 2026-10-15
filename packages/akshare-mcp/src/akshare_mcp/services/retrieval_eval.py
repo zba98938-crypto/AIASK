@@ -5,6 +5,9 @@ from __future__ import annotations
 import math
 from statistics import mean, pstdev
 from typing import Any, Iterable
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _to_float(value: Any) -> float | None:
@@ -12,7 +15,8 @@ def _to_float(value: Any) -> float | None:
         if value is None or value == "":
             return None
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/retrieval_eval.py:16: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

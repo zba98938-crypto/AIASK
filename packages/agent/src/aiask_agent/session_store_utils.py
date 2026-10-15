@@ -4,6 +4,9 @@ import json
 import re
 from datetime import datetime, timedelta, timezone
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 SECRET_KEY_MARKERS = (
@@ -206,7 +209,8 @@ def _int_or_none(value: Any) -> int | None:
         return None
     try:
         return int(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/session_store_utils.py:210: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -215,7 +219,8 @@ def _float_or_none(value: Any) -> float | None:
         return None
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/session_store_utils.py:219: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

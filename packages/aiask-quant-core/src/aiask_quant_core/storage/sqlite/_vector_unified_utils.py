@@ -20,6 +20,9 @@ from aiask_quant_core.vector_collection_scope import (
     resolve_vector_collection_name,
     vector_collection_candidates,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class _VectorUnifiedUtilsMixin:
@@ -129,7 +132,8 @@ class _VectorUnifiedUtilsMixin:
                 return None
             try:
                 resolved = float(value)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _swallowed:
+                logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/_vector_unified_utils.py:133: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
             return round(max(0.0, min(resolved, 1.0)), 6)
 
@@ -222,13 +226,15 @@ class _VectorUnifiedUtilsMixin:
                 return None
             try:
                 return date.fromisoformat(raw[:10])
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/_vector_unified_utils.py:226: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             digits = "".join(ch for ch in raw if ch.isdigit())
             if len(digits) >= 8:
                 try:
                     return date.fromisoformat(f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}")
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/_vector_unified_utils.py:232: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     return None
             return None
 

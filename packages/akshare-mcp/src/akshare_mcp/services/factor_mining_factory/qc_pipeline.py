@@ -87,7 +87,8 @@ def _first_float(*values: Any, default: float = 0.0) -> float:
             continue
         try:
             return float(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/qc_pipeline.py:91: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return float(default)
 

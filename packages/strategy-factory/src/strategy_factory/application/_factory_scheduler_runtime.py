@@ -268,7 +268,8 @@ class _StrategyFactorySchedulerRuntimeMixin:
                 if latency is not None:
                     try:
                         latencies.append(float(latency))
-                    except (TypeError, ValueError):
+                    except (TypeError, ValueError) as _swallowed:
+                        logger.warning("packages/strategy-factory/src/strategy_factory/application/_factory_scheduler_runtime.py:272: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
             return {
                 "vector_profile_count": profile_count,

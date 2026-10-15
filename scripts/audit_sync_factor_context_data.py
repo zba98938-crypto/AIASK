@@ -43,7 +43,8 @@ def _configure_stdio_utf8() -> None:
     try:
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
         sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/audit_sync_factor_context_data.py:47: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
 
@@ -128,7 +129,8 @@ async def _resolve_factory_target_codes(active_pool_limit: int) -> list[str]:
         for sql, params in queries:
             try:
                 rows = await conn.fetch(sql, *params)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("scripts/audit_sync_factor_context_data.py:132: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             for row in rows:
                 value = row[0] if row else None

@@ -50,6 +50,9 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from _integration_paths import ensure_runtime_dirs, runtime_home
+import logging
+
+logger = logging.getLogger(__name__)
 
 _LEGACY_LOG_DIR = runtime_home() / "logs" / "three_factories"
 _LOG_DIR = runtime_home() / "logs" / "four_runtime_supervisor"
@@ -160,7 +163,8 @@ def _configure_stdio_utf8() -> None:
             kernel32 = ctypes.windll.kernel32
             kernel32.SetConsoleCP(65001)
             kernel32.SetConsoleOutputCP(65001)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_three_factories.py:164: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     for stream_name in ("stdout", "stderr"):
         stream = getattr(sys, stream_name, None)
@@ -169,7 +173,8 @@ def _configure_stdio_utf8() -> None:
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")
             continue
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_three_factories.py:173: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         buffer = getattr(stream, "buffer", None)
         if buffer is None:
@@ -185,7 +190,8 @@ def _configure_stdio_utf8() -> None:
                     line_buffering=True,
                 ),
             )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_three_factories.py:189: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
 
@@ -574,14 +580,17 @@ async def _terminate_process(process: asyncio.subprocess.Process) -> None:
         return
     try:
         process.terminate()
-    except ProcessLookupError:
+    except ProcessLookupError as _swallowed:
+        logger.warning("scripts/factories/run_three_factories.py:578: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/factories/run_three_factories.py:580: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     try:
         await asyncio.wait_for(process.wait(), timeout=20)
         return
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as _swallowed:
+        logger.warning("scripts/factories/run_three_factories.py:585: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     if sys.platform == "win32" and process.pid is not None:
         try:
@@ -596,17 +605,21 @@ async def _terminate_process(process: asyncio.subprocess.Process) -> None:
             )
             await asyncio.wait_for(killer.wait(), timeout=10)
             return
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_three_factories.py:600: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     try:
         process.kill()
-    except ProcessLookupError:
+    except ProcessLookupError as _swallowed:
+        logger.warning("scripts/factories/run_three_factories.py:604: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/factories/run_three_factories.py:606: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     try:
         await asyncio.wait_for(process.wait(), timeout=10)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/factories/run_three_factories.py:610: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
 
@@ -708,7 +721,8 @@ async def _sleep_or_stop(stop_event: asyncio.Event, seconds: int) -> None:
         return
     try:
         await asyncio.wait_for(stop_event.wait(), timeout=seconds)
-    except asyncio.TimeoutError:
+    except asyncio.TimeoutError as _swallowed:
+        logger.warning("scripts/factories/run_three_factories.py:712: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return
 
 
@@ -826,7 +840,8 @@ async def _run(args: argparse.Namespace) -> int:
     for signum in (signal.SIGINT, signal.SIGTERM):
         try:
             signal.signal(signum, request_stop)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/factories/run_three_factories.py:830: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     states = {spec.name: FactoryState(name=spec.name) for spec in specs}

@@ -16,6 +16,9 @@ from typing import Any
 
 from .numeric import bounded_float, bounded_int
 from .process_registry import ProcessRegistry
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 TERMINAL_BACKENDS = ("local", "docker", "ssh", "singularity", "modal", "daytona")
@@ -109,7 +112,8 @@ def _direct_python_command_args(command: str) -> list[str] | None:
     if text.startswith(current_python_prefix):
         try:
             suffix = shlex.split(text[len(current_python_prefix):], posix=os.name != "nt")
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/terminal_backends.py:113: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         if len(suffix) >= 2 and suffix[0] == "-c":
             return [sys.executable, "-c", suffix[1]]
@@ -118,7 +122,8 @@ def _direct_python_command_args(command: str) -> list[str] | None:
     # surrounding quotes from the code argument ourselves.
     try:
         tokens = shlex.split(text, posix=os.name != "nt")
-    except ValueError:
+    except ValueError as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/terminal_backends.py:122: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if len(tokens) < 3 or tokens[1] != "-c":
         return None
@@ -553,7 +558,8 @@ class TerminalBackendManager:
             )
             if dict((self.registry.get(process_id) or {}).get("metadata") or {}).get("notify_on_complete"):
                 asyncio.run(self._notify_complete(process_id))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/terminal_backends.py:557: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return
         finally:
             self._attached.pop(process_id, None)
@@ -600,7 +606,8 @@ class TerminalBackendManager:
                 message=f"AIASK background process {process_id} completed with status {item.get('status')}",
                 session_id=item.get("session_id"),
             )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/terminal_backends.py:604: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return
 
     async def process_action(self, arguments: dict[str, Any]) -> dict[str, Any]:

@@ -8,6 +8,9 @@ from ...storage import get_db
 from ...utils import normalize_code
 from .constants import SUPPORTED_ANALYSIS_TASKS
 from .shared import _safe_float
+import logging
+
+logger = logging.getLogger(__name__)
 
 def _existing_target_from_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
     source = dict(payload or {})
@@ -30,7 +33,8 @@ def _safe_float(value: Any) -> float | None:
         if value is None or value == "":
             return None
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/stock_deep_analysis/target_resolution.py:34: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if number != number:
         return None

@@ -44,7 +44,8 @@ class DataCollector:
             return 0.0
         try:
             observed = datetime.fromisoformat(str(asof_time).replace("Z", "+00:00"))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/collect.py:48: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0.0
         current = now or datetime.now().astimezone()
         if observed.tzinfo is None:
@@ -451,7 +452,8 @@ class DataCollector:
             return None
         try:
             fear_greed_index = int(round(float(snapshot.get("fear_greed_index"))))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/collect.py:455: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         fg_components = snapshot.get("fg_components")
         return {
@@ -1178,7 +1180,8 @@ class DataCollector:
             breadth = None
             try:
                 breadth = await db.get_limit_up_stats()
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/collect.py:1182: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             fg = sentiment_analyzer.calculate_fear_greed_index(index_klines, breadth)
             snapshot["fear_greed_index"] = fg.get("index", 50)

@@ -52,7 +52,8 @@ def _finite_float(value: Any) -> float | None:
         return None
     try:
         numeric = float(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/trade_prediction_verifier.py:56: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return numeric if math.isfinite(numeric) else None
 
@@ -80,12 +81,14 @@ def _parse_date(value: Any) -> Optional[date]:
         return None
     try:
         return datetime.fromisoformat(token.replace("Z", "+00:00")).date()
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/trade_prediction_verifier.py:84: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     for fmt in ("%Y-%m-%d", "%Y%m%d", "%Y/%m/%d"):
         try:
             return datetime.strptime(token[:10], fmt).date()
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/trade_prediction_verifier.py:89: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return None
 
@@ -100,12 +103,14 @@ def _parse_datetime(value: Any) -> Optional[datetime]:
         return None
     try:
         return datetime.fromisoformat(token.replace("Z", "+00:00"))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/trade_prediction_verifier.py:104: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y%m%d %H:%M:%S", "%Y%m%d %H:%M"):
         try:
             return datetime.strptime(token, fmt)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/trade_prediction_verifier.py:109: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return None
 
@@ -373,7 +378,8 @@ def _parse_clock(value: Any) -> time | None:
     for fmt in ("%H:%M:%S", "%H:%M"):
         try:
             return datetime.strptime(token[:8], fmt).time()
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/trade_prediction_verifier.py:377: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return None
 

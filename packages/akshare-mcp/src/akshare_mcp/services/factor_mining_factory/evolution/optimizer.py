@@ -119,7 +119,8 @@ class EvolutionaryOptimizer:
             score += min(len(fields) * 0.15, 0.5)
             score += min(len(functions) * 0.10, 0.4)
             return max(0.0, score)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/evolution/optimizer.py:123: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0.0
 
     @staticmethod

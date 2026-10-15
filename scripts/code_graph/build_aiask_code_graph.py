@@ -7,6 +7,9 @@ import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -29,7 +32,8 @@ def _read_json(path: Path) -> dict[str, Any]:
 def _is_inside(path: Path, parent: Path) -> bool:
     try:
         path.relative_to(parent)
-    except ValueError:
+    except ValueError as _swallowed:
+        logger.warning("scripts/code_graph/build_aiask_code_graph.py:33: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     return True
 

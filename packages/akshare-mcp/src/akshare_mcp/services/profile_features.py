@@ -21,6 +21,9 @@ import hashlib
 import json
 import math
 from typing import Any, Mapping, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 _PROFILE_TYPES = ("fundamental", "technical", "both")
 _FEATURE_ORDER = (
@@ -132,7 +135,8 @@ def _normalize_profile_types(raw: Any) -> list[str]:
 def _normalize_ratio(value: Any) -> float:
     try:
         resolved = float(value or 0.0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/profile_features.py:136: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0.0
     if abs(resolved) > 1.5:
         return resolved / 100.0
@@ -145,7 +149,8 @@ def _coerce_optional_float(value: Any) -> Optional[float]:
         return None
     try:
         resolved = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/profile_features.py:149: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if math.isnan(resolved) or math.isinf(resolved):
         return None

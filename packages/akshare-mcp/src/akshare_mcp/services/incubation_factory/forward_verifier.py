@@ -28,7 +28,8 @@ def _resolve_forward_horizons() -> list[int]:
             continue
         try:
             val = int(tok)
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/forward_verifier.py:32: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if val > 0 and val not in out:
             out.append(val)
@@ -49,7 +50,8 @@ def _finite_float(value: Any) -> float | None:
         return None
     try:
         numeric = float(value)
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError, OverflowError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/forward_verifier.py:53: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return numeric if math.isfinite(numeric) else None
 

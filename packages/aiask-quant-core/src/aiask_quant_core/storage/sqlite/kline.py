@@ -100,7 +100,8 @@ def _float_or_none(value: Any) -> Optional[float]:
         if value in (None, ""):
             return None
         return float(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/kline.py:104: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -274,7 +275,8 @@ class KlineMixin:
                 for fmt in ("%Y-%m-%d", "%Y%m%d", "%Y/%m/%d"):
                     try:
                         return _dt.strptime(val, fmt)
-                    except ValueError:
+                    except ValueError as _swallowed:
+                        logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/kline.py:278: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
             return None
 

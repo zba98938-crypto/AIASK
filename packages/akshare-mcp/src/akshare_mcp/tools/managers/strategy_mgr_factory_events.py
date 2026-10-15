@@ -16,6 +16,9 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
+import logging
+
+logger = logging.getLogger(__name__)
 
 _OUTBOX_DRAIN_RUNNING = False
 
@@ -642,7 +645,8 @@ async def handle_factory_event_outbox_drain(db, params: dict[str, Any]) -> dict[
                 failed += 1
                 try:
                     await db.mark_event_outbox_failed(dedupe_key, error=str(exc))
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_factory_events.py:646: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
                 details.append({"dedupe_key": dedupe_key, "status": "failed", "error": str(exc)})
 

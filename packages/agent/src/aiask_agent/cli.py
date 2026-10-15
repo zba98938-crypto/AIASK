@@ -9,6 +9,9 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _base_url() -> str:
@@ -58,7 +61,8 @@ def _events_from_response(value: Any) -> list[dict[str, Any]]:
         raw = "\n".join(line.split("data:", 1)[1].strip() for line in lines)
         try:
             payload = json.loads(raw)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/cli.py:62: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if isinstance(payload, dict):
             events.append(payload)
@@ -143,7 +147,8 @@ def _cmd_events(args: argparse.Namespace) -> None:
             print(json.dumps(event, ensure_ascii=False, sort_keys=True), flush=True)
             try:
                 after = max(after, int(event.get("id") or 0))
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _swallowed:
+                logger.warning("packages/agent/src/aiask_agent/cli.py:147: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         time.sleep(max(0.2, float(args.interval or 1.0)))
 
@@ -241,7 +246,8 @@ def build_parser() -> argparse.ArgumentParser:
     # subcommands above keep working even if strategy-factory is not installed.
     try:
         from .factory_cli import build_factory_parser, build_readiness_parser
-    except ImportError:  # pragma: no cover - depends on install extras
+    except ImportError as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/cli.py:245: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     else:
         build_factory_parser(sub)

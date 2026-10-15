@@ -15,6 +15,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 DEFAULT_ENDPOINT = "http://127.0.0.1:8765"
@@ -593,7 +596,8 @@ def run_self_test(*, timeout: float = 15.0) -> dict[str, Any]:
                 from aiask_quant_core.storage.sqlite import _close_all_db_instances
 
                 asyncio.run(_close_all_db_instances())
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("scripts/ops/live_readiness_smoke.py:597: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             return payload
 

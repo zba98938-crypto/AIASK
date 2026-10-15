@@ -449,7 +449,8 @@ class LLMAlphaMiner:
         env.update(_FORMULA_FUNCTION_ENV)
         try:
             factor_series = eval(code_obj, {"__builtins__": {}}, env)  # noqa: S307 - 已过 AST 白名单
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/llm_alpha.py:453: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         if not isinstance(factor_series, pd.Series):
             return None
@@ -459,7 +460,8 @@ class LLMAlphaMiner:
             return None
         try:
             ic_val = float(ic)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/llm_alpha.py:463: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         if ic_val != ic_val:  # NaN
             return None

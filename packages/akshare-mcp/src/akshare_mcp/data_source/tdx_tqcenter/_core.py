@@ -144,7 +144,8 @@ def _format_date(val: Any) -> str:
     s = str(val).strip()
     try:
         s = str(int(float(s)))
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/tdx_tqcenter/_core.py:148: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     if len(s) == 8 and s.isdigit():
         return f"{s[:4]}-{s[4:6]}-{s[6:8]}"
@@ -160,7 +161,8 @@ def _safe_float(val: Any) -> Optional[float]:
     try:
         v = float(val)
         return v if v == v else None  # NaN 检测
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/tdx_tqcenter/_core.py:164: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

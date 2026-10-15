@@ -2084,7 +2084,8 @@ class _LLMProxyStrategyGeneratorSpecsMixin:
                         return None
                 try:
                     compiled = compile_strategy_blueprint(candidate, market_frame=market_frame, tune_for_factory=True)
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_specs.py:2088: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     return None
             compiled_meta = dict(compiled.get('metadata') or {})
             activity = dict(compiled_meta.get('dsl_activity') or {})

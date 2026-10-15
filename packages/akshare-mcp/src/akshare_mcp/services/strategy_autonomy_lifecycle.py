@@ -6,6 +6,9 @@ from collections import Counter
 from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 AUTONOMY_PHASE_ORDER = (
     "prepared",
@@ -109,7 +112,8 @@ class AutonomyLifecycleTracker:
         try:
             start = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
             end = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/strategy_autonomy_lifecycle.py:113: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         return round((end - start).total_seconds() * 1000, 3)
 

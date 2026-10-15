@@ -8,6 +8,9 @@ from ...services.market_data_access import FALLBACK_DB_ONLY, get_quote_snapshot_
 from ...utils import ok, fail, normalize_code
 from ..market.order_book import get_order_book
 from ..manager_protocol import normalize_manager_payload
+import logging
+
+logger = logging.getLogger(__name__)
 
 MAX_SINGLE_ORDER_SHARES = 1_000_000
 MAX_SINGLE_ORDER_AMOUNT = 50_000_000.0
@@ -34,7 +37,8 @@ def _normalize_kwargs(kwargs: dict) -> dict:
             extra = json.loads(raw or "{}")
             if isinstance(extra, dict):
                 kwargs = {**kwargs, **extra}
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/compliance_manager.py:38: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     if "code" not in kwargs or kwargs.get("code") is None:
         kwargs["code"] = kwargs.get("Code") or kwargs.get("stock_code") or kwargs.get("symbol")

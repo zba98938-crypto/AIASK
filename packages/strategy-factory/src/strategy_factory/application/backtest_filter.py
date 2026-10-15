@@ -188,7 +188,8 @@ def _summarize_numeric_series(values: Any) -> dict[str, Any]:
     for item in values:
         try:
             numeric.append(float(item))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/backtest_filter.py:192: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     if not numeric:
         return {"points": len(list(values or []))} if values else {}
@@ -599,7 +600,8 @@ class BacktestFilter:
     def _json_size_bytes(cls, value: Any) -> int:
         try:
             return len(json.dumps(value or {}, ensure_ascii=False, default=str).encode("utf-8"))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/backtest_filter.py:603: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0
 
     @classmethod
@@ -878,7 +880,8 @@ class BacktestFilter:
                 trade_floor,
                 float(_trade_gate_thresholds(profile, admission_level="incubation").get("trade_count_min") or 0.0),
             )
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/backtest_filter.py:882: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return max(0.0, trade_floor)
 
@@ -1340,7 +1343,8 @@ class BacktestFilter:
             return None
         try:
             curve = np.asarray(raw_curve, dtype=float)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/backtest_filter.py:1344: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         if curve.ndim != 1 or curve.size < 2:
             return None
@@ -1694,7 +1698,8 @@ class BacktestFilter:
             return None
         try:
             arr = np.asarray(value, dtype=float)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/application/backtest_filter.py:1698: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         arr = arr[np.isfinite(arr)]
         if arr.size <= 0:
@@ -1708,7 +1713,8 @@ class BacktestFilter:
                 continue
             try:
                 return float(sample.get(key) or 0.0)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/backtest_filter.py:1712: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
         return None
 

@@ -11,6 +11,9 @@ from pathlib import Path
 from typing import Any
 
 from ..manager_protocol import fail_with_meta, normalize_manager_kwargs, normalize_manager_payload, ok_with_meta
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 _PLACEHOLDER_PATTERN = re.compile(r"\{([a-zA-Z0-9_]+)\}")
@@ -255,7 +258,8 @@ async def _enrich_daily_kwargs(kwargs: dict) -> dict:
             sentiment = d.get("sentiment") or sentiment
             highlights = d.get("highlights") or []
             hot_sectors = d.get("hot_sectors") or []
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/insight_manager.py:259: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     # 2) 指数摘要
@@ -279,7 +283,8 @@ async def _enrich_daily_kwargs(kwargs: dict) -> dict:
         if news_res.get("success") and isinstance(news_res.get("data"), list) and news_res["data"]:
             first = news_res["data"][0]
             event_text = str(first.get("title") or first.get("summary") or event_text)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/insight_manager.py:283: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     north = (capital_flow.get("north_fund") or {}) if isinstance(capital_flow, dict) else {}
@@ -333,7 +338,8 @@ async def _enrich_daily_kwargs(kwargs: dict) -> dict:
             rows_sorted = sorted(rows, key=lambda x: x["contribution_pct"], reverse=True)
             contrib_payload["top_contributors"] = rows_sorted[:3]
             contrib_payload["top_detractors"] = list(reversed(rows_sorted[-3:]))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/insight_manager.py:337: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     if not contrib_payload["top_contributors"] and market_summary:
         proxy_rows = []

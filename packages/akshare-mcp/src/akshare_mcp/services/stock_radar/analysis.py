@@ -22,6 +22,9 @@ from urllib.parse import urlparse
 import requests
 
 from ..market_text_source_ingest import run_market_text_source_ingest
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 RADAR_EVENT_TYPES = {
@@ -260,7 +263,8 @@ def _numeric_from_keys(item: dict[str, Any], keys: tuple[str, ...]) -> float | N
             value = cleaned
         try:
             return float(value)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/stock_radar/analysis.py:264: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return None
 

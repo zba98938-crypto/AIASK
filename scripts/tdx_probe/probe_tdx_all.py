@@ -24,6 +24,9 @@ import time
 import traceback
 from datetime import datetime
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 # tqcenter 必须放在 sys.path 最前
 TDX_PYPLUGINS = r"C:\new_tdx_test\PYPlugins\sys"
@@ -75,7 +78,8 @@ def _truncate(obj, depth=0, max_list=3, max_keys=20):
             except Exception:
                 head = str(obj)[:300]
             return {"__type__": type(obj).__name__, "__shape__": shape, "__head__": head}
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/tdx_probe/probe_tdx_all.py:79: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return f"<{type(obj).__name__}> {str(obj)[:200]}"
 

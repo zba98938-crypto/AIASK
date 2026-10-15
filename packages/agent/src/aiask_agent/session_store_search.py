@@ -5,13 +5,17 @@ from typing import Any
 
 from .session_store_rows import _session_is_archived
 from .session_store_utils import _dumps, _loads
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _fts_available(conn: sqlite3.Connection) -> bool:
     try:
         conn.execute("SELECT 1 FROM aiask_search_fts LIMIT 1").fetchone()
         return True
-    except sqlite3.OperationalError:
+    except sqlite3.OperationalError as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/session_store_search.py:15: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
 
 
@@ -37,7 +41,8 @@ def _index_search_row(
             """,
             (kind, object_id, session_id, user_id, content, _dumps(payload)),
         )
-    except sqlite3.OperationalError:
+    except sqlite3.OperationalError as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/session_store_search.py:41: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return
 
 

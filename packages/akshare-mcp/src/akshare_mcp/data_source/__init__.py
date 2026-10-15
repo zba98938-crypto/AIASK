@@ -160,7 +160,8 @@ def _bypass_proxy_for_url(url: str) -> None:
             updated = f"{no_proxy},{hostname}" if no_proxy else hostname
             os.environ["NO_PROXY"] = updated
             os.environ["no_proxy"] = updated
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/__init__.py:164: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
 
@@ -186,7 +187,8 @@ class DataSourceManager(QuotesMixin, MarketDataMixin, TdxQCenterMixin):
         # 加载 .env，方便在 TDX_LOCAL_ONLY 等场景识别本地配置
         try:
             load_mcp_env(override=False, only_prefixes=("TDX_", "TUSHARE_", "AKSHARE_"))
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/__init__.py:190: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         # 本地通达信单例（优先链路）
@@ -210,7 +212,8 @@ class DataSourceManager(QuotesMixin, MarketDataMixin, TdxQCenterMixin):
         if force_reload_env or not str(self.tushare_token or "").strip():
             try:
                 load_mcp_env(override=False, only_prefixes=("TUSHARE_",))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/__init__.py:214: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             self.tushare_token = os.getenv("TUSHARE_TOKEN", "").strip()
             self.tushare_http_url = os.getenv("TUSHARE_HTTP_URL", "").strip()
@@ -227,7 +230,8 @@ class DataSourceManager(QuotesMixin, MarketDataMixin, TdxQCenterMixin):
                     self.ts_pro._DataApi__token = self.tushare_token
                     self.ts_pro._DataApi__http_url = self.tushare_http_url.rstrip("/")
                     _bypass_proxy_for_url(self.tushare_http_url)
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/__init__.py:231: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
         except Exception as e:
             safe_stderr_print(f"[DataSource] Tushare init failed: {e}")

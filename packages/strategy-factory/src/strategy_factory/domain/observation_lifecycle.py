@@ -30,6 +30,9 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 from typing import Any, Mapping, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _finite_float(value: Any) -> float | None:
@@ -38,7 +41,8 @@ def _finite_float(value: Any) -> float | None:
         return None
     try:
         numeric = float(value)
-    except (TypeError, ValueError, OverflowError):
+    except (TypeError, ValueError, OverflowError) as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/domain/observation_lifecycle.py:42: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return numeric if math.isfinite(numeric) else None
 

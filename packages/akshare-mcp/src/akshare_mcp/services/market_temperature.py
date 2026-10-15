@@ -12,6 +12,9 @@ from collections import defaultdict
 from datetime import date, datetime
 from math import isfinite
 from typing import Any, Iterable, Mapping
+import logging
+
+logger = logging.getLogger(__name__)
 
 CONTRACT_VERSION = "market_temperature.v1"
 
@@ -21,7 +24,8 @@ def _safe_float(value: Any) -> float | None:
         return None
     try:
         number = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/market_temperature.py:25: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return number if isfinite(number) else None
 

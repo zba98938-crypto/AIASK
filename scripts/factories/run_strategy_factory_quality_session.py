@@ -149,7 +149,8 @@ class SessionRunLock:
             )
             try:
                 self._lock_path.unlink()
-            except FileNotFoundError:
+            except FileNotFoundError as _swallowed:
+                logger.warning("scripts/factories/run_strategy_factory_quality_session.py:153: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         fd = os.open(str(self._lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -170,7 +171,8 @@ class SessionRunLock:
                     existing = {}
                 if _safe_int(existing.get("pid"), default=os.getpid()) == os.getpid():
                     self._lock_path.unlink()
-        except FileNotFoundError:
+        except FileNotFoundError as _swallowed:
+            logger.warning("scripts/factories/run_strategy_factory_quality_session.py:174: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         finally:
             self._held = False
@@ -339,6 +341,8 @@ from _quality_session_collectors import (
     _run_strategy_factory_once,
 )
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class SessionPaths:
@@ -411,7 +415,8 @@ def _session_lock_is_active(paths: SessionPaths, session_id: str | None = None) 
         return False
     try:
         payload = json.loads(paths.lock_json.read_text(encoding="utf-8"))
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("scripts/factories/run_strategy_factory_quality_session.py:415: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     lock_session_id = str(payload.get("session_id") or "").strip()
     if session_id and lock_session_id and lock_session_id != session_id:

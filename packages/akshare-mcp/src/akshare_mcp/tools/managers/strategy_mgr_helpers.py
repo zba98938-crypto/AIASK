@@ -1226,7 +1226,8 @@ def safe_metric_value(payload: Optional[dict], *keys: str) -> float:
         if key in data and data.get(key) is not None:
             try:
                 return float(data.get(key) or 0.0)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_helpers.py:1230: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return 0.0
     return 0.0
 
@@ -1996,7 +1997,8 @@ def _normalize_count_map(value: Any) -> dict[str, int]:
             continue
         try:
             count = int(raw_value or 0)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_helpers.py:2000: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         if count <= 0:
             continue

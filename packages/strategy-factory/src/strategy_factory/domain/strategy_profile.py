@@ -6,6 +6,9 @@ import json
 from typing import Any, Optional
 
 from .targets import _extract_target_codes_from_payload, _normalize_research_task_contract
+import logging
+
+logger = logging.getLogger(__name__)
 
 _HOLDING_BUCKET_BY_TYPE = {
     "momentum": "short",
@@ -99,7 +102,8 @@ def _normalize_tags(values: Any) -> list[str]:
 def _safe_int(value: Any) -> int:
     try:
         return int(value or 0)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/domain/strategy_profile.py:103: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0
 
 

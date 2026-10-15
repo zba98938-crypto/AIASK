@@ -157,7 +157,8 @@ class MarketDataMixin:
             try:
                 datetime.datetime.strptime(value, "%Y%m%d")
                 return True
-            except ValueError:
+            except ValueError as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/market_data.py:161: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return False
 
         # 参数校验
@@ -416,7 +417,8 @@ class MarketDataMixin:
                                     "SGPrice": str(row.get("发行价格", "")),
                                     "type": "stock"
                                 })
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/market_data.py:420: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
 
                 if ipo_type in (1, 2):
@@ -437,7 +439,8 @@ class MarketDataMixin:
                                     "SGPrice": "100.00",
                                     "type": "bond"
                                 })
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/market_data.py:441: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         pass
 
                 if results:
@@ -758,7 +761,8 @@ class MarketDataMixin:
                 return empty
             try:
                 return len(frame) == 0
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/market_data.py:762: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return False
 
         def _frame_columns(frame) -> set[str]:
@@ -766,20 +770,23 @@ class MarketDataMixin:
             if raw is not None:
                 try:
                     return {str(col) for col in raw}
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/market_data.py:770: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             keys = getattr(frame, "keys", None)
             if callable(keys):
                 try:
                     return {str(col) for col in keys()}
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/market_data.py:776: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             discovered: set[str] = set()
             for candidate in ("item", "项目", "value", "值"):
                 try:
                     frame[candidate]
                     discovered.add(candidate)
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/market_data.py:783: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     continue
             return discovered
 

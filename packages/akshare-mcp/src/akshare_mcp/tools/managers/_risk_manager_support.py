@@ -5,6 +5,9 @@ from __future__ import annotations
 from typing import Any
 
 from ...utils import normalize_code
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _extract_holding_code(holding: dict[str, Any]) -> str:
@@ -45,7 +48,8 @@ async def _get_klines_with_fallback(db: Any, code: str, limit: int) -> tuple[lis
         klines = await db.get_klines(code, limit=limit)
         if klines:
             return klines, ["db.get_klines"]
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_risk_manager_support.py:49: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     try:
@@ -54,7 +58,8 @@ async def _get_klines_with_fallback(db: Any, code: str, limit: int) -> tuple[lis
         result = await get_kline(code, "daily", limit)
         if result.get("success") and isinstance(result.get("data"), list):
             return result["data"], ["tools.market.get_kline"]
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_risk_manager_support.py:58: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return [], []
 
@@ -64,7 +69,8 @@ async def _get_stock_info_with_fallback(db: Any, code: str) -> tuple[dict[str, A
         payload = await db.get_stock_info(code)
         if isinstance(payload, dict):
             return payload, ["db.get_stock_info"]
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_risk_manager_support.py:68: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return {}, []
 
@@ -74,7 +80,8 @@ async def _get_financials_with_fallback(db: Any, code: str) -> tuple[list[dict[s
         payload = await db.get_financials(code, limit=1)
         if isinstance(payload, (list, dict)):
             return payload, ["db.get_financials"]
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/_risk_manager_support.py:78: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return [], []
 

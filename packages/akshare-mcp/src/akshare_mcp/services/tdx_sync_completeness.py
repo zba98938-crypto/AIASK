@@ -127,7 +127,8 @@ def _to_float(val: Any) -> Optional[float]:
     try:
         v = float(val)
         return v if v == v else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/tdx_sync_completeness.py:131: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -295,7 +296,8 @@ class _CompletenessMixin:
                         status = "stale"
                         detail["age_days"] = age_days
                         detail["stale_after_days"] = int(stale_after_days[key])
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/services/tdx_sync_completeness.py:299: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             previous_detail = previous.get("detail") if isinstance(previous, dict) else {}
             if row_count == 0 and isinstance(previous, dict) and previous.get("status") == "source_unavailable":
@@ -332,7 +334,8 @@ class _CompletenessMixin:
                     from ..data_source.tdx_tqcenter import _normalize_code
                     out.append(_normalize_code(code))
                 return out
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/tdx_sync_completeness.py:336: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
         # fallback: HS300 list
@@ -364,7 +367,8 @@ class _CompletenessMixin:
                             "fn_code": fn.upper(),
                             "value": v,
                         })
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/tdx_sync_completeness.py:368: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             return rows
         # dict 兜底

@@ -5,6 +5,9 @@ from __future__ import annotations
 import math
 from collections import Counter
 from typing import Any, Mapping, Sequence
+import logging
+
+logger = logging.getLogger(__name__)
 
 DEFAULT_FULL_MARKET_TOPN = 20
 DEFAULT_MAX_PER_INDUSTRY = 2
@@ -18,14 +21,16 @@ def _string(value: Any) -> str:
 def _int(value: Any) -> int:
     try:
         return int(value or 0)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/factory_market_views.py:22: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0
 
 
 def _float(value: Any) -> float:
     try:
         return float(value or 0.0)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/factory_market_views.py:29: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return 0.0
 
 

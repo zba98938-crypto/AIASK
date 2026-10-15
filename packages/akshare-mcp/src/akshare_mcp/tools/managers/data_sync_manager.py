@@ -163,7 +163,8 @@ def register_data_sync_manager(mcp):
                         for table, col in table_cols:
                             try:
                                 return await c.fetchval(f"SELECT MAX({col}) FROM {table}")
-                            except Exception:
+                            except Exception as _swallowed:
+                                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/data_sync_manager.py:167: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                                 continue
                         return None
                     kline_sync = await _max_ts(conn, [('kline_1d', 'updated_at'), ('kline_1d', 'time')])

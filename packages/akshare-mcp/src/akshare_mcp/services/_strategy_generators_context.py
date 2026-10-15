@@ -356,7 +356,8 @@ class _LLMProxyStrategyGeneratorContextMixin:
         def _safe_float(value: Any) -> float:
             try:
                 return float(value or 0.0)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_context.py:360: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return 0.0
 
         @staticmethod
@@ -500,7 +501,8 @@ class _LLMProxyStrategyGeneratorContextMixin:
             for factor_name in factor_names:
                 try:
                     rows = await db.get_factor_values(codes, factor_name)
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/services/_strategy_generators_context.py:504: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     continue
                 latest_by_code: dict[str, tuple[str, float]] = {}
                 for row in list(rows or []):

@@ -195,7 +195,8 @@ def _strategy_factory_json_field_limit(field_name: str) -> int | None:
         return None
     try:
         table, column = str(field_name).split(".", 1)
-    except ValueError:
+    except ValueError as _swallowed:
+        logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/schema_base.py:199: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     limits = strategy_factory_sql_json_field_limits() or {}
     return limits.get((_normalize_identifier(table), _normalize_identifier(column)))

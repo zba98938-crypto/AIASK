@@ -8,6 +8,9 @@ from uuid import uuid4
 
 from .mcp_client import MCPAggregator
 from .session_store import AgentSessionStore, now_iso, sanitize_for_audit
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 ToolCaller = Callable[[str, dict[str, Any]], Awaitable[dict[str, Any]]]
@@ -102,7 +105,8 @@ def _safe_float(value: Any) -> float | None:
         return None
     try:
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/broker_readonly.py:106: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -111,7 +115,8 @@ def _safe_int(value: Any) -> int | None:
         return None
     try:
         return int(float(value))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/agent/src/aiask_agent/broker_readonly.py:115: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

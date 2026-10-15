@@ -9,6 +9,9 @@ from dataclasses import dataclass, field
 from typing import Any, Optional
 
 from strategy_factory.api.semantic_contract import normalize_research_task_contract
+import logging
+
+logger = logging.getLogger(__name__)
 
 _EMPTY_VALUES = (None, "", [], {})
 _REQUIRED_HYPOTHESIS_FIELDS = (
@@ -53,7 +56,8 @@ def _safe_float(value: Any) -> Optional[float]:
         if value in _EMPTY_VALUES:
             return None
         parsed = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/strategy_hypothesis_generator.py:57: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return parsed if math.isfinite(parsed) else None
 

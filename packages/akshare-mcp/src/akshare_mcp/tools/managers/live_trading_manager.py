@@ -16,6 +16,9 @@ from ...services.live_broker import (
 from ...utils import fail, ok
 from ..manager_protocol import normalize_manager_payload
 from ..risk_guard import audit_event, require_confirmation_if_needed
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _normalize_kwargs(kwargs: dict) -> dict:
@@ -31,7 +34,8 @@ def _normalize_kwargs(kwargs: dict) -> dict:
             extra = json.loads(raw or "{}")
             if isinstance(extra, dict):
                 kwargs = {**kwargs, **extra}
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/live_trading_manager.py:35: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     if "symbol" not in kwargs:
         kwargs["symbol"] = kwargs.get("code")
@@ -56,7 +60,8 @@ def _safe_float(value: Any) -> float | None:
         if not math.isfinite(parsed):
             return None
         return parsed
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/live_trading_manager.py:60: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -393,7 +398,8 @@ async def _dispatch_action(action: str, kwargs: dict[str, Any]) -> dict:
                                 )
                         except (TypeError, ValueError):
                             preview_warnings.append("sanity_warning:notional_format_invalid")
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/live_trading_manager.py:397: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
                 data = {
                     "accepted": True,

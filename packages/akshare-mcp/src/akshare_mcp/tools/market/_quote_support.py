@@ -27,6 +27,9 @@ try:
 except ImportError:
     ak = None
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
 
 # 显式声明需要通过 `from ._quote_support import *` 导出的私有 helper。
 # Python 的 import * 默认跳过下划线开头的名称，因此必须在 __all__ 中列明。
@@ -459,7 +462,8 @@ def _get_quote_sina(code: str) -> Optional[dict]:
             "amount": amount,
             "source": f"sina_{transport}",
         }
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/_quote_support.py:463: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 def _get_quote_tencent(code: str) -> Optional[dict]:
@@ -525,7 +529,8 @@ def _get_quote_tencent(code: str) -> Optional[dict]:
             "amount": amount,
             "source": f"tencent_{transport}",
         }
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/_quote_support.py:529: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 def _get_realtime_quote_akshare(code: str) -> Optional[dict]:

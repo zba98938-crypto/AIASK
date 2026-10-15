@@ -270,7 +270,8 @@ class DataSyncService:
                         continue
                     try:
                         records.append(json.loads(line))
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/data_sync.py:274: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
 
             if len(records) > limit:

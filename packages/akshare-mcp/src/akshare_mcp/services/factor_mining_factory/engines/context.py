@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any, Optional
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 MIN_VALIDATION_UNIVERSE_SIZE = 120
@@ -297,19 +300,22 @@ class MiningContext:
             return None
         try:
             return datetime.fromisoformat(text[:10]).date()
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/engines/context.py:301: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     @staticmethod
     def _safe_int(value: Any) -> int:
         try:
             return int(value or 0)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/engines/context.py:308: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0
 
     @staticmethod
     def _safe_float(value: Any) -> float:
         try:
             return float(value or 0.0)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/engines/context.py:315: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0.0

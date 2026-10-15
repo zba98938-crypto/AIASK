@@ -9,6 +9,9 @@ except Exception:  # pragma: no cover - optional dependency
 
 from ..data_source import data_source
 from ..utils import normalize_code, safe_float, safe_int
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _get_kline_from_akshare(stock_code: str, period: str, count: int) -> list:
@@ -123,7 +126,8 @@ def get_default_formula_stock_pool() -> list[str]:
                 codes.append(bare)
         if codes:
             return codes
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/formula_fallback.py:127: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     try:
@@ -133,7 +137,8 @@ def get_default_formula_stock_pool() -> list[str]:
         if df is not None and not df.empty:
             column = "成分券代码" if "成分券代码" in df.columns else df.columns[0]
             return df[column].tolist()[:50]
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/formula_fallback.py:137: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
 
     return [

@@ -11,6 +11,9 @@ import json
 from typing import Any
 
 from ...utils import normalize_code
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -30,7 +33,8 @@ def _normalize_kwargs(kwargs: dict) -> dict:
             extra = json.loads(raw or "{}")
             if isinstance(extra, dict):
                 kwargs = {**kwargs, **extra}
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/risk_mgr_helpers.py:34: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     if "code" not in kwargs or not kwargs.get("code"):
         kwargs["code"] = kwargs.get("stock_code") or kwargs.get("symbol") or kwargs.get("ticker")
@@ -67,7 +71,8 @@ def _parse_list_param(value: Any) -> list:
             parsed = json.loads(text)
             if isinstance(parsed, list):
                 return parsed
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/risk_mgr_helpers.py:71: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return [item.strip() for item in text.split(",") if item.strip()]
     return [value]

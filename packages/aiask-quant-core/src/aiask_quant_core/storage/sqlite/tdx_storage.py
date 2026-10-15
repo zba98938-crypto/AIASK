@@ -27,7 +27,8 @@ def _safe_float(val: Any) -> Optional[float]:
     try:
         v = float(val)
         return v if v == v else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/tdx_storage.py:31: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -45,7 +46,8 @@ def _norm_date(val: Any) -> str:
     s = str(val).strip()
     try:
         s = str(int(float(s)))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/tdx_storage.py:49: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     if len(s) == 8 and s.isdigit():
         return f"{s[:4]}-{s[4:6]}-{s[6:8]}"

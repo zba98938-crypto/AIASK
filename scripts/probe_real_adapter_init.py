@@ -12,6 +12,9 @@ import sqlite3
 import sys
 import tempfile
 from pathlib import Path
+import logging
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parents[1]
 for pkg_src in [
@@ -78,7 +81,8 @@ async def main() -> int:
         conn.close()
         try:
             await adapter.close()
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("scripts/probe_real_adapter_init.py:82: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
 

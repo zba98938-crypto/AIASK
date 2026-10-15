@@ -22,7 +22,8 @@ class ArtifactMixin:
         normalized = raw[:-1] + '+00:00' if raw.endswith('Z') else raw
         try:
             return datetime.fromisoformat(normalized)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/artifacts.py:26: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     async def save_artifact(self, artifact: dict) -> dict:

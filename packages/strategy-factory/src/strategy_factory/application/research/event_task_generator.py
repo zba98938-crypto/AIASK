@@ -296,7 +296,8 @@ async def _claim_fallback_outbox(
             outbox_failed += 1
             try:
                 await db.mark_event_outbox_failed(dedupe_key, error=str(exc))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/research/event_task_generator.py:300: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             outbox_details.append({
                 "dedupe_key": dedupe_key,
@@ -656,7 +657,8 @@ async def generate_tasks_from_active_events(
                     if with_failed is not None:
                         try:
                             await with_failed(dedupe_key, error=str(exc))
-                        except Exception:
+                        except Exception as _swallowed:
+                            logger.warning("packages/strategy-factory/src/strategy_factory/application/research/event_task_generator.py:660: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             pass
                     outbox_details.append({
                         "dedupe_key": dedupe_key,

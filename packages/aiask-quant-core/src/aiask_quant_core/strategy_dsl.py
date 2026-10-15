@@ -7,6 +7,9 @@ from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def audit_candidate_semantic_contract(candidate: dict[str, Any]) -> dict[str, Any]:
@@ -972,7 +975,8 @@ def _expand_shorthand_expr(node: dict[str, Any]) -> dict[str, Any]:
             try:
                 window = max(1, int(float(payload)))
                 return {'indicator': indicator, 'field': 'close', 'window': window}
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/aiask-quant-core/src/aiask_quant_core/strategy_dsl.py:976: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
             field = payload.strip().lower()
             if field in SUPPORTED_FIELDS:

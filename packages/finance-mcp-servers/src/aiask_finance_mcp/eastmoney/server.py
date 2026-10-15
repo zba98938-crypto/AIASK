@@ -22,6 +22,9 @@ import sys
 from typing import Any
 
 from .._shared.redaction import redact_public_text, sanitize_public_payload
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _envelope(success: bool, *, data: Any = None, error: str | None = None, tool: str) -> dict[str, Any]:
@@ -64,7 +67,8 @@ def handle_realtime_quote(arguments: dict[str, Any]) -> dict[str, Any]:
                     quote_df = ef.stock.get_realtime_quotes([code])
                     if quote_df is not None and not quote_df.empty:
                         results.extend(quote_df.to_dict("records"))
-                except Exception:
+                except Exception as _swallowed:
+                    logger.warning("packages/finance-mcp-servers/src/aiask_finance_mcp/eastmoney/server.py:68: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             return _envelope(True, data={"quotes": results, "count": len(results)}, tool="em_realtime_quote")
         records = df.to_dict("records") if hasattr(df, "to_dict") else []
@@ -251,7 +255,8 @@ def main() -> None:
             continue
         try:
             request = json.loads(line)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as _swallowed:
+            logger.warning("packages/finance-mcp-servers/src/aiask_finance_mcp/eastmoney/server.py:255: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
         response = _handle_jsonrpc(request)
         if response is not None:

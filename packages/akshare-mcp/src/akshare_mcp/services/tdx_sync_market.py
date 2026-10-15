@@ -127,7 +127,8 @@ def _to_float(val: Any) -> Optional[float]:
     try:
         v = float(val)
         return v if v == v else None
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/tdx_sync_market.py:131: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -412,7 +413,8 @@ class _MarketSyncMixin:
                     try:
                         await db.save_tdx_gpjy_daily(code, rows)
                         ok_codes += 1
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/tdx_sync_market.py:416: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
         return {"updated": ok_codes}
 
@@ -469,7 +471,8 @@ class _MarketSyncMixin:
                     try:
                         await db.save_tdx_bkjy_daily(bcode, rows)
                         ok_blocks += 1
-                    except Exception:
+                    except Exception as _swallowed:
+                        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/tdx_sync_market.py:473: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                         continue
         return {"updated": ok_blocks, "tried": len(block_codes)}
 

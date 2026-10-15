@@ -13,6 +13,9 @@ from .session_store_utils import (
     now_iso,
     sanitize_for_audit,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class SessionStoreUserDataMixin:
@@ -137,7 +140,8 @@ class SessionStoreUserDataMixin:
             if key in updates:
                 try:
                     next_policy[key] = max(minimum, min(int(updates[key]), maximum))
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as _swallowed:
+                    logger.warning("packages/agent/src/aiask_agent/session_store_user_data.py:141: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
         if updates.get("conversation_retention"):
             value = str(updates.get("conversation_retention") or "").strip()

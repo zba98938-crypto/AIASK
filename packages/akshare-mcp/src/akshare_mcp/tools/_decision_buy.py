@@ -1,4 +1,7 @@
 from ._decision_common import *
+import logging
+
+logger = logging.getLogger(__name__)
 
 async def should_i_buy(
     code: str | None = None,
@@ -85,7 +88,8 @@ async def should_i_buy(
                 detail=detail or {},
             )
             evidence_chain = add_evidence(evidence_chain, ev)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/_decision_buy.py:89: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     def _with_meta(resp: dict, source_chain: list | None = None) -> dict:
@@ -219,7 +223,8 @@ async def should_i_buy(
                         pe = _maybe_float(valuation_row['pe_ratio']) if valuation_row else None
                     if pb is None:
                         pb = _maybe_float(valuation_row['pb_ratio']) if valuation_row else None
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/_decision_buy.py:223: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         if pe and 0 < pe < 15:
@@ -417,7 +422,8 @@ async def should_i_buy(
                         roe = _maybe_float(financial_row['roe'])
                         debt_ratio = _maybe_float(financial_row['debt_ratio'])
                         revenue_growth = _maybe_float(financial_row['revenue_growth'])
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/_decision_buy.py:421: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         if roe and roe > 15:
@@ -826,7 +832,8 @@ async def should_i_buy(
                             f"K线/基本面数据截至 {date_str}，距今 {days_old} 天，"
                             f"估值和基本面指标可能已过时，请结合最新财报使用"
                         )
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/_decision_buy.py:830: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         payload['data_freshness_warning'] = data_freshness_warning
 

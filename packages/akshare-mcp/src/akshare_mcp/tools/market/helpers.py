@@ -34,6 +34,9 @@ from ...utils import (
     ok as _base_ok,
     fail as _base_fail,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 # 配置常量
 _SPOT_TTL_SECONDS = float(os.getenv("AKSHARE_SPOT_TTL_SECONDS", "2"))
@@ -58,7 +61,8 @@ def _parse_timeout_list(env_key: str, default: list[float]) -> list[float]:
     for part in parts:
         try:
             timeouts.append(float(part))
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/helpers.py:62: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     return timeouts or default
 
@@ -150,9 +154,11 @@ def _eastmoney_get(url: str, params: dict, timeout: float = 15) -> Optional[dict
             resp = session.get(url, params=params, timeout=timeout)
             if resp.status_code == 200:
                 return resp.json()
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/helpers.py:154: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/helpers.py:156: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     return None
 
@@ -474,7 +480,8 @@ def get_stock_list_cached() -> tuple[list[dict], bool]:
                 df = run_with_timeout(ak.stock_info_a_code_name, min(_SPOT_TIMEOUT_SECONDS, 10.0))
                 if df is not None and not df.empty:
                     records = df.to_dict(orient="records")
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/helpers.py:478: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         
         if not records:

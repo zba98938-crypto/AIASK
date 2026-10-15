@@ -15,6 +15,9 @@ from uuid import uuid4
 
 from .numeric import bounded_float, bounded_int
 from .paths import aiask_agent_home
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _safe_slug(value: str) -> str:
@@ -454,7 +457,8 @@ class NativePluginManager:
             sys.modules.pop(isolated_name, None)
             try:
                 sys.path.remove(str(plugin_dir))
-            except ValueError:
+            except ValueError as _swallowed:
+                logger.warning("packages/agent/src/aiask_agent/plugin_runtime.py:458: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
     def _run_http(self, runner: dict[str, Any], plugin: dict[str, Any], tool: str, arguments: dict[str, Any]) -> Any:
@@ -500,7 +504,8 @@ class NativePluginManager:
         payload = {"returncode": proc.returncode, "stdout": proc.stdout[-200000:], "stderr": proc.stderr[-200000:]}
         try:
             payload["json"] = json.loads(proc.stdout)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/plugin_runtime.py:504: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         if proc.returncode != 0:
             raise RuntimeError(f"plugin subprocess failed with code {proc.returncode}: {proc.stderr[-2000:]}")
@@ -577,7 +582,8 @@ class NativePluginManager:
             import re
 
             return re.fullmatch(raw, tool_name) is not None
-        except re.error:
+        except re.error as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/plugin_runtime.py:581: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return False
 
     @staticmethod

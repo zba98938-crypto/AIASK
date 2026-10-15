@@ -27,6 +27,9 @@ from ..resources.strategy import build_strategy_review_payload
 from ..resources.stock_and_watchlist import build_stock_profile_resource_payload
 from ..tools._decision_unified import get_unified_decision_summary
 from ..tools.finance import get_financials
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_codes(raw_codes: str) -> list[str]:
@@ -38,7 +41,8 @@ def _parse_codes(raw_codes: str) -> list[str]:
             parsed = json.loads(text)
             if isinstance(parsed, list):
                 return [str(item).strip() for item in parsed if str(item).strip()]
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/prompts/analysis.py:42: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
     return [item.strip() for item in text.split(",") if item.strip()]
 

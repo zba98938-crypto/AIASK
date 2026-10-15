@@ -48,6 +48,9 @@ from .profile_features import (
     _normalize_vector,
     build_stock_profile_features,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _safe_pos(value: Optional[float]) -> float:
@@ -592,7 +595,8 @@ async def _profile_exists(db, *, entity_id: str, version: str) -> bool:
             version=version,
             limit=1,
         )
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/stock_profile_pipeline.py:596: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     return bool(rows)
 

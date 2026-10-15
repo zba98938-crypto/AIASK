@@ -22,6 +22,9 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Literal
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 PROTOCOL_VERSION = "1.0"
@@ -111,7 +114,8 @@ class RunEnvelope:
         """Record a countable outcome, ignoring values that are not integers."""
         try:
             self.counts[key] = int(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/strategy-factory/src/strategy_factory/contracts/run_envelope.py:115: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return
 
     def degrade(self, reason: str) -> None:

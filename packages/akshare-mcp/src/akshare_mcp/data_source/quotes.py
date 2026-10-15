@@ -207,7 +207,8 @@ class QuotesMixin:
                             self._stock_name_cache[c] = n
                     if code in self._stock_name_cache:
                         return self._stock_name_cache[code]
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/data_source/quotes.py:211: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
         return self._stock_name_cache.get(code, '')
 

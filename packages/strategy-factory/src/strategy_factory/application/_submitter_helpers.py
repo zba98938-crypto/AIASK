@@ -207,7 +207,8 @@ class _StrategySubmitterHelpersMixin:
                 if value is None or value == "":
                     return None
                 return float(value)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/_submitter_helpers.py:211: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
 
         @staticmethod
@@ -216,7 +217,8 @@ class _StrategySubmitterHelpersMixin:
                 if value is None or value == "":
                     return None
                 return int(float(value))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/_submitter_helpers.py:220: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
 
         @staticmethod

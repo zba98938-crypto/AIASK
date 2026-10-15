@@ -14,6 +14,9 @@ from urllib.request import Request, urlopen
 from .paths import aiask_agent_home
 from .tool_risk import extract_mcp_action, mcp_tool_is_live_broker_trade_risk, mcp_tool_metadata, normalize_side_effect
 from .tools.policy import FORBIDDEN_DIRECT_MANAGER_TOKENS
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     import httpx
@@ -178,7 +181,8 @@ class MCPTokenStore:
         self.path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
         try:
             self.path.chmod(0o600)
-        except OSError:
+        except OSError as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/mcp_client.py:182: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     async def get_tokens(self) -> Any | None:
@@ -821,7 +825,8 @@ class MCPAggregator:
         self.config_path.write_text(json.dumps(self.config, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
         try:
             self.config_path.chmod(0o600)
-        except OSError:
+        except OSError as _swallowed:
+            logger.warning("packages/agent/src/aiask_agent/mcp_client.py:825: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
 
     def _upsert_server(self, server: dict[str, Any]) -> None:

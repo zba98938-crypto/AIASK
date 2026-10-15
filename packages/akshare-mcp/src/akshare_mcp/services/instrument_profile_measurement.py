@@ -15,6 +15,9 @@ from __future__ import annotations
 import math
 from statistics import median
 from typing import Any, Mapping, Optional, Sequence
+import logging
+
+logger = logging.getLogger(__name__)
 
 # 至少需要这么多根日线才认为测量可信(覆盖 ATR14 + 60d 趋势效率窗口)。
 _MIN_BARS = 70
@@ -39,7 +42,8 @@ def _to_float(value: Any) -> Optional[float]:
         if value is None:
             return None
         result = float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/instrument_profile_measurement.py:43: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     if math.isnan(result) or math.isinf(result):
         return None

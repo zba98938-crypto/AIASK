@@ -15,6 +15,9 @@ from .factor_candidate_compiler import (
     SUPPORTED_FACTOR_FIELDS,
     SUPPORTED_FACTOR_FUNCTIONS,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class FactorMetadata(TypedDict, total=False):
@@ -237,7 +240,8 @@ async def _load_latest_ic_summary(factor_name: str, *, db: Any | None = None) ->
                 factor_name,
             )
             return _normalize_ic_row(row)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_catalog.py:241: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 

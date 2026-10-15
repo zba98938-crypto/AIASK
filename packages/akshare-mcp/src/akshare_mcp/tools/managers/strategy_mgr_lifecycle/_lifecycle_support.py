@@ -152,7 +152,8 @@ def _run_once_accepts_db_arg(run_once) -> bool:
 def _call_supports_parameter(callable_obj, name: str) -> bool:
     try:
         params = inspect.signature(callable_obj).parameters
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/managers/strategy_mgr_lifecycle/_lifecycle_support.py:156: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return False
     if name in params:
         return True

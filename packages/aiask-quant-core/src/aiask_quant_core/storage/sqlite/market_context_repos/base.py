@@ -62,13 +62,15 @@ class _BaseMixin:
             return None
         try:
             return date.fromisoformat(raw[:10])
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/market_context_repos/base.py:66: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         digits = "".join(ch for ch in raw if ch.isdigit())
         if len(digits) >= 8:
             try:
                 return date.fromisoformat(f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}")
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/market_context_repos/base.py:72: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 return None
         return None
 
@@ -78,7 +80,8 @@ class _BaseMixin:
             return None
         try:
             return float(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/market_context_repos/base.py:82: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
 
     @staticmethod
@@ -153,7 +156,8 @@ class _BaseMixin:
         normalized = raw[:-1] + "+00:00" if raw.endswith("Z") else raw
         try:
             return datetime.fromisoformat(normalized)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/market_context_repos/base.py:157: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         parsed_date = cls._coerce_context_date(raw)
         return datetime.combine(parsed_date, datetime.min.time()) if parsed_date else None
@@ -173,7 +177,8 @@ class _BaseMixin:
             parsed = json.loads(text)
             if isinstance(parsed, list):
                 return parsed
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/market_context_repos/base.py:177: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             pass
         return [item.strip() for item in text.replace(";", ",").split(",") if item.strip()]
 

@@ -47,6 +47,9 @@ from .fund_flow_market import (                     # noqa: F401
     get_margin_ranking,
     get_block_trades,
 )
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # =====================
@@ -97,7 +100,8 @@ def _get_stock_fund_flow_from_tushare(code: str) -> dict | None:
             "tradeDate": _format_trade_date(row.get("trade_date")),
             "source": "tushare.moneyflow",
         }
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/fund_flow.py:101: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 def get_stock_fund_flow(
@@ -156,7 +160,8 @@ def get_stock_fund_flow(
                 )
                 if db_payload:
                     return _respond(ok(db_payload))
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/fund_flow.py:160: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         # 0a. tqcenter 主路径：从 tdx_gpjy_daily 读最新一天的资金流字段

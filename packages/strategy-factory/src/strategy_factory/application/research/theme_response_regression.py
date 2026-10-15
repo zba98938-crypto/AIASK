@@ -93,7 +93,8 @@ class ThemeResponseRegression:
                     limit=30,
                 )
                 constituents = [str(r.get("symbol") or "").strip() for r in rows if r.get("symbol")]
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/research/theme_response_regression.py:97: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
         if not constituents:
@@ -110,7 +111,8 @@ class ThemeResponseRegression:
                 returns = closes.pct_change().dropna()
                 returns.index = range(len(returns))
                 all_returns.append(returns)
-            except Exception:
+            except Exception as _swallowed:
+                logger.warning("packages/strategy-factory/src/strategy_factory/application/research/theme_response_regression.py:114: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
 
         if not all_returns:
@@ -219,7 +221,8 @@ class ThemeResponseRegression:
                 # OLS regression
                 try:
                     beta_hat, residuals, rank, sv = np.linalg.lstsq(X_with_intercept, y, rcond=None)
-                except np.linalg.LinAlgError:
+                except np.linalg.LinAlgError as _swallowed:
+                    logger.warning("packages/strategy-factory/src/strategy_factory/application/research/theme_response_regression.py:223: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     continue
 
                 beta = float(beta_hat[1])  # Coefficient on direction*magnitude

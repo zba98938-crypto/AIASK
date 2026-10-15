@@ -587,7 +587,8 @@ class _WritesMixin:
             return None
         try:
             parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-        except ValueError:
+        except ValueError as _swallowed:
+            logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/strategy_ai_repos/writes.py:591: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=timezone.utc)

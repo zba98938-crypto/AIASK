@@ -6,6 +6,9 @@ import numpy as np
 from scipy.stats import norm
 from typing import Dict, Optional
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class OptionsPricing:
@@ -265,7 +268,8 @@ class OptionsPricing:
             now = datetime.now()
             seconds_to_maturity = (expiry - now).total_seconds()
             return max(seconds_to_maturity / (365.0 * 24 * 3600), 0.0)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/options_pricing.py:269: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return 0.0
 
 

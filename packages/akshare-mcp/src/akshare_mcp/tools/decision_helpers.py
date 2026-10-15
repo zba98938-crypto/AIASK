@@ -3,6 +3,9 @@
 import math
 import statistics
 from datetime import date, datetime
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def _maybe_float(value):
@@ -10,7 +13,8 @@ def _maybe_float(value):
         if value is None or value == '':
             return None
         return float(value)
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/decision_helpers.py:14: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
@@ -49,13 +53,15 @@ def _parse_loose_date(value) -> date | None:
     ):
         try:
             return parser(text)
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/decision_helpers.py:53: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
     digits = "".join(ch for ch in text if ch.isdigit())
     if len(digits) >= 8:
         try:
             return date.fromisoformat(f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}")
-        except Exception:
+        except Exception as _swallowed:
+            logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/decision_helpers.py:59: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             return None
     return None
 
@@ -155,7 +161,8 @@ def _apply_isotonic_calibration(raw_prob: float, history: dict) -> float | None:
     """
     try:
         from sklearn.isotonic import IsotonicRegression
-    except ImportError:
+    except ImportError as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/decision_helpers.py:159: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
     pred = history.get("predicted_probs") or []
@@ -169,7 +176,8 @@ def _apply_isotonic_calibration(raw_prob: float, history: dict) -> float | None:
         calibrated = iso.predict([float(raw_prob)])
         if calibrated is not None and len(calibrated) > 0:
             return float(calibrated[0])
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/decision_helpers.py:173: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
     return None
 

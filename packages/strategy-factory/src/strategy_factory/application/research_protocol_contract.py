@@ -7,6 +7,9 @@ from dataclasses import asdict
 from typing import Any, Mapping
 
 from ..api.contracts import ResearchValidationContract
+import logging
+
+logger = logging.getLogger(__name__)
 
 RESEARCH_PROTOCOL_CONTRACT_VERSION = "strategy_factory.research_protocol.v2"
 CANDIDATE_CONTRACT_V2 = "strategy_factory.candidate_contract.v2"
@@ -32,7 +35,8 @@ def _safe_float(value: Any) -> float | None:
         if value in (None, ""):
             return None
         return float(value)
-    except Exception:
+    except Exception as _swallowed:
+        logger.warning("packages/strategy-factory/src/strategy_factory/application/research_protocol_contract.py:36: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         return None
 
 
