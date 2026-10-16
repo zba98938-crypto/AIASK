@@ -193,7 +193,7 @@ same rules, because the previous versions did not:
 
 ```bash
 python scripts/aiask_readiness.py --strict                # ready: True, 0 critical
-python scripts/check_silent_exception_swallows.py         # 0 silent handlers
+python scripts/check_silent_exception_swallows.py         # 0 pass / 0 continue / 0 return-zeroish
 python scripts/sync_market_universe.py --with-industry    # coverage + source
 python scripts/sync_market_fundamentals.py                # per-category report
 ```
