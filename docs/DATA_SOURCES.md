@@ -95,17 +95,16 @@ reason, `get_stock_info` falls back to the local reference table, and
 | Index klines | Sina | same, `sh000001` / `sz399300` / … | 5 indices | seconds |
 | Industry, sector | East money F10 | `RPT_F10_BASIC_ORGINFO` (`EM2016`) | 5,577 / 5,577 = 100% | ~14 s |
 | Market cap, PE, PB | Sina listing | same response as the listing | 5,582 / 5,575 | free with the listing |
-| Financials | East money datacenter | `RPT_LICO_FN_CPD` | 119,819 rows, 5,575 codes, 2021-03 -> 2026-09 | ~4 min |
-| Industry board membership | East money datacenter | `RPT_LICO_FN_CPD` (`BOARD_CODE`) | 5,575 members / 128 boards | free with financials |
+| Financials | East money datacenter | `RPT_F10_FINANCE_MAINFINADATA` | 119,837 rows, 5,575 codes, all 14 columns | ~27 min |
+| Industry board membership | East money datacenter | `RPT_LICO_FN_CPD` (`BOARD_CODE`) | 5,575 members / 128 boards | free with the universe sync |
 | Dragon-tiger 龙虎榜 | East money datacenter | `RPT_DAILYBILLBOARD_DETAILSNEW` | 269,446 rows, 2004-06 -> 2026-10-15 | ~2 min |
 | Fund flow 个股资金流 | East money datacenter | `RPT_DMSK_TS_STOCKNEW` | 5,200 rows, **one day only** | ~5 s |
 | Trading calendar | derived from `kline_1d` | — | 1,399 dates, 2021-01-13 -> 2026-10-15 | free |
 | Announcements, notices | project's own ingest | `run_market_event_ingest.py --once` | 374 documents, 325 events | seconds |
 | Market temperature | derived from klines + industry | `refresh_market_temperature_snapshot_cache` | cached on first call | one request |
-| Minute klines | Sina | `scale=5/15/30/60` | **available, not wired** | — |
-| Balance-sheet ratios | East money datacenter | `RPT_DMSK_FN_BALANCE` | **available, not wired** | — |
+| Minute klines | Sina / Tencent | `scale=5/15/30/60` | written back on use; full-market backfill is a separate job | ~45 min per scale for the market |
+| Margin 融资融券 (market) | 上交所 | `query.sse.com.cn/.../queryMargin.do` | 38 rows, 2026-08-17 -> 2026-10-15, **Shanghai only** | seconds |
 | Dividends | East money datacenter | `RPT_SHAREBONUS_DET` | **available, not wired** | — |
-| Margin 融资融券 | SSE only | `query.sse.com.cn/marketdata/tradedata/queryMargin.do` | **Shanghai only**; 深交所 is 403 | — |
 
 Reports already registered in code but not yet consumed are in
 `eastmoney_datacenter.REPORTS`.
@@ -127,14 +126,29 @@ python scripts/sync_market_fundamentals.py              # report only, writes no
 
 ## 5. Verified as *not* usable
 
-**TDX online (`tdx_local`, `pytdx`).** The socket layer is fine and the project's
-client still cannot use it. Only **2 of the 12 servers** in
-`tdx_local.DEFAULT_TDX_HQ_SERVERS` answer a protocol handshake
-(`180.153.18.170`, `60.191.117.167`); the other ten hang for the full timeout, and
-the pool's **first** entry `119.147.212.81` is one of the dead ones. Naming a
-responsive server first via `TDX_SERVER_POOL` did **not** make the client return
-within 300 s, so the hang is not only server ordering. Until that is diagnosed,
-treat TDX as unavailable and do not route a data need through it.
+**TDX online (`tdx_local`, `pytdx`).** Two separate findings, both now settled.
+
+*The hang was a real bug in this project, and it is fixed.* It was never the data
+call: `get_realtime_quote` returned in 0.1 s and `get_kline` in 4.3 s, and the
+process then never terminated. `TdxHq_API(heartbeat=True)` starts a **non-daemon**
+thread on every successful connect, and CPython's shutdown runs
+`threading._shutdown()` — which waits for every non-daemon thread — *before* it
+runs atexit callbacks. So nothing registered at exit could stop it, and
+`faulthandler` put the stack at `pytdx/heartbeat.py:24` under
+`threading.py:1543 _shutdown`. **Every** process that ever opened an online TDX
+connection would have hung at exit, the MCP server included. The client now
+constructs with `heartbeat=False`; a dropped socket surfaces as an error on the
+next call, which the existing cooldown and reconnect logic already handles.
+Measured after the fix: exit code 0 in 5 s.
+
+*The data is still not there, and that part is the server's.* Against
+`180.153.18.170` and `60.191.117.167` — the only two of the twelve pool entries
+that answer — `get_security_count(0)` returns 24,444 securities, so the protocol
+and the connection are genuine, while `get_security_bars` (every category tried),
+`get_index_bars`, `get_security_list` and `get_security_quotes` all return empty.
+A server that answers one administrative query and serves no market data is a
+server-side limit. Treat TDX as unavailable and do not route a data need through
+it; the ten dead pool entries and the dead-first ordering remain as they are.
 
 ```bash
 # reproduces the server measurement
@@ -160,9 +174,10 @@ PY
 
 | Gap | Reality | What to do |
 |---|---|---|
-| Margin 融资融券 | 上交所 answers; 深交所 returns 403 through the proxy | needs a Shenzhen route; the SSE half is worth wiring on its own |
+| Margin 融资融券 | **wired for 上交所 only.** 深交所 returns 403 through the proxy, and the SSE endpoint ignores its `stockCode` parameter, so `margin_detail` cannot be filled from here either | needs a Shenzhen route; the reader already reports the coverage gap |
 | `stock_fund_flow` | the report is a one-day snapshot, no history | call it daily; it does not backfill |
-| `financials.net_margin`, `debt_ratio`, `current_ratio`, `roa` | the earnings report has no balance-sheet fields | wire `RPT_DMSK_FN_BALANCE`; they are NULL rather than 0.0 today |
+| `financials` | all 14 columns now come from one report, `RPT_F10_FINANCE_MAINFINADATA`, so a row cannot mix two report periods | `debt_ratio` is stored as a fraction (`ZCFZL / 100`) because every consumer reads `1.0 - debt_ratio` |
+| `kline_intraday` | fills on use: `get_minute_kline` now writes its bars back, which it never did | a full-market backfill is a separate multi-hour job |
 | `dragon_tiger.buyer_type` | not in the report | needs a different report |
 | `dragon_tiger` codes | 6,433 codes, 898 outside today's universe | historical appearances including since-delisted companies; kept on purpose |
 | Industry | 100% from East money | `stocks.sector` is `EM2016` level 2, `stocks.industry` level 1 — one taxonomy, two depths |
@@ -188,6 +203,15 @@ same rules, because the previous versions did not:
 5. **A fallback says it is one.** Sina's board list is still reachable and still
    used when East money fails; it is reported as a fallback, not as the
    classification.
+6. **Rows in a table are not the same as a usable dataset.** Every reader of
+   `margin_market_flow`, `stock_fund_flow` and `block_stocks` first consults
+   `tdx_data_completeness`, and blocks with `completeness_missing` when there is
+   no row for its key. A sync that writes data without updating that registry
+   leaves the table populated and *still unreadable* — which is exactly what the
+   first attempt at the margin sync produced: 38 rows written, and
+   `get_margin_market_history()` returned zero. `_register_completeness()` in
+   `scripts/sync_market_fundamentals.py` now writes the registry alongside the
+   data, with the limitations in `detail` where the reader passes them through.
 
 ## 8. Verification snapshot (2026-10-16)
 

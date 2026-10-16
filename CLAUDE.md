@@ -61,6 +61,10 @@ cd packages/akshare-mcp && /opt/miniconda3/envs/aiask/bin/python -m pytest -q
 - **Provider 必须能区分「没数据」与「没 provider」。** 返回结构里带上 `complete` / `failed_pages` / `truncated`；一行都读不到要**抛异常**，不要返回空列表——「列举失败」和「市场里没有股票」长得一样正是造出 `full_market` 这个假口径的原因。
 - **降级要署名。** `resolve_stock_universe()`、`--with-industry` 之类必须返回数据来源，并在 stderr 说明是降级；上游不完整时标 `complete: False` 并列出失败页。
 - **一列只能有一套口径。** 行业分类曾混用 Sina 的 56 类与东财的 27 类：同一家公司会落进两个组，无法比较。现在 `stocks.industry` 是东财 `EM2016` 一级、`stocks.sector` 是二级——同一字符串切出来的两级。
+- **「表里有行」不等于「数据可用」。** `margin_market_flow`、`stock_fund_flow`、`block_stocks` 的读取端首先查 `tdx_data_completeness`，没有登记行就直接 `blocked: completeness_missing`。第一次接沪市融资融券写进 38 行、`get_margin_market_history()` 仍返回 0 行——同步必须在写数据的同时更新登记表，「接线」才算完成。
+- **单位是数据契约的一部分。** `RPT_F10_FINANCE_MAINFINADATA` 给的是百分比（`ZCFZL=21.3`），而 `financials.debt_ratio` 的三个消费者都按分数用（`1.0 - debt_ratio`、示例 `0.21`），所以写入时要 `/100`。同类：`rqyl` 是融券余量（股）、`rqylje` 是融券余额（金额），别取错。
+- **格式不匹配会静默丢数据。** `margin_market_flow` 的读取端用 `date.fromisoformat`，写 `20261015` 会让它 `continue` 跳过每一行；上交所对畸形日期不报错、只返回空。这类「错误格式 → 空结果」必须在写入前校验，不要靠事后发现。
+- **把进程能不能退出来当成验收项。** pytdx 的 `heartbeat=True` 会起一个**非 daemon** 线程，而 CPython 的 `threading._shutdown()`（等非 daemon 线程）**先于** `atexit` 回调——所以注册 atexit 也救不了，任何开过 TDX 连接的进程都退不出去。手写的长跑/探针脚本要加超时，否则「挂死」会被误记成「没数据」。
 - **时间戳。** `CURRENT_TIMESTAMP` 是 **UTC 且不带偏移**；`kline_1d.time` 带 `+08:00`。同一列不要混格式（会破坏 `ORDER BY`），跨表比日期要换算——本地时间 00:00–08:00 写入的行，按本地日期查会漏掉。
 
 ## 批量改写与一次性 codemod
