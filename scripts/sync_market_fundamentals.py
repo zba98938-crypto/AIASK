@@ -34,6 +34,7 @@ import json
 import sqlite3
 import sys
 import urllib.parse
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
@@ -46,7 +47,7 @@ for _rel in ("packages/akshare-mcp/src", "packages/aiask-quant-core/src", "packa
 from _db_sync_common import DB_PATH  # noqa: E402
 from akshare_mcp.data_source.eastmoney_datacenter import fetch_report  # noqa: E402
 
-CATEGORIES = ("calendar", "financials", "fundflow", "dragon", "blocks")
+CATEGORIES = ("calendar", "financials", "fundflow", "dragon", "blocks", "margin")
 
 #: Reports read more than once in a run are read once. The earnings report is
 #: roughly 100k rows in the default window, and both the financials and the
@@ -76,6 +77,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="how far back to read the earnings report (default 5 years, 0 = everything)",
     )
     parser.add_argument("--max-rows", type=int, default=0, help="cap rows per report (0 = no cap)")
+    parser.add_argument(
+        "--margin-days",
+        type=int,
+        default=60,
+        help="how many days back the SSE margin endpoint is queried (default 60)",
+    )
     parser.add_argument("--json", action="store_true")
     return parser.parse_args(argv)
 
@@ -170,31 +177,96 @@ def sync_calendar(conn: sqlite3.Connection, *, apply: bool) -> dict[str, Any]:
 # --------------------------------------------------------------------------
 
 
+def _register_completeness(
+    conn: sqlite3.Connection,
+    data_key: str,
+    *,
+    row_count: int,
+    as_of_date: Optional[str],
+    detail: dict[str, Any],
+) -> dict[str, Any]:
+    """Record this dataset in ``tdx_data_completeness``, which is the gate.
+
+    Having rows is not the same as being usable here: every reader of
+    `margin_market_flow`, `stock_fund_flow` and `block_stocks` first consults
+    `_get_market_data_quality_gate`, which reads this registry and blocks with
+    ``completeness_missing`` when there is no row for the key. Writing data
+    without registering it leaves the table populated and still unreadable —
+    which is exactly what a first attempt at the margin sync produced.
+
+    ``status`` follows the project service's rule (``ok`` when the table holds
+    rows, ``missing`` when it does not), and the limitations go in ``detail``
+    where the reader passes them through to the caller.
+    """
+
+    conn.execute(
+        """
+        INSERT INTO tdx_data_completeness (data_key, status, as_of_date, row_count, detail, updated_at)
+        VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT (data_key) DO UPDATE SET
+            status = excluded.status,
+            as_of_date = excluded.as_of_date,
+            row_count = excluded.row_count,
+            detail = excluded.detail,
+            updated_at = CURRENT_TIMESTAMP
+        """,
+        (
+            data_key,
+            "ok" if row_count else "missing",
+            as_of_date,
+            int(row_count or 0),
+            json.dumps(detail, ensure_ascii=False, default=str),
+        ),
+    )
+    return {"data_key": data_key, "status": "ok" if row_count else "missing", "row_count": row_count}
+
+
 def _financial_row(row: dict[str, Any]) -> tuple:
+    """Map an F10 main-financial-indicator row onto ``financials``.
+
+    One report carries all fourteen columns, so a row cannot mix two report
+    periods. The source it replaces (`RPT_LICO_FN_CPD`) has no balance-sheet or
+    profitability fields at all, which is why `net_margin`, `debt_ratio`,
+    `current_ratio` and `roa` were NULL for every one of the 119,819 rows.
+
+    Units are not free here, and they differ per column:
+
+    * ``debt_ratio`` is stored as a **fraction** because that is how every
+      consumer reads it (`max(1.0 - debt_ratio, 0.0)` in
+      `factor_calculator/fundamental.py`, and the documented example
+      ``"debt_ratio": 0.21`` in `backtest/single_factor_strategy.py`). The report
+      states ``ZCFZL`` as a percentage, so it is divided by 100.
+    * the margins and returns stay as **percentages**, which is how the report
+      states them and how the quality factor divides them (``roe / 30``,
+      ``roa / 15``, ``gross_margin / 50``).
+    * ``current_ratio`` is a plain ratio (1.92, not 192).
+    """
+
+    debt_percent = _as_float(row.get("ZCFZL"))
     return (
         str(row.get("SECURITY_CODE") or "").strip(),
-        _date10(row.get("REPORTDATE")),
-        _as_float(row.get("TOTAL_OPERATE_INCOME")),
-        _as_float(row.get("PARENT_NETPROFIT")),
-        _as_float(row.get("XSMLL")),          # 销售毛利率
-        None,                                  # net_margin: not in this report
-        None,                                  # debt_ratio: balance sheet only
-        None,                                  # current_ratio: balance sheet only
-        _as_float(row.get("BASIC_EPS")),
-        _as_float(row.get("WEIGHTAVG_ROE")),
-        _as_float(row.get("BPS")),
-        None,                                  # roa: balance sheet only
-        _as_float(row.get("YSTZ")),            # 营收同比
-        _as_float(row.get("SJLTZ")),           # 净利同比
+        _date10(row.get("REPORT_DATE")),
+        _as_float(row.get("TOTALOPERATEREVE")),     # 营业总收入
+        _as_float(row.get("PARENTNETPROFIT")),      # 归母净利润
+        _as_float(row.get("XSMLL")),                # 销售毛利率 %
+        _as_float(row.get("XSJLL")),                # 销售净利率 %
+        None if debt_percent is None else debt_percent / 100.0,   # 资产负债率 -> fraction
+        _as_float(row.get("LD")),                   # 流动比率
+        _as_float(row.get("EPSJB")),                # 基本每股收益
+        _as_float(row.get("ROEJQ")),                # 加权净资产收益率 %
+        _as_float(row.get("BPS")),                  # 每股净资产
+        _as_float(row.get("ZZCJLL")),               # 总资产净利率 %
+        _as_float(row.get("TOTALOPERATEREVETZ")),   # 营收同比 %
+        _as_float(row.get("PARENTNETPROFITTZ")),    # 净利同比 %
     )
 
 
 def sync_financials(conn: sqlite3.Connection, args) -> dict[str, Any]:
     expression = ""
     if args.financial_years:
-        expression = f"(REPORTDATE>='{2026 - int(args.financial_years)}-01-01')"
+        expression = f"(REPORT_DATE>='{2026 - int(args.financial_years)}-01-01')"
     result = _report(
-        "RPT_LICO_FN_CPD",
+        "RPT_F10_FINANCE_MAINFINADATA",
         filter_expression=_filter(expression),
         max_rows=int(args.max_rows or 0),
     )
@@ -218,9 +290,13 @@ def sync_financials(conn: sqlite3.Connection, args) -> dict[str, Any]:
                 revenue = excluded.revenue,
                 net_profit = excluded.net_profit,
                 gross_margin = COALESCE(excluded.gross_margin, financials.gross_margin),
+                net_margin = COALESCE(excluded.net_margin, financials.net_margin),
+                debt_ratio = COALESCE(excluded.debt_ratio, financials.debt_ratio),
+                current_ratio = COALESCE(excluded.current_ratio, financials.current_ratio),
                 eps = COALESCE(excluded.eps, financials.eps),
                 roe = COALESCE(excluded.roe, financials.roe),
                 bvps = COALESCE(excluded.bvps, financials.bvps),
+                roa = COALESCE(excluded.roa, financials.roa),
                 revenue_growth = COALESCE(excluded.revenue_growth, financials.revenue_growth),
                 profit_growth = COALESCE(excluded.profit_growth, financials.profit_growth),
                 updated_at = CURRENT_TIMESTAMP
@@ -245,7 +321,9 @@ def sync_financials(conn: sqlite3.Connection, args) -> dict[str, Any]:
         "stored_rows": stored[0],
         "stored_codes": stored[1],
         "latest_report": stored[2],
-        "unmapped_columns": ["net_margin", "debt_ratio", "current_ratio", "roa"],
+        # Nothing is left unmapped: `RPT_F10_FINANCE_MAINFINADATA` carries all
+        # fourteen columns, which is why this moved off the earnings report.
+        "unmapped_columns": [],
     }
 
 
@@ -313,6 +391,26 @@ def sync_blocks_from_finance(conn: sqlite3.Connection, args) -> dict[str, Any]:
         written = len(members)
 
     stored = conn.execute("SELECT count(*), count(DISTINCT block_code) FROM block_stocks").fetchone()
+    registration = None
+    if args.apply and stored[0]:
+        # The gate for this key spans two tables, so `as_of_date` comes from the
+        # board table's own timestamp column — the one the registry spec names.
+        as_of = conn.execute("SELECT max(updated_at) FROM market_blocks").fetchone()[0]
+        registration = _register_completeness(
+            conn,
+            "sync_sector_basic",
+            row_count=int(stored[0]),
+            as_of_date=as_of,
+            detail={
+                "tables": [
+                    {"table": "market_blocks", "date_column": "updated_at", "where": ""},
+                    {"table": "block_stocks", "date_column": "updated_at", "where": ""},
+                ],
+                "source": result["source"],
+                "coverage_note": "industry board membership from the F10 earnings report",
+            },
+        )
+        conn.commit()
     return {
         "category": "blocks",
         "source": result["source"],
@@ -323,6 +421,7 @@ def sync_blocks_from_finance(conn: sqlite3.Connection, args) -> dict[str, Any]:
         "truncated": result["truncated"],
         "stored_rows": stored[0],
         "stored_boards": stored[1],
+        "completeness_registered": registration,
     }
 
 
@@ -381,6 +480,25 @@ def sync_fundflow(conn: sqlite3.Connection, args) -> dict[str, Any]:
         written = len(rows)
 
     stored = conn.execute("SELECT count(*), count(DISTINCT code), max(trade_date) FROM stock_fund_flow").fetchone()
+    registration = None
+    if args.apply and stored[0]:
+        registration = _register_completeness(
+            conn,
+            "stock_fund_flow",
+            row_count=int(stored[0]),
+            as_of_date=stored[2],
+            detail={
+                "table": "stock_fund_flow",
+                "date_column": "trade_date",
+                "where": "",
+                "source": result["source"],
+                "coverage_note": (
+                    "one trading day per run; the report is a daily snapshot and "
+                    "does not backfill history"
+                ),
+            },
+        )
+        conn.commit()
     return {
         "category": "fundflow",
         "source": result["source"],
@@ -390,6 +508,7 @@ def sync_fundflow(conn: sqlite3.Connection, args) -> dict[str, Any]:
         "stored_rows": stored[0],
         "stored_codes": stored[1],
         "latest": stored[2],
+        "completeness_registered": registration,
         "unmapped_columns": ["middle_net_inflow", "small_net_inflow"],
         "note": "this report is a one-day snapshot; it does not backfill history",
     }
@@ -447,6 +566,101 @@ def sync_dragon(conn: sqlite3.Connection, args) -> dict[str, Any]:
     }
 
 
+def sync_margin(conn: sqlite3.Connection, args) -> dict[str, Any]:
+    """Fill ``margin_market_flow`` from 上交所's own endpoint.
+
+    Scope is Shanghai only: 深交所 returns 403 through this host's proxy, and the
+    SSE endpoint ignores its documented ``stockCode`` parameter, so there is no
+    per-stock detail to be had either. Rows carry ``exchange_id='SSE'`` — the
+    table's primary key is ``(trade_date, exchange_id)`` precisely so the two
+    exchanges can coexist, and a consumer that sums what it finds must be able to
+    see that only one of them is present. The reader is told, and so is this
+    report.
+    """
+
+    from akshare_mcp.data_source.sse_margin import MISSING_EXCHANGE_ID, fetch_margin_market
+
+    end = datetime.now().strftime("%Y%m%d")
+    begin = (datetime.now() - timedelta(days=max(1, int(args.margin_days)))).strftime("%Y%m%d")
+    result = fetch_margin_market(begin, end)
+    rows = result["rows"]
+
+    written = 0
+    if args.apply:
+        conn.executemany(
+            """
+            INSERT INTO margin_market_flow
+                (trade_date, exchange_id, rzye, rzmre, rzche, rqye, rqmcl, rqyl, rzrqye,
+                 source, source_priority, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(trade_date, exchange_id) DO UPDATE SET
+                rzye = excluded.rzye, rzmre = excluded.rzmre, rzche = excluded.rzche,
+                rqye = excluded.rqye, rqmcl = excluded.rqmcl, rqyl = excluded.rqyl,
+                rzrqye = excluded.rzrqye, source = excluded.source,
+                source_priority = excluded.source_priority, updated_at = CURRENT_TIMESTAMP
+            """,
+            [
+                (
+                    row["trade_date"], row["exchange_id"], row["rzye"], row["rzmre"], row["rzche"],
+                    row["rqye"], row["rqmcl"], row["rqyl"], row["rzrqye"],
+                    # Says what it is, including what it is not.
+                    f"{result['source']} ({result['exchange_id']} only; "
+                    f"{MISSING_EXCHANGE_ID} unavailable)",
+                    "sse_exchange",
+                )
+                for row in rows
+            ],
+        )
+        conn.commit()
+        written = len(rows)
+
+    stored = conn.execute(
+        "SELECT count(*), count(DISTINCT exchange_id), min(trade_date), max(trade_date) "
+        "FROM margin_market_flow"
+    ).fetchone()
+    registration = None
+    if args.apply and stored[0]:
+        registration = _register_completeness(
+            conn,
+            "margin_market_flow",
+            row_count=int(stored[0]),
+            as_of_date=stored[3],
+            detail={
+                "table": "margin_market_flow",
+                "date_column": "trade_date",
+                "where": "",
+                "source": result["source"],
+                # The gate answers "is this table populated and fresh"; this says
+                # how much of the market it covers.
+                "exchanges_present": [result["exchange_id"]],
+                "exchanges_missing": result["missing_exchanges"],
+                "coverage_note": (
+                    "Shanghai only. Do not read these figures as a market total."
+                ),
+            },
+        )
+        conn.commit()
+    return {
+        "category": "margin",
+        "source": result["source"],
+        "exchange_id": result["exchange_id"],
+        "missing_exchanges": result["missing_exchanges"],
+        "window": f"{begin}..{end}",
+        "rows_read": len(rows),
+        "written": written,
+        "complete": result["complete"],
+        "failed_pages": result["failed_pages"],
+        "stored_rows": stored[0],
+        "stored_exchanges": stored[1],
+        "stored_range": (stored[2], stored[3]),
+        "completeness_registered": registration,
+        "per_stock_detail": (
+            "not available: the SSE endpoint ignores its stockCode parameter and "
+            "深交所 is blocked, so margin_detail stays empty"
+        ),
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     chosen = _selected(args.what)
@@ -463,6 +677,8 @@ def main(argv: list[str] | None = None) -> int:
             reports.append(sync_fundflow(conn, args))
         if "dragon" in chosen:
             reports.append(sync_dragon(conn, args))
+        if "margin" in chosen:
+            reports.append(sync_margin(conn, args))
 
     if args.json:
         print(json.dumps({"applied": bool(args.apply), "reports": reports}, ensure_ascii=False, indent=2, default=str))

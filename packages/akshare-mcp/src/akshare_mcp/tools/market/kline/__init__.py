@@ -320,6 +320,35 @@ async def _async_save_klines_to_db(code: str, klines: list) -> None:
         safe_stderr_print(f"Async DB writeback failed for {code}: {e}")
 
 
+def _save_intraday_bars(code: str, bars: list, period: str, source: str) -> None:
+    """Write fetched minute bars into ``kline_intraday``, best effort.
+
+    The daily path writes its bars back; the minute path fetched and returned
+    them and stored nothing, so ``kline_intraday`` stayed empty however often this
+    tool ran and ``save_intraday_bars`` had no caller at all.
+
+    ``asyncio.run`` from a sync tool is the pattern this codebase already uses
+    (``stock_radar``, ``quant_mgr_scheduler``, ``startup_validator``): FastMCP
+    runs sync tools on a worker thread with no running loop. A failure here is
+    reported and does not affect the response, which already carries the bars.
+    """
+
+    async def _save() -> None:
+        from akshare_mcp.storage import get_db
+
+        db = get_db()
+        # The adapter is a lazy singleton; the daily path reaches it through
+        # `data_sync_service`, which initializes it. Calling the storage mixin
+        # without this rejects every row.
+        await db.initialize()
+        await db.save_intraday_bars(code, bars, period=period, source=source)
+
+    try:
+        asyncio.run(_save())
+    except Exception as exc:
+        safe_stderr_print(f"[Kline] intraday writeback failed for {code} {period}: {exc}")
+
+
 @cached(ttl=60.0)
 def get_minute_kline(
     code: str = "",
@@ -416,6 +445,7 @@ def get_minute_kline(
         resolved_source = "tencent"
     else:
         resolved_source = "sina"
+    _save_intraday_bars(code, validated_results, period, resolved_source)
     return _respond(_ok_kline_response(validated_results, source=resolved_source, source_chain=list(source_chain), fallback_reason=fallback_reason, started_at=started_at))
 
 

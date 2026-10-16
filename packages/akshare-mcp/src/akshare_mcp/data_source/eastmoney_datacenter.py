@@ -44,6 +44,16 @@ TRANSPORTS = ("direct", "proxy")
 #: Reports this project depends on. The value is a short note on what it holds
 #: and how far back it goes, so a caller can pick without opening the API.
 REPORTS: dict[str, dict[str, str]] = {
+    # 主要财务指标: one row per report period with every ratio `financials`
+    # needs — EPS, BPS, ROE, ROA, revenue, net profit, gross/net margin,
+    # debt/asset ratio, current ratio and both YoY growth figures. Used instead
+    # of RPT_LICO_FN_CPD for the `financials` table so a row cannot mix two
+    # report periods, and because the earnings report carries none of the four
+    # balance-sheet and profitability fields.
+    "RPT_F10_FINANCE_MAINFINADATA": {
+        "what": "主要财务指标 (all financials columns from one report period)",
+        "history": "about 692k rows",
+    },
     # 业绩报表: revenue, net profit, EPS, ROE, BPS, YoY growth, dividend summary.
     # About 496k rows (every report period since 1990); the per-stock industry
     # board (BOARD_CODE/BOARD_NAME) comes from here too.

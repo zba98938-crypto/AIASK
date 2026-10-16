@@ -377,8 +377,17 @@ class _StrategyCrudMarketMixin:
                             "shortVolume": 0.0,
                             "totalBalance": 0.0,
                             "source": source,
+                            # Which exchanges actually contributed to the sums
+                            # below. The table is keyed by (trade_date,
+                            # exchange_id) so that SSE and SZSE can coexist, and a
+                            # reader that adds up whatever it finds must be able
+                            # to tell a two-exchange total from a one-exchange one.
+                            "exchanges": set(),
                         },
                     )
+                    exchange_id = str(row.get("exchange_id") or "").strip()
+                    if exchange_id:
+                        bucket["exchanges"].add(exchange_id)
                     bucket["marginBalance"] += float(row.get("rzye") or 0.0)
                     bucket["marginBuy"] += float(row.get("rzmre") or 0.0)
                     bucket["marginRepay"] += float(row.get("rzche") or 0.0)
@@ -386,6 +395,21 @@ class _StrategyCrudMarketMixin:
                     bucket["shortSell"] += float(row.get("rqmcl") or 0.0)
                     bucket["shortVolume"] += float(row.get("rqyl") or 0.0)
                     bucket["totalBalance"] += float(row.get("rzrqye") or 0.0)
+                for bucket in grouped.values():
+                    exchanges = sorted(bucket.pop("exchanges", set()) or [])
+                    bucket["exchanges"] = exchanges
+                    missing = [name for name in ("SSE", "SZSE") if name not in exchanges]
+                    bucket["exchanges_missing"] = missing
+                    # A one-exchange figure presented as "margin_market_flow" is
+                    # the same defect as an SH-only number labelled a market
+                    # total: the reader cannot tell how much of the market it
+                    # covers.
+                    bucket["degraded"] = bool(missing)
+                    if missing:
+                        bucket["source"] = (
+                            f"{source}({'+'.join(exchanges) or 'none'}; "
+                            f"missing {'+'.join(missing)})"
+                        )
                 normalized_rows = sorted(grouped.values(), key=lambda item: item["trade_date"], reverse=True)
 
             if normalized_rows:
