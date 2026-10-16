@@ -70,10 +70,26 @@ def _bars(pairs: list) -> dict[str, Any]:
 
 
 def _minute_key(text: str) -> str:
-    """``2026-10-16 10:00:00`` and ``2026-10-16 10:00`` are the same bar."""
+    """Normalise a minute-bar key across the three providers' formats.
+
+    Sina sends ``2026-10-16 10:00:00``, East money ``2026-10-16 10:00`` and
+    Tencent ``202610161000``. Mapping Tencent's to a bare date dropped the time
+    entirely, so its bars could never be compared against the others.
+    """
 
     raw = str(text).replace("T", " ").strip()
-    return raw[:16] if len(raw) >= 16 else _day(raw)
+    if len(raw) >= 16:
+        return raw[:16]
+    digits = "".join(ch for ch in raw if ch.isdigit())
+    if len(digits) >= 12:  # 202610161000
+        return f"{digits[:4]}-{digits[4:6]}-{digits[6:8]} {digits[8:10]}:{digits[10:12]}"
+    return raw[:16] if raw else ""
+
+
+# A single session holds 48 five-minute bars, so any request that returns fewer
+# than ~100 only covers today — and today's bars are all still moving, which leaves
+# the three channels with nothing settled to be compared on.
+MINUTE_BARS = 300
 
 
 # --------------------------------------------------------------------------
@@ -190,7 +206,7 @@ def _minute_bars(rows: list, time_index: int, close_index: int) -> dict[str, Any
 def sina_kline_minute(code: str = "600519") -> dict[str, Any]:
     raw = _open(
         "https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/"
-        f"CN_MarketData.getKLineData?symbol=sh{code}&scale=5&ma=no&datalen=30",
+        f"CN_MarketData.getKLineData?symbol=sh{code}&scale=5&ma=no&datalen={MINUTE_BARS}",
         referer="https://finance.sina.com.cn",
         encoding="gbk",
     )
@@ -202,7 +218,7 @@ def eastmoney_kline_minute(code: str = "600519") -> dict[str, Any]:
     secid = ("1." if code.startswith(("6", "5")) else "0.") + code
     raw = _open(
         "https://push2his.eastmoney.com/api/qt/stock/kline/get"
-        f"?secid={secid}&fields1=f1,f2,f3&fields2=f51,f53&klt=5&fqt=0&end=20500101&lmt=30",
+        f"?secid={secid}&fields1=f1,f2,f3&fields2=f51,f53&klt=5&fqt=0&end=20500101&lmt={MINUTE_BARS}",
         referer="https://quote.eastmoney.com/",
     )
     klines = (json.loads(raw).get("data") or {}).get("klines") or []
@@ -211,8 +227,12 @@ def eastmoney_kline_minute(code: str = "600519") -> dict[str, Any]:
 
 def tencent_kline_minute(code: str = "600519") -> dict[str, Any]:
     symbol = "sh" + code
+    # `web.ifzq.gtimg.cn` serves this path to nobody from here — TLS closes early,
+    # over https and plain http alike — while the same path on the unsuffixed host
+    # answers. The daily endpoint happens to work on both, which is what made this
+    # look like a TLS problem instead of a hostname one.
     raw = _open(
-        f"https://web.ifzq.gtimg.cn/appstock/app/kline/mkline?param={symbol},m5,,30",
+        f"https://ifzq.gtimg.cn/appstock/app/kline/mkline?param={symbol},m5,,{MINUTE_BARS}",
         referer="https://gu.qq.com/",
     )
     rows = (json.loads(raw).get("data", {}).get(symbol, {}) or {}).get("m5") or []
@@ -312,11 +332,16 @@ def _compare_series(series: dict[str, dict[str, float]]) -> dict[str, Any]:
     if older:
         key, settles = older[-1], "settled"
     else:
-        today = sorted(d for d in shared if d[:10] == TODAY)
-        if not today:
-            keys = sorted(set.union(*(set(b) for b in series.values())))[-1:] or [""]
-            return {"agreement": None, "settled_date": None, "reason": f"no bar in common; latest seen {keys[0]}"}
-        key, settles = today[0], "today, still trading"
+        # Nothing settled in common. `today` is deliberately not used as a
+        # fallback: for minute bars *every* bar of the current session is still
+        # moving, not just the last one, so a comparison inside today says nothing
+        # about whether the channels agree.
+        latest = sorted(set.union(*(set(b) for b in series.values())))[-1:] or [""]
+        return {
+            "agreement": None,
+            "settled_date": None,
+            "reason": f"no settled bar in common; latest seen {latest[0]}",
+        }
 
     values = {name: float(bars[key]) for name, bars in series.items()}
     agreement, spread, relative = _verdict(values)
