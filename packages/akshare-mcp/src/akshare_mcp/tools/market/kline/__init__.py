@@ -61,6 +61,7 @@ from .kline_rows import (
 from .kline_minute import (
     _get_minute_kline_from_sina,
     _get_minute_kline_from_tencent,
+    _get_minute_kline_from_eastmoney,
     _parse_minute_period,
 )
 
@@ -409,19 +410,23 @@ def get_minute_kline(
             started_at=started_at,
         ))
     fallback_reason: list[str] = []
-    # The akshare intraday source was removed with the dependency; Sina is the
-    # first provider now and Tencent remains as the second.
+    # The akshare intraday source was removed with the dependency. All three
+    # remaining channels are independent vendors and were cross-checked against
+    # each other on a settled bar by `scripts/check_data_source_channels.py`.
+    # Tencent had been failing on every call from here, so the chain held one
+    # working member while appearing to hold two.
     source_chain: list[str] = []
-    results = _get_minute_kline_from_sina(code, minutes, limit)
-    if results:
-        _append_chain_step(source_chain, "sina.getKLineData")
-    else:
-        fallback_reason.append("sina.getKLineData empty_or_failed")
-        results = _get_minute_kline_from_tencent(code, minutes, limit)
+    results: list[dict] = []
+    for channel, fetch, label in (
+        ("sina", _get_minute_kline_from_sina, "sina.getKLineData"),
+        ("tencent", _get_minute_kline_from_tencent, "tencent.mkline"),
+        ("eastmoney", _get_minute_kline_from_eastmoney, "eastmoney.kline"),
+    ):
+        results = fetch(code, minutes, limit)
         if results:
-            _append_chain_step(source_chain, "tencent.mkline")
-        else:
-            fallback_reason.append("tencent.mkline empty_or_failed")
+            _append_chain_step(source_chain, label)
+            break
+        fallback_reason.append(f"{label} empty_or_failed")
 
     if not results:
         return _respond(_fail_kline_response(

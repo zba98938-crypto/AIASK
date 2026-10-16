@@ -141,6 +141,62 @@ def _get_minute_kline_from_sina(code: str, minutes: int, limit: int) -> list[dic
 # P3-5.4 fix: 加 tencent 第三源(诊断报告 §5.4)
 # 历史问题:Sina 偶尔被反爬墙或限流,akshare→sina 双源都失败时 AI 拿不到分钟K
 # tencent: http://web.ifzq.gtimg.cn/appstock/app/kline/mkline?param=sh600519,m5,,300
+
+
+def _get_minute_kline_from_eastmoney(code: str, minutes: int, limit: int) -> list[dict]:
+    """East money minute bars — the third channel, and a different vendor.
+
+    Sina and Tencent are the two that were always intended here; this one was added
+    after a probe found that Tencent's endpoint had been failing on every call, so
+    the chain had silently held a single working member. It reports 不复权 prices
+    (``fqt=0``) like Sina, and its volume is 手, converted below.
+    """
+
+    try:
+        secid = ("1." if code.startswith(("6", "5")) else "0.") + str(code)
+        session = requests.Session()
+        session.trust_env = False
+        resp = session.get(
+            "https://push2his.eastmoney.com/api/qt/stock/kline/get",
+            params={
+                "secid": secid,
+                "fields1": "f1,f2,f3",
+                "fields2": "f51,f52,f53,f54,f55,f56",
+                "klt": int(minutes),
+                "fqt": 0,
+                "end": "20500101",
+                "lmt": int(limit),
+            },
+            headers={"Referer": "https://quote.eastmoney.com/", "User-Agent": "Mozilla/5.0"},
+            timeout=_MINUTE_SINA_TIMEOUT,
+        )
+        resp.raise_for_status()
+        klines = (resp.json().get("data") or {}).get("klines") or []
+    except Exception:
+        return []
+
+    results: list[dict] = []
+    for item in klines:
+        parts = str(item).split(",")
+        # f51 date, f52 open, f53 close, f54 high, f55 low, f56 volume(手)
+        if len(parts) < 6:
+            continue
+        try:
+            results.append(
+                {
+                    "date": parts[0],
+                    "open": safe_float(parts[1]),
+                    "close": safe_float(parts[2]),
+                    "high": safe_float(parts[3]),
+                    "low": safe_float(parts[4]),
+                    "volume": safe_int(parts[5]) * 100,
+                    "amount": 0.0,
+                    "source": "eastmoney",
+                }
+            )
+        except Exception:
+            continue
+    return results
 def _get_minute_kline_from_tencent(code: str, minutes: int, limit: int) -> list[dict]:
     try:
         if code.startswith("6") or code.startswith("68"):
@@ -150,8 +206,13 @@ def _get_minute_kline_from_tencent(code: str, minutes: int, limit: int) -> list[
         else:
             tx_code = f"sz{code}"
         period_param = f"m{int(minutes)}"
+        # `web.ifzq.gtimg.cn` closes the TLS connection early on this path — over
+        # https and plain http alike — while the daily endpoint answers on both, so
+        # this looked like a TLS fault rather than a hostname one. The unsuffixed
+        # host serves the same payload. Every minute call from this project was
+        # failing here, which is why the tool's source chain never left Sina.
         url = (
-            "https://web.ifzq.gtimg.cn/appstock/app/kline/mkline"
+            "https://ifzq.gtimg.cn/appstock/app/kline/mkline"
             f"?param={tx_code},{period_param},,{int(limit)}"
         )
         try:
@@ -212,8 +273,14 @@ def _get_minute_kline_from_tencent(code: str, minutes: int, limit: int) -> list[
                     "close": safe_float(row[2]),
                     "high": safe_float(row[3]),
                     "low": safe_float(row[4]),
-                    "volume": safe_int(row[5]),
-                    "amount": safe_float(row[6]) if len(row) > 6 else 0.0,
+                    # Tencent reports 手 and Sina reports 股. Writing them through
+                    # unconverted mixes the two in one column, so a fallback bar
+                    # would read 100x smaller than its neighbour from the primary.
+                    "volume": safe_int(row[5]) * 100,
+                    # Tencent puts a dict at index 6, so `safe_float` swallowed a
+                    # TypeError once per row — 300 disclosed-and-ignored errors per
+                    # call, which is enough noise to hide a real one.
+                    "amount": safe_float(row[6]) if len(row) > 6 and isinstance(row[6], (int, float, str)) else 0.0,
                     "source": "tencent",
                 })
             except Exception as _swallowed:
