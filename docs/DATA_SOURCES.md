@@ -201,8 +201,28 @@ $ python scripts/check_data_source_channels.py
 ```
 
 Every category has at least two working channels. Tencent's minute endpoint
-(`web.ifzq.gtimg.cn/appstock/app/kline/mkline`) fails with an SSL EOF on this host
-and is the one exception.
+now answers too: it was never a TLS fault. `web.ifzq.gtimg.cn` closes that path
+early — over https *and* plain http — while the same path on the unsuffixed host
+returns fine, and the daily endpoint works on both, which is what made it look
+like TLS. Fixing the hostname restored a fallback that had been dead for every call.
+
+### The history was checked against a second vendor, not just assumed
+
+`scripts/check_kline_history_agreement.py` samples symbols across all four markets
+and compares stored bars against East money on the dates they share:
+
+```
+$ python scripts/check_kline_history_agreement.py --sample 400
+  400 sampled, 0 unreachable
+  bars compared            : 121,650
+  close agreement          : 100.0000%
+  volume agreement (±1%)   : 99.9180%
+  stored/remote volume     : median 1.0  p01 0.9999  p99 1.0001
+  symbols with a close gap : 0
+```
+
+So the 1.7 M rows written by a single provider are corroborated rather than merely
+old. Run this after any change to the sync.
 
 ### Comparing two channels needs a settled bar
 
@@ -249,6 +269,56 @@ Today's bar is excluded from the comparison. It is still moving (an earlier run
 stored 1312.97 for a session that later traded at 1314), and comparing it raised a
 false "mismatch" for healthy symbols on every run — which is how a real mismatch
 ends up ignored.
+
+### Failover was drilled, not just reasoned about
+
+The chain was tested by denying DNS for the primary host (`socket.getaddrinfo`
+raising `gaierror`), so `requests`' own connection, retry and error paths ran
+rather than an exception injected into the sync. Result: 8 of 8 symbols served by
+the fallback, 60 rows each, every one checked against 59 settled stored bars with a
+volume ratio of 1.0 and zero close mismatches, and the summary correctly reporting
+that the primary had served nothing.
+
+### Fundamentals have no substitute, and the reason is conventions
+
+Market data is an identity — a close is a close. Fundamental indicators are not:
+the same name is published on more than one basis, and which one a vendor uses is
+not always stated. Sina carries the same ratio page as East money, from a different
+vendor, and `scripts/check_financials_agreement.py` compares them column by column:
+
+```
+column               match
+profit_growth       12% of 40   DIFFERENT CONVENTION — must not be substituted
+revenue_growth      38% of 24   DIFFERENT CONVENTION — must not be substituted
+bvps                75% of 40   DIFFERENT CONVENTION — must not be substituted
+eps                 80% of 40   close, but a convention difference remains
+net_margin          88% of 24   close, but a convention difference remains
+current_ratio       88% of 24   close, but a convention difference remains
+roe                 92% of 40   close, but a convention difference remains
+roa                 92% of 40   close, but a convention difference remains
+debt_ratio          92% of 40   close, but a convention difference remains
+substitutable columns: none
+```
+
+Getting the mapping right mattered and was decided by measurement, not by reading
+labels: Sina publishes both a 摊薄 and a 加权 basis while East money's `EPSJB`/
+`ROEJQ` are 基本/加权, and picking the 摊薄 row matched **0 of 10** sampled periods
+where 加权 matched 9-10 of 10. `roa` is `总资产净利润率`, not `总资产利润率`.
+Having corrected all three, no column reaches full agreement — so **Sina is kept as
+a diagnostic, not wired as a fallback.** A column whose definition differs between
+vendors cannot be switched part-way through a series; that is the same defect as
+mixing two industry taxonomies in one column.
+
+Industry has the same shape for a plainer reason: Sina's classification has 56
+classes and `stocks.industry` is East money's `EM2016` level 1 with 28, so a Sina
+answer would not mean the same thing.
+
+**Open, and not resolved here.** For `000858`, the year-end 2025 column agrees with
+Sina to every decimal while the earlier 2025 periods disagree roughly threefold
+(stored `roe` 3.26 / 3.41 / 4.89 against Sina's 10.56 / 13.63 / 15.37). The stored
+series is monotone across the year, the signature of a cumulative figure, and Sina's
+is not. Which convention each vendor is using was not settled, so no fix was applied
+— changing a definition on a guess would be worse than recording the question.
 
 ## 8. What every one of these sources owes the caller
 
