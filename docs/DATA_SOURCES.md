@@ -178,12 +178,79 @@ PY
 | `stock_fund_flow` | the report is a one-day snapshot, no history | call it daily; it does not backfill |
 | `financials` | all 14 columns now come from one report, `RPT_F10_FINANCE_MAINFINADATA`, so a row cannot mix two report periods | `debt_ratio` is stored as a fraction (`ZCFZL / 100`) because every consumer reads `1.0 - debt_ratio` |
 | `kline_intraday` | fills on use: `get_minute_kline` now writes its bars back, which it never did | a full-market backfill is a separate multi-hour job |
+| daily bars beyond the chain | the three channels carry ~300 bars and are rate-limited per host | a multi-year backfill is a separate job; the chain serves the daily incremental |
 | `dragon_tiger.buyer_type` | not in the report | needs a different report |
 | `dragon_tiger` codes | 6,433 codes, 898 outside today's universe | historical appearances including since-delisted companies; kept on purpose |
 | Industry | 100% from East money | `stocks.sector` is `EM2016` level 2, `stocks.industry` level 1 — one taxonomy, two depths |
 | 新三板 | East money reports cover about 24,800 securities | filtered to the `stocks` universe on write, so no table holds a different definition of "listed" |
 
-## 7. What every one of these sources owes the caller
+## 7. Channels: what is redundant, and how that was established
+
+`scripts/check_data_source_channels.py` probes every candidate for a category, then
+cross-checks them **against each other on a settled bar**. Re-run it after a
+provider change, and before trusting any new channel.
+
+```
+$ python scripts/check_data_source_channels.py
+[kline_daily]        working=3  agreement=agree on 2026-10-15 (settled)
+    sina 0.10s | eastmoney.push2his 0.11s | tencent 0.16s
+[kline_index_daily]  working=2  agreement=agree on 2026-10-15 (~0.004 apart, relative 1e-06)
+[kline_minute]       working=2  agreement=agree on 2026-10-15 15:00 (settled)
+[quote]              working=3  agreement=agree   (all three read 1313.57 at the same instant)
+[listing_snapshot]   working=3  (sina market centre, eastmoney f10, eastmoney push2)
+```
+
+Every category has at least two working channels. Tencent's minute endpoint
+(`web.ifzq.gtimg.cn/appstock/app/kline/mkline`) fails with an SSL EOF on this host
+and is the one exception.
+
+### Comparing two channels needs a settled bar
+
+The first version of the probe compared each channel's *latest* row and reported
+three correct sources disagreeing (1312.97 / 1311.57 / 1314.20). They were quoting
+different days: mid-session, "latest" is today's moving bar, and each provider
+refreshes it on its own cadence. The probe now compares the most recent date that
+all channels share and that is **not** today, and says which date it used.
+
+### Traps a retry would not catch
+
+Both were found by comparing channels *before* wiring them, in a sync that fills
+1.73 M rows:
+
+| Trap | Evidence | Handling |
+|---|---|---|
+| **Volume units** | East money `f56` and Tencent's fifth field are 手; Sina is 股. The ratio measured **exactly 100.00** on every bar | multiply by 100 before writing |
+| **Adjustment** | Sina's endpoint takes no adjustment parameter (不复权). Over 120 days, **12 of 12** stocks matched East money `fqt=0` and **none** matched `fqt=1` | request `fqt=0`; use Tencent's `day` array, not `qfqday` |
+| **Same code, different security** | `430047` returns a **2020** series from East money and a **2025** one from Sina — reassigned 北交所 codes | the write is refused (below) |
+
+Near the end of the window the two adjustments *coincide* — 前复权 is anchored at
+the latest price — so a short comparison says they agree: 600519 over 40 days
+showed no difference. The 120-day check across twelve stocks is what settled it.
+One stock over forty days would have proved nothing.
+
+### The chain refuses a write it has evidence against
+
+`fetch_daily_bars()` tries `sina → eastmoney → tencent` and reports which channel
+served each symbol, because a run served entirely by a fallback is a different
+result from a normal one. When a fallback serves a symbol, it is checked against
+the stored history before anything is written:
+
+* settled closes must match within 1e-4 relative,
+* the volume ratio must be 1.0 (this is what verifies the 手→股 conversion),
+* and the series must overlap the stored one — or, with no history stored, must
+  reach within 30 days of the market's latest bar.
+
+Anything else is **refused and counted as a failure**: not written, and not counted
+as success. Reporting alone was tried first and was not enough — a run wrote the
+2020 series over a code whose stored series ended in 2025, printing a warning while
+the rows were already in the table.
+
+Today's bar is excluded from the comparison. It is still moving (an earlier run
+stored 1312.97 for a session that later traded at 1314), and comparing it raised a
+false "mismatch" for healthy symbols on every run — which is how a real mismatch
+ends up ignored.
+
+## 8. What every one of these sources owes the caller
 
 The providers in `packages/akshare-mcp/src/akshare_mcp/data_source/` follow the
 same rules, because the previous versions did not:
@@ -213,7 +280,7 @@ same rules, because the previous versions did not:
    `scripts/sync_market_fundamentals.py` now writes the registry alongside the
    data, with the limitations in `detail` where the reader passes them through.
 
-## 8. Verification snapshot (2026-10-16)
+## 9. Verification snapshot (2026-10-16)
 
 ```bash
 python scripts/aiask_readiness.py --strict                # ready: True, 0 critical
