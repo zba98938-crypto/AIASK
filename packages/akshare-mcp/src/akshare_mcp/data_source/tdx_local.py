@@ -25,6 +25,7 @@
 
 from __future__ import annotations
 
+import atexit
 import logging
 import os
 import struct
@@ -385,7 +386,18 @@ class TdxLocalSource:
         with self._hq_lock:
             if self._hq_api is not None:
                 return self._hq_api
-            api = TdxHq_API(heartbeat=True, auto_retry=True)
+            # `heartbeat=True` makes pytdx start a **non-daemon** thread. CPython's
+            # shutdown runs `threading._shutdown()` — which waits for every
+            # non-daemon thread — *before* atexit callbacks, so nothing registered
+            # at exit can stop it and the process never terminates. Measured: the
+            # data call returned in 0.1 s and the interpreter then hung in
+            # `threading.py:1543 _shutdown` waiting on
+            # `pytdx/heartbeat.py:24`. That was the whole of "the TDX path hangs".
+            #
+            # The heartbeat only detects a dropped socket ahead of time; without it
+            # a stale connection surfaces as an error on the next call, which the
+            # cooldown and reconnect logic below already handles.
+            api = TdxHq_API(heartbeat=False, auto_retry=True)
             for ip, port in self._servers:
                 try:
                     if api.connect(ip, port, time_out=self._connect_timeout):
@@ -763,6 +775,37 @@ class TdxLocalSource:
 
 # 模块级单例 + 便捷访问器
 tdx_local_source = TdxLocalSource()
+
+
+def _shutdown_tdx_local_source() -> None:
+    """Disconnect the pytdx client so the interpreter can actually exit.
+
+    ``TdxHq_API(heartbeat=True)`` starts a heartbeat thread that is **not** a
+    daemon, and nothing stops it except ``disconnect()``. Python's
+    ``threading._shutdown`` waits for non-daemon threads at exit, so any process
+    that ever opened an online quote connection hangs forever *after* its work is
+    done. That is what "the TDX path hangs" was: a probe returned
+    ``get_realtime_quote`` in 1.5 s and then never terminated, and the stack at
+    the hang was ``pytdx/heartbeat.py:24`` under ``threading._shutdown``, not the
+    data call.
+
+    Registered at import so every entry point is covered; callers should not have
+    to remember to close a singleton.
+    """
+
+    try:
+        tdx_local_source.reset_hq()
+    except Exception:
+        # The process is exiting either way; say why the exit may be slow rather
+        # than raising from an atexit handler.
+        logger.warning(
+            "[TdxLocal] could not disconnect the HQ client at exit; the pytdx "
+            "heartbeat thread may hold the interpreter open",
+            exc_info=True,
+        )
+
+
+atexit.register(_shutdown_tdx_local_source)
 
 
 def get_tdx_local_source() -> TdxLocalSource:
