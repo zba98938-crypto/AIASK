@@ -161,6 +161,202 @@ def _fetch_sina_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any]]:
     return [row for row in rows if row.get("date")]
 
 
+# ---------------------------------------------------------------------------
+# Daily bars: a chain, and the unit work a chain requires
+# ---------------------------------------------------------------------------
+#
+# `_fetch_sina_kline` was the only channel, which made 5,582 symbols depend on one
+# endpoint. Two alternatives reach the same bars, measured by
+# `scripts/check_data_source_channels.py`, but a fallback is only safe once the
+# two traps below are handled, both found by comparing the channels on a *settled*
+# bar rather than on each one's latest row:
+#
+#   * **Adjustment.** Sina's endpoint takes no adjustment parameter and returns
+#     不复权. East money offers both, and `fqt=1` (前复权) matches on a bar near the
+#     end of the window while diverging further back — 12 of 12 stocks checked
+#     matched `fqt=0` over 120 days and none matched `fqt=1`. Writing 前复权 bars
+#     into the 不复权 series would corrupt history for every stock that paid a
+#     dividend inside the window. The chain uses `fqt=0`.
+#   * **Volume units.** Sina reports 股, East money's `f56` and Tencent's fifth
+#     field are both 手, exactly 100× smaller on every bar checked. A channel that
+#     forgot this writes a 100× low `volume` into a column shared with the others.
+
+KLINE_CHANNELS = ("sina", "eastmoney", "tencent")
+LOTS_TO_SHARES = 100.0
+# How far a fallback's series may end before the market's latest bar while we hold
+# no history for the code. A brand-new listing is a few days late at most; the case
+# this catches is answerable about a different security (see ``_agreement_with_stored``).
+STALE_SERIES_GRACE_DAYS = 30
+
+
+def _days_between(earlier: str, later: str) -> int | None:
+    from datetime import date as _date
+
+    try:
+        a = _date.fromisoformat(str(earlier)[:10])
+        b = _date.fromisoformat(str(later)[:10])
+    except ValueError:
+        return None
+    return (b - a).days
+
+
+def _eastmoney_secid(code: str) -> str:
+    """East money market prefix: 1 = 上交所, 0 = 深交所 and 北交所."""
+
+    text = str(code).strip().lower()
+    for prefix in ("sh", "sz", "bj"):
+        if text.startswith(prefix):
+            text = text[2:]
+            return ("1." if prefix == "sh" else "0.") + text
+    return ("1." if text.startswith(("60", "68", "11", "13", "5")) else "0.") + text
+
+
+def _tencent_symbol(code: str) -> str:
+    text = str(code).strip().lower()
+    if text[:2] in {"sh", "sz", "bj"}:
+        return text
+    if text.startswith(("60", "68", "11", "13")):
+        return "sh" + text
+    if text.startswith(("00", "30", "12")):
+        return "sz" + text
+    return "bj" + text
+
+
+def _fetch_eastmoney_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any]]:
+    """East money daily bars, unadjusted, with 手 converted to 股."""
+
+    import requests
+
+    session = requests.Session()
+    session.trust_env = False
+    response = session.get(
+        "https://push2his.eastmoney.com/api/qt/stock/kline/get",
+        params={
+            "secid": _eastmoney_secid(code),
+            # f51 date, f52 open, f53 close, f54 high, f55 low, f56 volume(手), f57 amount
+            "fields1": "f1,f2,f3",
+            "fields2": "f51,f52,f53,f54,f55,f56,f57",
+            "klt": 101,
+            "fqt": 0,
+            "end": "20500101",
+            "lmt": int(datalen),
+        },
+        timeout=20,
+        headers={"Referer": "https://quote.eastmoney.com/", "User-Agent": "Mozilla/5.0"},
+    )
+    response.raise_for_status()
+    klines = (response.json().get("data") or {}).get("klines") or []
+    rows: list[dict[str, Any]] = []
+    for item in klines:
+        parts = str(item).split(",")
+        if len(parts) < 7:
+            continue
+        close = float(parts[2])
+        rows.append(
+            {
+                "date": parts[0][:10],
+                "code": str(code),
+                "open": float(parts[1]),
+                "high": float(parts[3]),
+                "low": float(parts[4]),
+                "close": close,
+                "volume": float(parts[5]) * LOTS_TO_SHARES,
+                # f57 is the real turnover; the Sina path approximates it as
+                # close × volume, which differs from actual VWAP-based turnover.
+                "amount": float(parts[6] or 0.0) or close * float(parts[5]) * LOTS_TO_SHARES,
+            }
+        )
+    return rows
+
+
+def _fetch_tencent_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any]]:
+    """Tencent daily bars from the unadjusted ``day`` array, 手 converted to 股."""
+
+    import requests
+
+    symbol = _tencent_symbol(code)
+    session = requests.Session()
+    session.trust_env = False
+    response = session.get(
+        "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get",
+        params={"param": f"{symbol},day,,,{int(datalen)},"},
+        timeout=20,
+        headers={"Referer": "https://gu.qq.com/", "User-Agent": "Mozilla/5.0"},
+    )
+    response.raise_for_status()
+    payload = (response.json().get("data") or {}).get(symbol) or {}
+    rows: list[dict[str, Any]] = []
+    for item in payload.get("day") or []:
+        if len(item) < 5:
+            continue
+        volume_lots = float(item[5]) if len(item) > 5 and item[5] else 0.0
+        close = float(item[2])
+        rows.append(
+            {
+                "date": str(item[0])[:10],
+                "code": str(code),
+                "open": float(item[1]),
+                "high": float(item[3]),
+                "low": float(item[4]),
+                "close": close,
+                "volume": volume_lots * LOTS_TO_SHARES,
+                "amount": close * volume_lots * LOTS_TO_SHARES,
+            }
+        )
+    return rows
+
+
+KLINE_FETCHERS: dict[str, Any] = {
+    "sina": _fetch_sina_kline,
+    "eastmoney": _fetch_eastmoney_kline,
+    "tencent": _fetch_tencent_kline,
+}
+
+
+def fetch_daily_bars(code: str, *, datalen: int = 300, order: tuple[str, ...] | None = None) -> dict[str, Any]:
+    """Fetch one symbol's daily bars, trying each channel until one returns rows.
+
+    Returns the bars plus ``channel`` and ``attempts``, because which channel
+    served a symbol is the only way to tell a healthy run from one where the
+    primary is down and every row came from the backup.
+
+    ``order`` defaults to ``KLINE_CHANNELS`` *at call time*: a tuple bound as a
+    default argument freezes whatever the name held when the function was
+    defined, so overriding the module constant would silently not apply — which
+    also made the fallback-detection below misfire on every symbol.
+    """
+
+    channels = tuple(order) if order else KLINE_CHANNELS
+    attempts: list[dict[str, str]] = []
+    for channel in channels:
+        try:
+            rows = KLINE_FETCHERS[channel](code, datalen=datalen)
+        except Exception as exc:
+            attempts.append({"channel": channel, "outcome": f"error: {type(exc).__name__}: {str(exc)[:80]}"})
+            continue
+        if rows:
+            attempts.append({"channel": channel, "outcome": f"ok: {len(rows)} rows"})
+            # Report fallback status from the order actually used rather than
+            # comparing against the module constant, so an explicit override
+            # (the way a fallback gets tested at all) reports the truth.
+            return {
+                "rows": rows,
+                "channel": channel,
+                "primary": channels[0],
+                "is_fallback": channel != channels[0],
+                "attempts": attempts,
+            }
+        attempts.append({"channel": channel, "outcome": "empty"})
+    return {
+        "rows": [],
+        "channel": "",
+        "primary": channels[0],
+        "is_fallback": False,
+        "attempts": attempts,
+        "all_channels_failed": True,
+    }
+
+
 async def sync_stock_klines(
     codes: list[str], *, datalen: int = 300, concurrency: int = 1
 ) -> dict[str, Any]:
@@ -170,19 +366,166 @@ async def sync_stock_klines(
     await db.initialize()
     out: dict[str, Any] = {}
 
+    async def _agreement_with_stored(code: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
+        """Check a fallback's bars against what the primary channel already stored.
+
+        A fallback is trusted only after it reproduces history that is already in
+        the database. Both traps this guards against — a different adjustment, a
+        different volume unit — show up here as a systematic ratio, and neither is
+        visible from the fallback's own output.
+        """
+
+        dates = sorted({str(row["date"])[:10] for row in rows if row.get("date")})
+        if not dates:
+            return {"checked": 0, "reason": "no dated rows to compare"}
+        placeholders = ",".join("?" for _ in dates)
+        # Read through a plain sqlite3 connection, which is how every sync script
+        # here reads. The async adapter's `execute` is variadic and returns a
+        # status string rather than a cursor, so it is a write path only.
+        def _read() -> tuple[dict[str, tuple[Any, Any]], dict[str, Any]]:
+            import sqlite3
+
+            from _db_sync_common import DB_PATH
+
+            with sqlite3.connect(str(DB_PATH)) as conn:
+                found = conn.execute(
+                    f"SELECT substr(time, 1, 10), close, volume FROM kline_1d "
+                    f"WHERE code = ? AND substr(time, 1, 10) IN ({placeholders})",
+                    (code, *dates),
+                ).fetchall()
+                span = conn.execute(
+                    "SELECT min(substr(time, 1, 10)), max(substr(time, 1, 10)), count(*) "
+                    "FROM kline_1d WHERE code = ?",
+                    (code,),
+                ).fetchone() or (None, None, 0)
+                market_latest = conn.execute(
+                    "SELECT max(substr(time, 1, 10)) FROM kline_1d"
+                ).fetchone()[0]
+            return (
+                {str(r[0]): (r[1], r[2]) for r in found},
+                {
+                    "stored_span": [span[0], span[1]],
+                    "stored_rows": span[2],
+                    "market_latest": market_latest,
+                },
+            )
+
+        stored, span = await asyncio.to_thread(_read)
+        if not stored:
+            outcome: dict[str, Any] = {
+                "checked": 0,
+                "stored_span": span["stored_span"],
+                "stored_rows": span["stored_rows"],
+                "fetched_span": [dates[0], dates[-1]],
+            }
+            if span["stored_rows"]:
+                # The code has history and the fallback shares no date with it, so
+                # the two are describing different securities. 430047 is the live
+                # example: East money answers with a 2020 series for a code whose
+                # stored series runs to 2025, because 北交所 codes get reassigned.
+                # Writing that would overwrite a recent history with an old one.
+                outcome["no_overlap"] = True
+                outcome["reject_write"] = "fallback shares no date with the stored series"
+            elif span["market_latest"] and dates[-1] < span["market_latest"]:
+                # Nothing stored to compare against, so the only available check is
+                # whether the series even reaches the present. A brand-new listing
+                # legitimately starts late; a series ending years ago for a code
+                # that is in today's universe is a different security.
+                #
+                # A long-suspended stock is the case that looks similar and is not:
+                # it has stored history, so its dates overlap and this branch never
+                # runs. Reaching here means nothing was ever stored for the code,
+                # and the series still ends well before the market does.
+                gap_days = _days_between(dates[-1], span["market_latest"])
+                if gap_days is not None and gap_days > STALE_SERIES_GRACE_DAYS:
+                    outcome["stale_series"] = True
+                    outcome["market_latest"] = span["market_latest"]
+                    outcome["gap_days"] = gap_days
+                    outcome["reject_write"] = (
+                        f"no stored history and the series ends {gap_days} days before the market"
+                    )
+            return outcome
+
+        close_bad: list[str] = []
+        volume_ratio: list[float] = []
+        intraday_skipped: list[str] = []
+        today = time.strftime("%Y-%m-%d")
+        for row in rows:
+            day = str(row["date"])[:10]
+            if day not in stored:
+                continue
+            # Today's bar is still moving, so it is not evidence of anything: an
+            # earlier run wrote 1312.97 for a session that later traded at 1314.
+            # Comparing it produced a "mismatch" for two healthy symbols on every
+            # run, which is how a real mismatch would end up ignored.
+            if day >= today:
+                intraday_skipped.append(day)
+                continue
+            stored_close, stored_volume = stored[day]
+            if stored_close and abs(float(row["close"]) - float(stored_close)) > 1e-4 * abs(float(stored_close)):
+                close_bad.append(day)
+            if stored_volume:
+                volume_ratio.append(float(row["volume"]) / float(stored_volume))
+        median_ratio = round(sorted(volume_ratio)[len(volume_ratio) // 2], 4) if volume_ratio else None
+        outcome = {
+            "checked": len(stored),
+            "close_mismatches": close_bad[:5],
+            "close_mismatch_count": len(close_bad),
+            "volume_ratio": median_ratio,
+            "settled_bars_compared": len(volume_ratio),
+        }
+        if intraday_skipped:
+            outcome["skipped_still_trading"] = intraday_skipped[:3]
+
+        # The guard refuses the write when it has positive evidence of error.
+        # Reporting alone was not enough: a run that forced the fallback wrote the
+        # 2020 series for a code whose stored series ended in 2025, and the summary
+        # said so while the 80 rows were already in the table.
+        if close_bad:
+            outcome["reject_write"] = f"settled closes differ on {len(close_bad)} bar(s)"
+        elif median_ratio is not None and not 0.99 <= median_ratio <= 1.01:
+            outcome["reject_write"] = f"volume ratio {median_ratio} is not 1.0, so the unit convention differs"
+        return outcome
+
     async def _one(code: str) -> None:
         try:
-            rows = await asyncio.to_thread(_fetch_sina_kline, code, datalen=datalen)
-            result = await db.save_klines(code, rows)
-            entry = {
+            fetched = await asyncio.to_thread(fetch_daily_bars, code, datalen=datalen)
+            rows = fetched["rows"]
+            entry: dict[str, Any] = {
                 "fetched": len(rows),
-                "save": result
+                "channel": fetched["channel"],
+                "primary": fetched["primary"],
+                "attempts": fetched["attempts"],
+            }
+            if fetched.get("all_channels_failed"):
+                # Every channel declined, so this is a failure and not an empty
+                # series — the distinction the old code lost when an empty body
+                # counted as success.
+                entry["error"] = "all_channels_failed: " + "; ".join(a["outcome"] for a in fetched["attempts"])
+                out[code] = entry
+                return
+            if fetched["is_fallback"]:
+                entry["fallback"] = True
+                agreement = await _agreement_with_stored(code, rows)
+                entry["agreement"] = agreement
+                if agreement.get("reject_write"):
+                    # Refuse rather than overwrite: a fallback with positive evidence
+                    # against it must not replace history we already trust. Recorded
+                    # as a failure, so the run's numbers show it — "no update" and
+                    # "updated with the wrong series" are not the same outcome.
+                    entry["error"] = f"fallback_rejected: {agreement['reject_write']}"
+                    entry["rejected_rows"] = len(rows)
+                    out[code] = entry
+                    return
+            result = await db.save_klines(code, rows)
+            entry["save"] = (
+                result
                 if not isinstance(result, dict)
                 else {
                     "accepted_count": result.get("accepted_count"),
                     "rejected_count": result.get("rejected_count"),
-                },
-            }
+                }
+            )
             # An empty body is not a success. It was counted as one, which is how
             # 350 北交所 symbols returned nothing for a whole sync run and the
             # summary still read "5574 ok".
@@ -221,10 +564,33 @@ async def sync_stock_klines(
     failures = {code: value for code, value in out.items() if "error" in value}
     empties = {code: value for code, value in out.items() if value.get("empty")}
     landed = len(out) - len(failures) - len(empties)
+
+    by_channel: dict[str, int] = {}
+    for value in out.values():
+        channel = value.get("channel")
+        if channel:
+            by_channel[channel] = by_channel.get(channel, 0) + 1
+    strays = {
+        code: value["agreement"]
+        for code, value in out.items()
+        if value.get("fallback")
+        and (value.get("agreement", {}).get("no_overlap")
+             or value.get("agreement", {}).get("stale_series")
+             or value.get("agreement", {}).get("close_mismatch_count")
+             or (value.get("agreement", {}).get("volume_ratio") or 1.0) not in (0, 1.0))
+    }
+
     print(
         f"    kline sync: {landed} with data, {len(empties)} returned no rows, "
         f"{len(failures)} failed"
     )
+    print(f"    served by channel: {by_channel}")
+    primaries = {value.get("primary") for value in out.values() if value.get("primary")}
+    primary_name = next(iter(primaries)) if len(primaries) == 1 else KLINE_CHANNELS[0]
+    if by_channel and by_channel.get(primary_name, 0) == 0 and sum(by_channel.values()):
+        print("    !! the primary channel served nothing; every row came from a fallback")
+    if strays:
+        print(f"    !! fallback rows disagree with stored history: {dict(list(strays.items())[:5])}")
     if empties:
         sample = sorted(empties)[:8]
         print(f"    no-row sample: {sample}{' ...' if len(empties) > 8 else ''}")
