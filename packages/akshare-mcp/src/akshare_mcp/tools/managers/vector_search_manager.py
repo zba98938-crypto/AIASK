@@ -94,7 +94,20 @@ def register_vector_search_manager(mcp):
                         'similar_stocks': '搜索相似股票（需要 code）',
                         'market_docs': '搜索市场文本 chunk（支持 hybrid retrieval）',
                         'help': '显示帮助信息',
-                    }
+                    },
+                    # The tool advertises four actions and the whole vector layer is
+                    # unusable in this deployment: every `vector_*` data table is empty
+                    # and no embedding provider is configured. Saying so here is the
+                    # point of use — a caller who reads only `help` would otherwise
+                    # conclude the actions work and that there is simply nothing
+                    # similar. This is a disclosure, not a fix: configuring a provider
+                    # and building an index is a separate decision.
+                    'capability': {
+                        'vector_search': 'not_enabled',
+                        'reason': 'no_embedding_provider_and_no_index',
+                        'evidence': 'vector_documents/vector_index_* are empty; no embedding env var is set',
+                        'note': 'actions 会返回空结果而非报错——空结果不代表"没有相似项"，而是"从未建立索引"',
+                    },
                 }, source_chain=['vector_search_manager'])
             
             elif action == 'similar_patterns':
