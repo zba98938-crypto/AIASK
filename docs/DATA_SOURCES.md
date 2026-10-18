@@ -242,11 +242,19 @@ Both were found by comparing channels *before* wiring them, in a sync that fills
 | **Volume units** | East money `f56` and Tencent's fifth field are 手; Sina is 股. The ratio measured **exactly 100.00** on every bar | multiply by 100 before writing |
 | **Adjustment** | Sina's endpoint takes no adjustment parameter (不复权). Over 120 days, **12 of 12** stocks matched East money `fqt=0` and **none** matched `fqt=1` | request `fqt=0`; use Tencent's `day` array, not `qfqday` |
 | **Same code, different security** | `430047` returns a **2020** series from East money and a **2025** one from Sina — reassigned 北交所 codes | the write is refused (below) |
+| **Units vary by market, not just by vendor** | Tencent states 科创板 (688xxx) volume in **股** and every other market in **手**. Measured: 688 (n=6 daily, 144 intraday) ratio 1.00; 300/60/00 (n=14 daily, 288 intraday) ratio 100.00 | `volume_units.tencent_volume_to_shares()` decides per symbol |
 
 Near the end of the window the two adjustments *coincide* — 前复权 is anchored at
 the latest price — so a short comparison says they agree: 600519 over 40 days
 showed no difference. The 120-day check across twelve stocks is what settled it.
 One stock over forty days would have proved nothing.
+
+The unit rule was found the same way, and only because the guard refused to write:
+the sync's fallback path served 57 科创板 symbols from Tencent, the guard compared
+them against stored history and rejected every one with `volume ratio 100.0 is not
+1.0`, and the cause was **our own blanket ×100** rather than the provider. The
+earlier "Tencent reports 手" measurement had been taken on 600519, 000001, 300750
+and 002594 — all of them markets where it is true.
 
 ### The chain refuses a write it has evidence against
 
