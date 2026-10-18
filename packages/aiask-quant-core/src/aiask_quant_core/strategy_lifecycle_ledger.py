@@ -64,7 +64,6 @@ class StrategyLifecycleSnapshot:
     closed_position_count: int
     forward_return_count: int
     audit_snapshot_count: int
-
     # 关键指标
     execution_audit_gate_status: str | None
     hard_gate_passed: bool
@@ -74,6 +73,12 @@ class StrategyLifecycleSnapshot:
 
     # 查询时间
     snapshot_at: datetime
+
+    #: When the recorded verdict was taken; None when there is no snapshot. A
+    #: verdict older than the strategy's newest execution evidence describes a
+    #: different evidence set, which is not the same fact as "evidence absent".
+    #: Declared last because a defaulted field cannot precede a required one.
+    audit_snapshot_as_of: str | None = None
 
 
 class StrategyLifecycleLedger:
@@ -207,13 +212,20 @@ class StrategyLifecycleLedger:
         forward_return_count = cursor.fetchone()[0]
 
         # 查询审计快照数
+        # `MAX(verdict_status)` is the lexicographic maximum of the status string,
+        # not the newest verdict: with `upsert_execution_audit_snapshot` keeping one
+        # row per strategy the two coincide, but the expression says neither what it
+        # means nor when the verdict was taken. The timestamp below is what lets a
+        # caller tell a current verdict from one the strategy has since outgrown.
         cursor = self.conn.execute(
-            "SELECT COUNT(*), MAX(verdict_status) FROM strategy_execution_audit_snapshots WHERE strategy_id = ?",
+            "SELECT COUNT(*), MAX(verdict_status), MAX(updated_at) "
+            "FROM strategy_execution_audit_snapshots WHERE strategy_id = ?",
             (strategy_id,)
         )
         row = cursor.fetchone()
         audit_snapshot_count = row[0]
         audit_gate_status = row[1]
+        audit_snapshot_as_of = row[2]
 
         hard_gate_passed = audit_gate_status == "passed" if audit_gate_status else False
 
@@ -226,6 +238,9 @@ class StrategyLifecycleLedger:
             "forward_return_count": forward_return_count,
             "audit_snapshot_count": audit_snapshot_count,
             "audit_gate_status": audit_gate_status,
+            # When the verdict was recorded, so a caller can ask whether the
+            # strategy has produced evidence the verdict never saw.
+            "audit_snapshot_as_of": audit_snapshot_as_of,
             "hard_gate_passed": hard_gate_passed,
         }
 

@@ -16,7 +16,7 @@ import sqlite3
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 # 添加项目路径
 ROOT = Path(__file__).parent.parent.parent
@@ -40,6 +40,28 @@ except ImportError:
     StrategyLifecycleLedger = None
     BusinessLifecycleStage = None
     get_settings = None
+
+
+def _as_instant(value) -> Optional[datetime]:
+    """Parse a stored timestamp so two of them can be ordered.
+
+    Comparing the raw strings does not order them. `paper_trades.trade_time` is
+    written as `2026-10-18T00:00:00+00:00` while the audit snapshot's `updated_at`
+    is `2026-10-18 08:17:14` — they differ at index 10, where `T` outranks a space,
+    so a trade from midnight sorts *after* a verdict from eight in the morning and
+    every same-day pair reads as stale. Both formats parse with `fromisoformat`
+    once an offset is present, and the offset is dropped here because the
+    comparison is between two instants already stored in the same frame.
+    """
+
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    return parsed.replace(tzinfo=None) if parsed.tzinfo else parsed
 
 
 class FactoryHealthDiagnostics:
@@ -498,63 +520,105 @@ class FactoryHealthDiagnostics:
             )
 
     def check_execution_audit_gate(self):
-        """检查 7: execution audit gate 状态"""
+        """检查 7: execution audit gate 状态
+
+        `strategy_execution_audit_snapshots` used to be counted with `GROUP BY
+        verdict_status`, which answers "what verdicts are on file" — not "is this
+        strategy currently audited". Snapshots are written on a lifecycle
+        transition and never swept, so a strategy that has traded since its last
+        transition keeps a months-old verdict and one that never transitioned has
+        no row at all. Counting rows therefore reported `missing` for 283
+        strategies when 16 of the 36 with trades had never been audited and 11 more
+        held a July verdict.
+
+        The three cases are separated here because they need different actions, and
+        the strategy's own trade history decides which is which — no age threshold
+        is invented: a verdict is **stale** when evidence exists that it never saw.
+        """
+
         print("\n[7] 检查 execution audit gate...")
 
-        # 检查 audit snapshots 表
-        snapshots = self._query_all(
-            """
-            SELECT verdict_status, COUNT(*) as count
-            FROM strategy_execution_audit_snapshots
-            GROUP BY verdict_status
-            """
-        )
+        snapshots = {
+            str(row["strategy_id"]): row
+            for row in self._query_all(
+                "SELECT strategy_id, verdict_status, updated_at "
+                "FROM strategy_execution_audit_snapshots"
+            )
+        }
+        newest_trade = {
+            str(row["strategy_id"]): _as_instant(row["newest"])
+            for row in self._query_all(
+                "SELECT strategy_id, MAX(trade_time) AS newest FROM paper_trades GROUP BY strategy_id"
+            )
+        }
 
-        if not snapshots:
+        # The gate's subject is every strategy with execution evidence, plus any it
+        # already holds a verdict for — a verdict with no evidence is worth seeing.
+        universe = sorted(set(snapshots) | set(newest_trade))
+        fresh: dict[str, int] = {}
+        not_audited: list[str] = []
+        stale: list[str] = []
+
+        for strategy_id in universe:
+            row = snapshots.get(strategy_id)
+            if row is None:
+                not_audited.append(strategy_id)
+                continue
+            trade_at = newest_trade.get(strategy_id)
+            verdict_at = _as_instant(row.get("updated_at"))
+            if trade_at and verdict_at and trade_at > verdict_at:
+                stale.append(strategy_id)
+                continue
+            status = str(row.get("verdict_status") or "missing")
+            fresh[status] = fresh.get(status, 0) + 1
+
+        details = {
+            "strategies_considered": len(universe),
+            "with_execution_evidence": len(newest_trade),
+            "fresh_verdicts": fresh,
+            "not_audited": len(not_audited),
+            "stale_audit": len(stale),
+            "stale_or_missing_sample": (not_audited + stale)[:5],
+        }
+
+        if not universe:
             self._add_check(
-                "execution_audit_gate",
-                "blocked",
-                "没有 execution audit snapshots",
-                {"hint": "检查 Incubation Phase 3f 是否运行"},
+                "execution_audit_gate", "blocked", "没有 execution audit snapshots",
+                {**details, "hint": "检查 Incubation Phase 3f 是否运行"},
             )
             return
 
-        stats = {row["verdict_status"]: row["count"] for row in snapshots}
-        passed = stats.get("passed", 0)
-        missing = stats.get("missing", 0)
-        bootstrap_pending = stats.get("bootstrap_pending", 0)
-        insufficient_samples = stats.get("insufficient_samples", 0)
-        total = sum(stats.values())
+        passing = fresh.get("passed", 0)
+        reasons: list[str] = []
+        if not_audited:
+            reasons.append(f"{len(not_audited)} 个策略从未被审计")
+        if stale:
+            reasons.append(f"{len(stale)} 个策略的判决早于其最新成交")
+        if fresh.get("missing"):
+            reasons.append(f"{fresh['missing']} 个策略审计结论为证据不足")
 
-        details = {
-            "total": total,
-            "passed": passed,
-            "missing": missing,
-            "bootstrap_pending": bootstrap_pending,
-            "insufficient_samples": insufficient_samples,
-            "other": total - passed - missing - bootstrap_pending - insufficient_samples,
-        }
-
-        if missing == total:
+        if not passing:
             self._add_check(
                 "execution_audit_gate",
                 "blocked",
-                f"所有 audit ({total}) 均为 missing",
-                {**details, "hint": "audit 未运行或链路缺失"},
+                "无任何策略通过 execution audit：" + "；".join(reasons or ["没有有效判决"]),
+                {
+                    **details,
+                    # The old message said every audit "was missing", which was true
+                    # of a subset and hid the two cases that are about coverage
+                    # rather than about evidence.
+                    "hint": "从未审计与判决定 missing 是两件事；前者需要审计覆盖，后者需要执行证据",
+                },
             )
-        elif passed == 0:
+        elif reasons:
             self._add_check(
-                "execution_audit_gate",
-                "warning",
-                f"hard_gate_passed=0/{total}（样本债：{insufficient_samples} insufficient, {bootstrap_pending} bootstrap_pending）",
-                details,
+                "execution_audit_gate", "warning",
+                f"{passing} 个策略通过；另有 " + "；".join(reasons), details,
             )
         else:
             self._add_check(
-                "execution_audit_gate",
-                "passed",
-                f"hard_gate_passed={passed}/{total}",
-                details,
+                "execution_audit_gate", "ok",
+                f"所有 {len(universe)} 个策略都有当期判决，{passing} 个通过", details,
             )
 
     def check_strategy_lifecycle_state(self):
