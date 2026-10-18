@@ -465,6 +465,42 @@ async def handle_alternative_factors(
     )
 
 
+async def _factor_date_from_bars(db: Any) -> Any:
+    """The session the factors describe: the most recent date with bars.
+
+    This used to be ``datetime.now().date()``, which is the day the job happened to
+    run rather than a trading session. Run on a weekend or a holiday it wrote a
+    ``factor_date`` that exists nowhere in ``kline_1d``, so anything joining factors
+    to bars on the trading calendar matched nothing — 2026-10-18 is a Sunday and no
+    bar will ever carry it.
+
+    Deriving it from the data makes a re-run idempotent: before the next session
+    opens the newest bar is still the previous one, so the same rows are upserted
+    instead of a new impossible date appearing. Falls back to the wall-clock date
+    only when there are no bars at all, which is the one case where there is
+    nothing better to say.
+    """
+
+    try:
+        async with db.acquire() as conn:
+            rows = await conn.fetch("SELECT max(substr(time, 1, 10)) AS latest FROM kline_1d")
+    except Exception as exc:
+        logger.warning("batch_compute_factors could not read the latest bar date: %s", exc)
+        return datetime.now().date()
+
+    raw = ""
+    if rows:
+        first = rows[0]
+        raw = str((first.get("latest") if isinstance(first, dict) else first[0]) or "")
+    if not raw:
+        return datetime.now().date()
+    try:
+        return datetime.strptime(raw[:10], "%Y-%m-%d").date()
+    except ValueError:
+        logger.warning("batch_compute_factors saw an unparsable latest bar date: %r", raw)
+        return datetime.now().date()
+
+
 async def handle_batch_compute_factors(
     *,
     kw: dict[str, Any],
@@ -493,7 +529,8 @@ async def handle_batch_compute_factors(
     # would report nothing about what it skipped.
     factor_reasons: dict[str, str] = {}
     unmeasurable_counts: dict[str, int] = {}
-    today = datetime.now().date()
+    # The date of the bars, not the date of the run. See `_factor_date_from_bars`.
+    today = await _factor_date_from_bars(db)
 
     for stock_code in codes[:int(kw.get("max_codes", 1000) or 1000)]:
         try:
