@@ -43,12 +43,19 @@ def _norm_date(val: Any) -> str:
         return ""
     if hasattr(val, "strftime"):
         return val.strftime("%Y-%m-%d")
-    s = str(val).strip()
-    try:
-        s = str(int(float(s)))
-    except (TypeError, ValueError) as _swallowed:
-        logger.warning("packages/aiask-quant-core/src/aiask_quant_core/storage/sqlite/tdx_storage.py:49: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-        pass
+    # Normalise a numeric form without probing with an exception. The previous
+    # `int(float(s))`-in-a-`try` logged a warning for every string date, which is
+    # the normal case — 18 warnings per run for inputs handled correctly three lines
+    # below. Type dispatch here keeps the behaviour identical (a float like
+    # 20261016.0 still normalises) while producing no false alarms.
+    if isinstance(val, bool):
+        s = str(val)
+    elif isinstance(val, (int, float)):
+        s = str(int(val))
+    else:
+        s = str(val).strip()
+        if s.endswith(".0") and s[:-2].isdigit():
+            s = s[:-2]
     if len(s) == 8 and s.isdigit():
         return f"{s[:4]}-{s[4:6]}-{s[6:8]}"
     if len(s) >= 10 and s[4] == "-":

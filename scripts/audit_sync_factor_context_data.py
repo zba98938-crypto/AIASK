@@ -116,21 +116,38 @@ async def _resolve_factory_target_codes(active_pool_limit: int) -> list[str]:
     except Exception:
         return []
     candidates: list[str] = []
+    # `strategy_factory_runs` has no `metadata` column, and even the fields it does
+    # have are compacted: its `stages` keeps only
+    # `"requested_target_codes": {"storage_mode": "dropped_large_payload"}`, so the
+    # codes are deliberately not there either. The dispatch table is where they
+    # survive. The old query raised `no such column: metadata` on every call and the
+    # handler swallowed it, leaving `candidates` empty — so this audit silently had
+    # nothing to audit and reported nothing about it.
     queries = [
-        # Strategy factory most recent run targets
         (
+            # `$1`, not `?`: the async adapter binds `$n`, while the plain sqlite3
+            # connections the sync scripts use bind `?`. Passing the wrong one does
+            # not raise a syntax error — it reports "uses 1, and there are 0
+            # supplied", which reads like a caller mistake about argument count.
             "SELECT DISTINCT json_extract(metadata,'$.target_codes') AS codes "
-            "FROM strategy_factory_runs "
-            "ORDER BY started_at DESC LIMIT ?",
+            "FROM strategy_factory_dispatches "
+            "ORDER BY requested_at DESC LIMIT $1",
             (max(1, int(active_pool_limit or 12)),),
         ),
     ]
+    read_errors: list[str] = []
     async with db.acquire() as conn:
         for sql, params in queries:
             try:
                 rows = await conn.fetch(sql, *params)
             except Exception as _swallowed:
-                logger.warning("scripts/audit_sync_factor_context_data.py:132: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
+                # Recorded, not just logged: an audit that could not read its own
+                # input must not look like one that found nothing to report.
+                logger.warning(
+                    "scripts/audit_sync_factor_context_data.py:132: swallowed %s and continued: %s",
+                    type(_swallowed).__name__, _swallowed,
+                )
+                read_errors.append(f"{type(_swallowed).__name__}: {_swallowed}")
                 continue
             for row in rows:
                 value = row[0] if row else None

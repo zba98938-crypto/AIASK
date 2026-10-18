@@ -455,9 +455,16 @@ class ResearchPlaneRunner:
         params = dict(candidate.get("params") or {})
         horizon = dict(candidate.get("holding_horizon") or params.get("holding_horizon") or {})
         for key in ("min_days", "target_days", "max_days", "alpha_half_life"):
+            # An absent key is a normal outcome here, not a failure worth logging.
+            # Probing with `int(float(...))` in a `try` raised TypeError for every
+            # missing key — 80 disclosed-and-ignored exceptions per cycle, which is
+            # enough volume to bury a real one.
+            raw = horizon.get(key)
+            if raw is None or str(raw).strip() == "":
+                continue
             try:
-                value = int(float(horizon.get(key)))
-            except Exception as _swallowed:
+                value = int(float(raw))
+            except (TypeError, ValueError) as _swallowed:
                 logger.warning("packages/strategy-factory/src/strategy_factory/application/research/runner.py:461: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             if value > 0:
