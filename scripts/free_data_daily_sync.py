@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 import argparse
 import asyncio
+import importlib.util
 import json
 import math
 import os
@@ -363,6 +364,32 @@ def fetch_daily_bars(code: str, *, datalen: int = 300, order: tuple[str, ...] | 
         "attempts": attempts,
         "all_channels_failed": True,
     }
+
+
+def _backfill_change_pct() -> dict[str, Any]:
+    """Derive `kline_1d.change_pct` from the stored series.
+
+    The derivation lives with the other fundamentals steps so there is one
+    implementation; this only reaches it.
+    """
+
+    import contextlib
+    import sqlite3
+
+    from _integration_paths import default_sqlite_path
+
+    spec = importlib.util.spec_from_file_location(
+        "_sync_market_fundamentals_for_change_pct", SCRIPT_DIR / "sync_market_fundamentals.py"
+    )
+    if spec is None or spec.loader is None:
+        return {"skipped": "sync_market_fundamentals.py not importable"}
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:
+        return {"skipped": f"{type(exc).__name__}: {exc}"}
+    with contextlib.closing(sqlite3.connect(str(default_sqlite_path()))) as conn:
+        return module.backfill_kline_change_pct(conn, apply=True)
 
 
 async def sync_stock_klines(
@@ -1248,6 +1275,12 @@ async def main() -> int:
         report["steps"]["stock_klines"] = await sync_stock_klines(
             codes, concurrency=getattr(args, "concurrency", 1)
         )
+    if not args.skip_stocks:
+        # `change_pct` is derived, not fetched: no kline channel publishes it, and the
+        # column had values for 2,433 of 1.74M rows. Recomputing here means a bar
+        # written today carries it tomorrow, instead of the column silently draining
+        # back to empty one sync at a time.
+        report["steps"]["kline_change_pct"] = await asyncio.to_thread(_backfill_change_pct)
     if not args.skip_index:
         report["steps"]["index_klines"] = await sync_index_klines()
     if not args.skip_sector:

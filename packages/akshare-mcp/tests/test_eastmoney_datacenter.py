@@ -358,8 +358,8 @@ def test_calendar_is_derived_from_the_prices_it_describes(ledger) -> None:
         # `margin_detail` and `north` were added when their sources were found:
         # per-security margin from RPTA_WEB_RZRQ_GGMX and the mutual-market flows
         # from RPT_MUTUAL_DEAL_HISTORY.
-        ("all", ["calendar", "financials", "fundflow", "dragon", "blocks", "margin",
-                 "margin_detail", "north"]),
+        ("all", ["calendar", "kline_change_pct", "financials", "fundflow", "dragon",
+                 "blocks", "margin", "margin_detail", "north"]),
     ],
 )
 def test_category_selection(raw: str, expected: list[str]) -> None:

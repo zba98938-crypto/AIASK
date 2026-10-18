@@ -47,7 +47,7 @@ for _rel in ("packages/akshare-mcp/src", "packages/aiask-quant-core/src", "packa
 from _db_sync_common import DB_PATH  # noqa: E402
 from akshare_mcp.data_source.eastmoney_datacenter import fetch_report  # noqa: E402
 
-CATEGORIES = ("calendar", "financials", "fundflow", "dragon", "blocks", "margin", "margin_detail", "north")
+CATEGORIES = ("calendar", "kline_change_pct", "financials", "fundflow", "dragon", "blocks", "margin", "margin_detail", "north")
 
 #: Reports read more than once in a run are read once. The earnings report is
 #: roughly 100k rows in the default window, and both the financials and the
@@ -566,6 +566,149 @@ def sync_dragon(conn: sqlite3.Connection, args) -> dict[str, Any]:
     }
 
 
+def _price_limit_percent(stock_code: str, stock_name: str) -> float:
+    """The daily move limit for a board, in percent.
+
+    Used only to *flag* bars that moved further than a trade can: on an unadjusted
+    series an ex-dividend or split shows up as a gap the limit would not permit, so
+    a value beyond it is almost certainly a corporate action rather than a price
+    move. The flag is reported, not enforced — the computed number is the true
+    bar-to-bar change of the series as stored.
+    """
+
+    code = str(stock_code or "")
+    if "ST" in str(stock_name or "").upper():
+        return 5.0
+    if code.startswith(("30", "688")):
+        return 20.0
+    if code.startswith(("4", "8", "92")):
+        return 30.0
+    return 10.0
+
+
+def backfill_kline_change_pct(conn: sqlite3.Connection, *, apply: bool) -> dict[str, Any]:
+    """Derive ``kline_1d.change_pct`` from the series itself.
+
+    No kline channel publishes it — Sina and Tencent both return six fields, date
+    through volume — and the column held values for 2,433 of 1,738,879 rows. It is
+    derivable from the bars already stored, which is what this does: the previous
+    close of the same code, in time order.
+
+    **The basis is unadjusted.** `kline_1d` stores 不复权 prices, so on an
+    ex-dividend day the derived figure includes the corporate action and can exceed
+    the board's daily limit. Those rows are counted and reported rather than
+    corrected: the number is the real change of the stored series, and inventing a
+    "clean" one would hide the event that caused it.
+
+    The first bar of each code has no predecessor. It stays NULL — not 0, which
+    would read as "this bar did not move" — and is counted.
+    """
+
+    before = conn.execute("SELECT count(change_pct) FROM kline_1d").fetchone()[0]
+    total = conn.execute("SELECT count(*) FROM kline_1d").fetchone()[0]
+    if not apply:
+        return {
+            "category": "kline_change_pct",
+            "source": "derived:kline_1d(prev close, same code)",
+            "mode": "report only",
+            "rows": total,
+            "with_value_before": before,
+        }
+
+    # One row per (code, date), and the canonical timestamp wins. `time` is a
+    # timestamp but 99 rows in this table hold a *bare date* — a different primary
+    # key under `PRIMARY KEY (time, code)`, so both a date and its timestamped form
+    # can coexist for the same day. Ordering on the raw column puts the shorter
+    # string first, which interleaved two securities' numbers and produced changes
+    # of ±100% from a table that was really just doubling back on itself. Ordering
+    # on the date, and taking the longest form per date, is immune to that.
+    # Deduplicate **first**, then lag. Putting `ROW_NUMBER` and `LAG` in one SELECT
+    # does not do this: window functions are evaluated over the whole input before
+    # the outer `WHERE rn = 1` removes anything, so the lag of a kept row still sees
+    # the discarded duplicates as its predecessor — which is how a date with a bare
+    # row underneath it produced +102% instead of +0.66%.
+    conn.execute(
+        """
+        WITH dedup AS (
+            SELECT code, time, close, substr(time, 1, 10) AS day,
+                   ROW_NUMBER() OVER (
+                       PARTITION BY code, substr(time, 1, 10) ORDER BY length(time) DESC
+                   ) AS rn
+            FROM kline_1d
+        ), series AS (
+            SELECT code, time, LAG(close) OVER (PARTITION BY code ORDER BY day) AS prev_close
+            FROM dedup WHERE rn = 1
+        )
+        UPDATE kline_1d AS k
+        SET change_pct = ROUND((k.close - s.prev_close) / s.prev_close * 100, 6)
+        FROM series AS s
+        WHERE k.code = s.code AND k.time = s.time
+          AND s.prev_close IS NOT NULL AND s.prev_close != 0 AND k.close IS NOT NULL
+        """
+    )
+    conn.commit()
+
+    # A row that lost the per-date contest is excluded from the UPDATE above, so
+    # whatever it held before survives — and if a previous run computed it from an
+    # interleaved order, it holds a fabricated figure. Clear it rather than leave a
+    # number that no longer corresponds to anything: an absent value is honest, a
+    # stale one is not.
+    cleared = conn.execute(
+        """
+        UPDATE kline_1d SET change_pct = NULL
+        WHERE change_pct IS NOT NULL AND (code, time) IN (
+            SELECT code, time FROM (
+                SELECT code, time,
+                       ROW_NUMBER() OVER (PARTITION BY code, substr(time,1,10)
+                                          ORDER BY length(time) DESC) AS rn
+                FROM kline_1d
+            ) WHERE rn > 1
+        )
+        """
+    ).rowcount
+    conn.commit()
+    off_format = conn.execute(
+        "SELECT count(*) FROM kline_1d WHERE length(time) <= 10"
+    ).fetchone()[0]
+
+    after = conn.execute("SELECT count(change_pct) FROM kline_1d").fetchone()[0]
+    first_bar_nulls = conn.execute(
+        "SELECT count(*) FROM kline_1d WHERE change_pct IS NULL"
+    ).fetchone()[0]
+
+    # How many bars moved further than their board permits — the signature of a
+    # corporate action on an unadjusted series.
+    moved, flagged = 0, 0
+    for code, name, pct in conn.execute(
+        "SELECT k.code, COALESCE(s.stock_name,''), k.change_pct FROM kline_1d k "
+        "LEFT JOIN stocks s ON s.stock_code = k.code WHERE k.change_pct IS NOT NULL"
+    ):
+        moved += 1
+        if abs(float(pct)) > _price_limit_percent(code, name) + 0.01:
+            flagged += 1
+
+    return {
+        "category": "kline_change_pct",
+        "source": "derived:kline_1d(prev close, same code)",
+        "basis": "unadjusted",
+        "rows": total,
+        "with_value_before": before,
+        "with_value_after": after,
+        "null_first_bar": first_bar_nulls,
+        "off_format_timestamps": off_format,
+        "change_pct_cleared_on_duplicate_dates": cleared,
+        "off_format_note": (
+            "time 是时间戳列，但有行只存了裸日期——主键 (time, code) 下它与带时间戳的"
+            "同日行是两个不同的键，于是同一天两行并存。推导已按日期去重、取规范形态，"
+            "这些行的存在本身需单独处理"
+        ),
+        "beyond_daily_limit": flagged,
+        "beyond_daily_limit_note": (
+            "不复权序列上的超限跳变几乎必然是除权/送转而非成交；已计数未修正"
+        ),
+    }
+
+
 def sync_margin(conn: sqlite3.Connection, args) -> dict[str, Any]:
     """Fill ``margin_market_flow`` from 上交所's own endpoint.
 
@@ -872,6 +1015,8 @@ def main(argv: list[str] | None = None) -> int:
     with contextlib.closing(sqlite3.connect(str(DB_PATH))) as conn:
         if "calendar" in chosen:
             reports.append(sync_calendar(conn, apply=args.apply))
+        if "kline_change_pct" in chosen:
+            reports.append(backfill_kline_change_pct(conn, apply=args.apply))
         if "financials" in chosen:
             reports.append(sync_financials(conn, args))
         if "blocks" in chosen:

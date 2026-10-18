@@ -189,16 +189,30 @@ async def _get_kline_impl(stock_code: str, period: str, limit: int, started_at: 
                 # 新鲜度检查: DB 数据过期时 fall through 到 API
                 db_is_fresh = _is_db_data_fresh(validated_results)
 
-                if db_is_fresh and (has_turnover or (_is_fund_like_code(code) and _kline_rows_usable(validated_results))):
-                    return _ok_kline_response(validated_results, source="sqlite", source_chain=["db.get_klines"], started_at=started_at)
+                if db_is_fresh and _kline_rows_usable(validated_results):
+                    # Fresh, usable rows are served. Turnover used to be a *condition*
+                    # here, and since no kline channel publishes it the condition was
+                    # never satisfied: every daily read abandoned the database and went
+                    # to a live source, for 1.7M stored rows it already had. The column
+                    # being unavailable is a fact about the column, not a reason to
+                    # distrust the rest of the bar — so it is reported instead of
+                    # gating. Only staleness still falls through.
+                    response = _ok_kline_response(
+                        validated_results, source="sqlite",
+                        source_chain=["db.get_klines"], started_at=started_at,
+                    )
+                    if not has_turnover:
+                        response["completeness"] = {
+                            "turnover": None,
+                            "reason": "not_published_by_any_kline_channel",
+                            "note": "计算换手率需要流通股本；三条通道都不提供，stocks.tdx_float_shares 亦为空(TDX 不供数)",
+                        }
+                    return response
                 if _kline_rows_usable(validated_results):
                     _db_fallback = validated_results
                 if not db_is_fresh:
                     safe_stderr_print(f"[Kline] DB data for {code} is stale (last date: {validated_results[-1].get('date', '?') if validated_results else '?'}), falling through to API")
                     fallback_reason.append("db.get_klines data stale, falling through to API")
-                else:
-                    safe_stderr_print(f"[Kline] DB data for {code} has null turnover, falling through to fetch complete data")
-                    fallback_reason.append("db.get_klines missing turnover, falling through")
         except Exception as e_db:
             safe_stderr_print(f"SQLite K-line query failed for {code}: {e_db}")
             fallback_reason.append(f"db.get_klines failed: {e_db}")
