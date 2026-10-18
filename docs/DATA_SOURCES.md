@@ -287,46 +287,67 @@ the fallback, 60 rows each, every one checked against 59 settled stored bars wit
 volume ratio of 1.0 and zero close mismatches, and the summary correctly reporting
 that the primary had served nothing.
 
-### Fundamentals have no substitute, and the reason is conventions
+### Fundamentals: the stored values are faithful, and the cross-check works on complete years
 
-Market data is an identity — a close is a close. Fundamental indicators are not:
-the same name is published on more than one basis, and which one a vendor uses is
-not always stated. Sina carries the same ratio page as East money, from a different
-vendor, and `scripts/check_financials_agreement.py` compares them column by column:
+`financials` is filled from East money's `RPT_F10_FINANCE_MAINFINADATA`. The obvious
+worry is that a field was mapped to the wrong column, so every value was checked
+against the report itself — which needs a filter that works. `(SECURITY_CODE="X")`
+in **double** quotes is accepted; the single-quoted form is rejected by the search
+grammar with an `ANTLR InputMismatchException`, which is what made this look
+impossible to query at all.
 
-```
-column               match
-profit_growth       12% of 40   DIFFERENT CONVENTION — must not be substituted
-revenue_growth      38% of 24   DIFFERENT CONVENTION — must not be substituted
-bvps                75% of 40   DIFFERENT CONVENTION — must not be substituted
-eps                 80% of 40   close, but a convention difference remains
-net_margin          88% of 24   close, but a convention difference remains
-current_ratio       88% of 24   close, but a convention difference remains
-roe                 92% of 40   close, but a convention difference remains
-roa                 92% of 40   close, but a convention difference remains
-debt_ratio          92% of 40   close, but a convention difference remains
-substitutable columns: none
-```
+Checked that way, the stored column equals the report field exactly:
 
-Getting the mapping right mattered and was decided by measurement, not by reading
-labels: Sina publishes both a 摊薄 and a 加权 basis while East money's `EPSJB`/
-`ROEJQ` are 基本/加权, and picking the 摊薄 row matched **0 of 10** sampled periods
-where 加权 matched 9-10 of 10. `roa` is `总资产净利润率`, not `总资产利润率`.
-Having corrected all three, no column reaches full agreement — so **Sina is kept as
-a diagnostic, not wired as a fallback.** A column whose definition differs between
-vendors cannot be switched part-way through a series; that is the same defect as
-mixing two industry taxonomies in one column.
+    report_date   stored roe   ROEJQ    ROEJQTZ   ROEKCJQ
+    2025-03-31         3.26    3.26   -68.29%      None
+    2025-06-30         3.41    3.41   -75.11%       3.40
+    2025-09-30         4.89    4.89   -73.32%      None
+    2025-12-31         6.89    6.89   -70.49%       6.78
 
-Industry has the same shape for a plainer reason: Sina's classification has 56
-classes and `stocks.industry` is East money's `EM2016` level 1 with 28, so a Sina
-answer would not mean the same thing.
+`ROEJQ` is the field that was mapped, `ROEJQTZ` is the **year-over-year change**
+(not a level), and `ROEKCJQ` is the 扣非 variant — a different measure. The stored
+series is monotone across the year, which is the shape of a cumulative figure, and
+`ROEJQTZ = -68.29%` reconciles with it: ``10.28 × (1 - 0.6829) = 3.26``.
 
-**Open, and not resolved here.** For `000858`, the year-end 2025 column agrees with
-Sina to every decimal while the earlier 2025 periods disagree roughly threefold
-(stored `roe` 3.26 / 3.41 / 4.89 against Sina's 10.56 / 13.63 / 15.37). The stored
-series is monotone across the year, the signature of a cumulative figure, and Sina's
-is not. Which convention each vendor is using was not settled, so no fix was applied
-— changing a definition on a guess would be worse than recording the question.
+`scripts/check_financials_agreement.py` compares those stored values against Sina.
+Two bugs in that tool had produced an earlier, much worse verdict:
+
+* the stored-side query was pinned to ``>= '2025-01-01'``, so ``--year 2024``
+  reported "no overlapping periods" for every symbol — a finding about the tool;
+* it defaulted to the **current, incomplete** year, whose interim columns on Sina's
+  page do not line up with the stored periods. That single page produced the
+  original "no substitutable column" table, and the growth-rate columns carried the
+  whole conclusion.
+
+Corrected, over 20 symbols and a complete year:
+
+    column            2024     2023
+    current_ratio     98%      95%
+    debt_ratio        98%      95%
+    roe               95%      90%
+    net_margin        95%      95%
+    roa               95%      86%
+    bvps              94%      84%
+    revenue_growth    91%      90%
+    eps               86%      65%
+    profit_growth     27%      30%
+
+The level and balance-sheet columns agree with an independent vendor **95-98%**; the
+growth-rate columns do not (`profit_growth` 27-30%), and `eps` is unstable between
+years. So the earlier reading was too harsh and the decision is unchanged for a
+better reason: **95% agreement still means 5% silently wrong**, and "substitutable"
+requires agreeing on every period. Sina stays a diagnostic — but it *is* a working
+diagnostic, and it is what corroborates the stored values.
+
+**The 000858 question is closed.** It was "the stored early-2025 quarters
+disagree with Sina about threefold". Both halves now have answers: the stored values
+faithfully reproduce East money's field (above), and Sina's `ctrl/2025` page carries
+interim columns that do not correspond to the periods their labels name — it is
+incoherent as a cumulative series (10.56 → 13.63 → 15.37 → **6.89**), while East
+money's is monotone and reconciles with its own YoY field. On complete years the two
+agree 95-98%, which is what makes the 2025 page the outlier rather than the data.
+No row was changed on this basis: nothing in `financials` was wrong.
+
 
 ### Sources that were reported unavailable and turned out to exist
 

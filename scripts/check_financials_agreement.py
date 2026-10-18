@@ -22,6 +22,7 @@ Usage::
 from __future__ import annotations
 
 import argparse
+import datetime
 import json
 import random
 import sqlite3
@@ -50,13 +51,28 @@ TOLERANCE = 1e-3
 MATCHING_HINT = {"roe", "roa", "debt_ratio"}
 
 
-def _stored(conn: sqlite3.Connection, code: str, columns: list[str]) -> dict[str, list[Any]]:
+#: East money report field -> (field, conversion to the stored convention).
+#: `debt_ratio` is the one that differs: the report states ZCFZL as a percentage
+#: (21.3) while the column is read as a fraction, which `sync_market_fundamentals`
+#: divides by 100 on write. Comparing the raw field against a converted value
+#: reported 0 of 4 matches on every symbol.
+EASTMONEY_FIELDS: dict[str, tuple[str, str]] = {}
+
+
+def _stored(conn: sqlite3.Connection, code: str, columns: list[str], year: int) -> dict[str, list[Any]]:
+    """Rows for one report year. The year bound follows ``--year``.
+
+    This was pinned to ``>= '2025-01-01'``, so ``--year 2024`` reported "no
+    overlapping periods" for every symbol — a tool result about the tool, not
+    about the data.
+    """
+
     return {
         str(row[0]): list(row[1:])
         for row in conn.execute(
             f"SELECT report_date, {','.join(columns)} FROM financials "
-            f"WHERE stock_code = ? AND report_date >= '2025-01-01'",
-            (code,),
+            f"WHERE stock_code = ? AND report_date >= ? AND report_date <= ?",
+            (code, f"{int(year)}-01-01", f"{int(year)}-12-31"),
         )
     }
 
@@ -68,7 +84,7 @@ def run(codes: list[str], year: int) -> dict[str, Any]:
     unreadable: list[dict[str, str]] = []
 
     for code in codes:
-        stored = _stored(conn, code, columns)
+        stored = _stored(conn, code, columns, year)
         try:
             remote = fetch_financial_indicators(code, year)
         except Exception as exc:
@@ -106,7 +122,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--codes", default="")
     parser.add_argument("--sample", type=int, default=0, help="random listed codes if --codes is empty")
-    parser.add_argument("--year", type=int, default=2025)
+    parser.add_argument(
+        "--year",
+        type=int,
+        default=datetime.date.today().year - 1,
+        help="report year to compare. Defaults to the last COMPLETE year: an "
+             "in-progress year's interim columns do not line up with the stored "
+             "periods, and comparing them says more about the page than the data",
+    )
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
