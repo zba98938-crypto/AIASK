@@ -32,7 +32,12 @@ def _dragon_tiger_rows_from_db(requested_date: str, stock_code: str = "", limit:
         db = get_db()
         target_code = normalize_code(stock_code) if stock_code else ""
         async with db.acquire() as conn:
-            clauses = ["trade_date <= $1"]
+            # `=`, not `<=`. A caller asking for one date's 龙虎榜 was getting that
+            # date and every earlier one, capped at 200 rows: `get_dragon_tiger
+            # ("2026-10-16")` returned 200 rows spanning 10-14..10-16 while 10-16
+            # itself holds 66. The rows also arrived without their date, so nothing
+            # in the response let a caller tell the days apart.
+            clauses = ["trade_date = $1"]
             params: list[Any] = [format_date_dash(requested_date)]
             if target_code:
                 clauses.append("code = $2")
@@ -54,7 +59,7 @@ def _dragon_tiger_rows_from_db(requested_date: str, stock_code: str = "", limit:
             except Exception:
                 rows = []
             if not rows:
-                clauses = ["trade_date <= $1"]
+                clauses = ["trade_date = $1"]
                 params = [format_date_dash(requested_date)]
                 if target_code:
                     clauses.append("stock_code = $2")
@@ -83,6 +88,9 @@ def _dragon_tiger_rows_from_db(requested_date: str, stock_code: str = "", limit:
                 {
                     "code": normalize_code(item.get("code") or ""),
                     "name": str(item.get("name") or ""),
+                    # Carried through: the query selects it, and without it a caller
+                    # holding a page of rows cannot say which session each belongs to.
+                    "tradeDate": str(item.get("trade_date") or ""),
                     "closePrice": 0.0,
                     "changePercent": 0.0,
                     "reason": str(item.get("reason") or ""),
