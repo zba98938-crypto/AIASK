@@ -328,6 +328,57 @@ series is monotone across the year, the signature of a cumulative figure, and Si
 is not. Which convention each vendor is using was not settled, so no fix was applied
 — changing a definition on a guess would be worse than recording the question.
 
+### Sources that were reported unavailable and turned out to exist
+
+Three items were carried as "no source on this host". Closing them required
+questioning the earlier probes rather than the providers:
+
+| Table | What was concluded | What was actually true |
+|---|---|---|
+| `margin_detail` | 上交所 answers only at market level and ignores `stockCode`; 深交所 is 403 — so per-stock margin is unavailable | 上交所 and 深交所 are both correct **and irrelevant**: East money's `RPTA_WEB_RZRQ_GGMX` carries 6.9M per-security rows covering 沪, 深 **and 北** |
+| `north_fund_flow` | the akshare source was removed, no replacement | `RPT_MUTUAL_DEAL_HISTORY` still updates — but **only southbound** |
+| TDX online | 2 of 12 pool servers answer | all 12 accept a TCP connection; 2 complete the handshake and answer `get_security_count` (24,444) while **every data command returns nothing** |
+
+**Northbound flow is not missing, it is discontinued.** Measured across 400
+consecutive rows: channels 001/003/005 carry no value, 002/004/006 do, and the
+totals reconcile (`002 + 004 == 006` exactly, e.g. -2065.77 + -1502.66 = -3568.43).
+So `north_money`, `hgt` and `sgt` are written as **NULL** and the reader returns
+`None`, with `total_net = None` and `reason = northbound_not_published`. A zero
+there would report a flat market. The 146 pre-existing rows keep their published
+northbound values: the upsert uses `COALESCE` so a "no longer published" response
+cannot erase one that was.
+
+**Sector fund flow is derived, not sourced.** No East money report carries board
+fund flow (six candidate names probed, none exists) and the `push2` board endpoint
+is on a host that does not answer. `sector_fund_flow_derived` is computed inside the
+database from `stock_fund_flow` × `block_stocks`, is labelled
+`derived:stock_fund_flow×block_stocks`, and reports `complete: false` with a count of
+blocks whose membership is only partly covered (74 of 128 on 2026-10-16). It is an
+aggregation of per-stock figures, **not an exchange-published board total**, and it
+is a separate table because `market_blocks.total_amount` already means turnover.
+
+### Traps found while wiring the new sources
+
+| Trap | Evidence | Handling |
+|---|---|---|
+| **Single-column pagination is unstable** | Sorting `RPTA_WEB_RZRQ_GGMX` on `DATE` alone: 6,000 rows read → 557 unique, **74.9% duplicates**, and rows missing besides | always send a tie-breaker (`DATE,SCODE`); `fetch_report` now reports `duplicate_rows` / `pagination_unstable` for any report |
+| **The suffix gate blocks the whole table** | `_get_margin_detail_suffix_coverage` blocks when either `.SH` or `.SZ` has no rows | a sync that cannot produce both reports failure instead of writing one side |
+| **A reader can undo an honest NULL** | `get_north_fund_history` and the `margin_detail` mappers used `float(row.get(k) or 0.0)`, turning "not published" into "zero" | `_stored_float` passes `None` through; `total_net` is `None` + a reason |
+| **A `source_unavailable` status nothing ever set** | the branch could only inherit it from a previous row, so a first run reported `missing`/`stale` for a provider that is gone | the status is now assigned for the TDX keys, with the probe recorded in `detail` |
+
+### Current channel state (2026-10-18)
+
+    kline_daily        2 of 3   sina + tencent agree on 2026-10-16
+    kline_minute       2 of 3   sina + tencent agree on 2026-10-16 15:00
+    quote              2 of 3   sina + tencent agree live
+    kline_index_daily  1 of 2   eastmoney.push2his unreachable
+
+`push2his` and `push2` have been answering `RemoteDisconnected` for every request
+since the sync ran; `datacenter-web` has stayed up throughout, which is why the
+fundamental and margin sources keep working. Tencent's 501 block, self-inflicted by
+~1,300 requests in 15 minutes, has lifted. **Redundancy here is a measurement, not a
+property** — this section is what it was when the probe last ran.
+
 ## 8. What every one of these sources owes the caller
 
 The providers in `packages/akshare-mcp/src/akshare_mcp/data_source/` follow the
