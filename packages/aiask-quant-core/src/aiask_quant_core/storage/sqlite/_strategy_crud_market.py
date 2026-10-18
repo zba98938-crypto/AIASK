@@ -13,6 +13,26 @@ from .strategy_factory_json_budget import bounded_json_text, strategy_json_field
 
 
 class _StrategyCrudMarketMixin:
+        @staticmethod
+        def _stored_float(value: Any) -> Optional[float]:
+            """Return a stored number or ``None`` — never a stand-in.
+
+            The rows these readers map have two kinds of column: ones the provider
+            publishes and ones it does not. `margin_detail`'s ``rzmre``/``rzche`` and
+            ``north_fund_flow``'s ``north_money``/``hgt``/``sgt`` are the second kind —
+            written as NULL because no source states them. Coercing those to ``0.0``
+            reports "nobody borrowed today" and "northbound flow was zero", which are
+            different facts from "not published", and a consumer cannot tell them apart
+            afterwards.
+            """
+
+            if value is None:
+                return None
+            try:
+                return float(value)
+            except (TypeError, ValueError):
+                return None
+
         async def _get_market_data_quality_gate(
             self,
             data_key: str,
@@ -269,13 +289,16 @@ class _StrategyCrudMarketMixin:
                     continue
                 out.append({
                     "trade_date": trade_date,
-                    "north_money": float(row.get("north_money") or 0.0),
-                    "south_money": float(row.get("south_money") or 0.0),
-                    "net_amount": float(row.get("net_amount") or 0.0),
-                    "ggt_ss": float(row.get("ggt_ss") or 0.0),
-                    "ggt_sz": float(row.get("ggt_sz") or 0.0),
-                    "hgt": float(row.get("hgt") or 0.0),
-                    "sgt": float(row.get("sgt") or 0.0),
+                    # None where the source does not publish, never 0.0: northbound
+                    # flow has carried no value in any recent row (the disclosure was
+                    # discontinued), and a zero would read as "flow was flat".
+                    "north_money": self._stored_float(row.get("north_money")),
+                    "south_money": self._stored_float(row.get("south_money")),
+                    "net_amount": self._stored_float(row.get("net_amount")),
+                    "ggt_ss": self._stored_float(row.get("ggt_ss")),
+                    "ggt_sz": self._stored_float(row.get("ggt_sz")),
+                    "hgt": self._stored_float(row.get("hgt")),
+                    "sgt": self._stored_float(row.get("sgt")),
                     "source": "north_fund_flow",
                 })
             return out
@@ -315,11 +338,25 @@ class _StrategyCrudMarketMixin:
             if isinstance(latest_trade_date, date):
                 stale_age_days = max(0, (date.today() - latest_trade_date).days)
                 stale = stale_age_days > 7
+            # Northbound totals are summed over the days that actually state one.
+            # Summing the missing ones as 0.0 would print "northbound net = 0" for a
+            # period in which the figure is simply not published any more, and the
+            # caller has no way to tell that from a genuinely flat market.
+            north_values = [
+                self._stored_float(row.get("north_money"))
+                for row in selected
+            ]
+            present = [value for value in north_values if value is not None]
             return {
                 "days": max(1, int(days or 3)),
                 "sample_count": len(rows),
                 "trade_dates": [row.get("trade_date") for row in selected],
-                "total_net": round(sum(float(row.get("north_money") or 0.0) for row in selected), 2),
+                "total_net": round(sum(present), 2) if present else None,
+                "total_net_basis": {
+                    "days_requested": len(selected),
+                    "days_with_north_money": len(present),
+                    "reason": "" if present else "northbound_not_published",
+                },
                 "latest_trade_date": latest_trade_date,
                 "stale_age_days": stale_age_days,
                 "stale": stale,
@@ -330,7 +367,10 @@ class _StrategyCrudMarketMixin:
                 "hard_fact_eligible": bool(gate.get("hard_fact_eligible")),
                 "block_reasons": list(gate.get("block_reasons") or []),
                 "series": [
-                    {"trade_date": row.get("trade_date"), "north_money": float(row.get("north_money") or 0.0)}
+                    {
+                        "trade_date": row.get("trade_date"),
+                        "north_money": self._stored_float(row.get("north_money")),
+                    }
                     for row in rows
                 ],
             }
@@ -443,13 +483,14 @@ class _StrategyCrudMarketMixin:
                     continue
                 out.append({
                     "trade_date": trade_date,
-                    "marginBalance": float(row.get("rzye") or 0.0),
-                    "marginBuy": float(row.get("rzmre") or 0.0),
-                    "marginRepay": float(row.get("rzche") or 0.0),
-                    "shortBalance": float(row.get("rqye") or 0.0),
-                    "shortSell": float(row.get("rqmcl") or 0.0),
-                    "shortVolume": float(row.get("rqyl") or 0.0),
-                    "totalBalance": float(row.get("rzrqye") or 0.0),
+                    "marginBalance": self._stored_float(row.get("rzye")),
+                    # The buy/repay fields are not in the per-security report.
+                    "marginBuy": self._stored_float(row.get("rzmre")),
+                    "marginRepay": self._stored_float(row.get("rzche")),
+                    "shortBalance": self._stored_float(row.get("rqye")),
+                    "shortSell": self._stored_float(row.get("rqmcl")),
+                    "shortVolume": self._stored_float(row.get("rqyl")),
+                    "totalBalance": self._stored_float(row.get("rzrqye")),
                     "source": "margin_detail_aggregate",
                 })
             return out
@@ -504,14 +545,15 @@ class _StrategyCrudMarketMixin:
                     "trade_date": trade_date,
                     "ts_code": str(row.get("ts_code") or ""),
                     "code": str(row.get("ts_code") or "").split(".", 1)[0],
-                    "marginBalance": float(row.get("rzye") or 0.0),
-                    "shortBalance": float(row.get("rqye") or 0.0),
-                    "marginBuy": float(row.get("rzmre") or 0.0),
-                    "shortVolume": float(row.get("rqyl") or 0.0),
-                    "marginRepay": float(row.get("rzche") or 0.0),
-                    "shortRepay": float(row.get("rqchl") or 0.0),
-                    "shortSell": float(row.get("rqmcl") or 0.0),
-                    "totalBalance": float(row.get("rzrqye") or 0.0),
+                    "marginBalance": self._stored_float(row.get("rzye")),
+                    "shortBalance": self._stored_float(row.get("rqye")),
+                    # Not published by RPTA_WEB_RZRQ_GGMX; None, not 0.0.
+                    "marginBuy": self._stored_float(row.get("rzmre")),
+                    "shortVolume": self._stored_float(row.get("rqyl")),
+                    "marginRepay": self._stored_float(row.get("rzche")),
+                    "shortRepay": self._stored_float(row.get("rqchl")),
+                    "shortSell": self._stored_float(row.get("rqmcl")),
+                    "totalBalance": self._stored_float(row.get("rzrqye")),
                     "source": "margin_detail",
                 })
             return out
@@ -566,14 +608,15 @@ class _StrategyCrudMarketMixin:
                     "trade_date": trade_date,
                     "ts_code": str(row.get("ts_code") or ""),
                     "code": str(row.get("ts_code") or "").split(".", 1)[0],
-                    "marginBalance": float(row.get("rzye") or 0.0),
-                    "shortBalance": float(row.get("rqye") or 0.0),
-                    "marginBuy": float(row.get("rzmre") or 0.0),
-                    "shortVolume": float(row.get("rqyl") or 0.0),
-                    "marginRepay": float(row.get("rzche") or 0.0),
-                    "shortRepay": float(row.get("rqchl") or 0.0),
-                    "shortSell": float(row.get("rqmcl") or 0.0),
-                    "totalBalance": float(row.get("rzrqye") or 0.0),
+                    "marginBalance": self._stored_float(row.get("rzye")),
+                    "shortBalance": self._stored_float(row.get("rqye")),
+                    # Not published by RPTA_WEB_RZRQ_GGMX; None, not 0.0.
+                    "marginBuy": self._stored_float(row.get("rzmre")),
+                    "shortVolume": self._stored_float(row.get("rqyl")),
+                    "marginRepay": self._stored_float(row.get("rzche")),
+                    "shortRepay": self._stored_float(row.get("rqchl")),
+                    "shortSell": self._stored_float(row.get("rqmcl")),
+                    "totalBalance": self._stored_float(row.get("rzrqye")),
                     "source": "margin_detail_ranking",
                 })
             return out

@@ -47,7 +47,7 @@ for _rel in ("packages/akshare-mcp/src", "packages/aiask-quant-core/src", "packa
 from _db_sync_common import DB_PATH  # noqa: E402
 from akshare_mcp.data_source.eastmoney_datacenter import fetch_report  # noqa: E402
 
-CATEGORIES = ("calendar", "financials", "fundflow", "dragon", "blocks", "margin")
+CATEGORIES = ("calendar", "financials", "fundflow", "dragon", "blocks", "margin", "margin_detail", "north")
 
 #: Reports read more than once in a run are read once. The earnings report is
 #: roughly 100k rows in the default window, and both the financials and the
@@ -655,9 +655,212 @@ def sync_margin(conn: sqlite3.Connection, args) -> dict[str, Any]:
         "stored_range": (stored[2], stored[3]),
         "completeness_registered": registration,
         "per_stock_detail": (
-            "not available: the SSE endpoint ignores its stockCode parameter and "
-            "深交所 is blocked, so margin_detail stays empty"
+            "see the margin_detail category — per-security detail comes from East "
+            "money's RPTA_WEB_RZRQ_GGMX, not from this exchange endpoint"
         ),
+    }
+
+
+def sync_margin_detail(conn: sqlite3.Connection, args) -> dict[str, Any]:
+    """Fill ``margin_detail`` from East money's per-security margin report.
+
+    The exchange endpoints cannot do this — 上交所 answers at market level and
+    ignores its ``stockCode`` parameter, 深交所 returns 403 — so this table had no
+    source at all. ``RPTA_WEB_RZRQ_GGMX`` has one row per security per day for
+    both exchanges and 北交所.
+
+    **Both 沪 and 深 must be written or nothing is.** ``_get_margin_detail_suffix_
+    coverage`` blocks the whole table when either suffix is absent, so a one-sided
+    write leaves rows present and the reader returning an empty list — harder to
+    notice than an empty table, which is why a partial read reports failure here
+    instead of writing what it has.
+    """
+
+    from akshare_mcp.data_source.eastmoney_margin_detail import fetch_margin_detail
+
+    on_or_after = (datetime.now() - timedelta(days=max(1, int(args.margin_days)))).strftime("%Y-%m-%d")
+    result = fetch_margin_detail(on_or_after=on_or_after, max_rows=int(args.max_rows or 0))
+    rows = result["rows"]
+
+    written = 0
+    refusal = ""
+    if not result["complete"]:
+        refusal = (
+            "refusing to write: a required market is missing "
+            f"({result['missing_required_markets'] or result['failed_markets']}); "
+            "the reader blocks the table when either .SH or .SZ is absent"
+        )
+    elif args.apply:
+        conn.executemany(
+            """
+            INSERT INTO margin_detail
+                (trade_date, ts_code, rzye, rqye, rqyl, rzrqye, source, source_priority, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'eastmoney_datacenter', CURRENT_TIMESTAMP)
+            ON CONFLICT(trade_date, ts_code) DO UPDATE SET
+                rzye = excluded.rzye, rqye = excluded.rqye, rqyl = excluded.rqyl,
+                rzrqye = excluded.rzrqye, source = excluded.source,
+                source_priority = excluded.source_priority, updated_at = CURRENT_TIMESTAMP
+            """,
+            rows,
+        )
+        conn.commit()
+        written = len(rows)
+
+    stored = conn.execute(
+        "SELECT count(*), count(DISTINCT ts_code), min(trade_date), max(trade_date) "
+        "FROM margin_detail"
+    ).fetchone()
+    by_suffix = {
+        str(row[0]): int(row[1])
+        for row in conn.execute(
+            "SELECT CASE WHEN ts_code LIKE '%.SH' THEN 'SH' WHEN ts_code LIKE '%.SZ' THEN 'SZ' "
+            "ELSE 'OTHER' END AS suffix, count(*) FROM margin_detail GROUP BY suffix"
+        )
+    }
+    registration = None
+    if args.apply and stored[0]:
+        registration = _register_completeness(
+            conn,
+            "margin_detail",
+            row_count=stored[0],
+            as_of_date=stored[3],
+            detail={
+                "table": "margin_detail",
+                "date_column": "trade_date",
+                "where": "",
+                "source": result["source"],
+                "rows_by_suffix": by_suffix,
+                # The reader insists on both, so say plainly whether both are there.
+                "required_suffixes_present": all(by_suffix.get(s) for s in ("SH", "SZ")),
+                "not_published_by_the_report": result["not_published"],
+                "latest_by_market": result["latest_by_market"],
+                "coverage_note": (
+                    "Per-security margin balances. 深证 publishes a day behind 沪证. "
+                    "The daily buy/repay amounts are not in this report and are NULL."
+                ),
+            },
+        )
+        conn.commit()
+
+    return {
+        "category": "margin_detail",
+        "source": result["source"],
+        "window_from": on_or_after,
+        "rows_read": len(rows),
+        "written": written,
+        "refused": refusal,
+        "complete": result["complete"],
+        "per_market": result["per_market"],
+        "latest_by_market": result["latest_by_market"],
+        "failed_markets": result["failed_markets"],
+        "stored_rows": stored[0],
+        "stored_codes": stored[1],
+        "stored_range": (stored[2], stored[3]),
+        "stored_by_suffix": by_suffix,
+        "not_published": result["not_published"],
+        "completeness_registered": registration,
+    }
+
+
+def sync_north(conn: sqlite3.Connection, args) -> dict[str, Any]:
+    """Fill ``north_fund_flow`` with what that report still publishes.
+
+    Southbound (港股通) updates daily and is written. Northbound has carried no
+    value in any recent row — real-time northbound disclosure was discontinued —
+    so those columns are NULL and the registry says why. Writing 0.0 would report
+    a flat market, and the reader used to coerce the NULLs to 0.0 itself; that is
+    fixed in ``get_north_fund_history``.
+
+    146 rows from the akshare era remain untouched: they predate the change and are
+    real. The upsert keeps an existing north value when the new read has none,
+    rather than letting a "not published" response erase a published one.
+    """
+
+    from akshare_mcp.data_source.eastmoney_mutual import fetch_mutual_flows
+
+    on_or_after = (datetime.now() - timedelta(days=max(1, int(args.margin_days)))).strftime("%Y-%m-%d")
+    result = fetch_mutual_flows(on_or_after=on_or_after, max_rows=int(args.max_rows or 0))
+    rows = result["rows"]
+
+    written = 0
+    if args.apply and rows:
+        conn.executemany(
+            """
+            INSERT INTO north_fund_flow
+                (trade_date, north_money, south_money, net_amount, ggt_ss, ggt_sz, hgt, sgt,
+                 source, source_priority, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'eastmoney_datacenter', CURRENT_TIMESTAMP)
+            ON CONFLICT(trade_date) DO UPDATE SET
+                south_money = excluded.south_money,
+                net_amount = excluded.net_amount,
+                ggt_ss = excluded.ggt_ss,
+                ggt_sz = excluded.ggt_sz,
+                -- Keep a published northbound figure rather than overwriting it with
+                -- a NULL that means "no longer published".
+                north_money = COALESCE(excluded.north_money, north_fund_flow.north_money),
+                hgt = COALESCE(excluded.hgt, north_fund_flow.hgt),
+                sgt = COALESCE(excluded.sgt, north_fund_flow.sgt),
+                source = excluded.source,
+                source_priority = excluded.source_priority,
+                updated_at = CURRENT_TIMESTAMP
+            """,
+            [
+                (
+                    row["trade_date"], row["north_money"], row["south_money"], row["net_amount"],
+                    row["ggt_ss"], row["ggt_sz"], row["hgt"], row["sgt"],
+                    f"{result['source']} (southbound only; {result['discontinued_reason']})",
+                )
+                for row in rows
+            ],
+        )
+        conn.commit()
+        written = len(rows)
+
+    stored = conn.execute(
+        "SELECT count(*), count(north_money), count(south_money), min(trade_date), max(trade_date) "
+        "FROM north_fund_flow"
+    ).fetchone()
+    registration = None
+    if args.apply and stored[0]:
+        registration = _register_completeness(
+            conn,
+            "north_fund_flow",
+            row_count=stored[0],
+            as_of_date=stored[4],
+            detail={
+                "table": "north_fund_flow",
+                "date_column": "trade_date",
+                "where": "",
+                "source": result["source"],
+                "published_channels": result["published_channels"],
+                "discontinued_channels": result["discontinued_channels"],
+                "discontinued_reason": result["discontinued_reason"],
+                "rows_with_north_money": stored[1],
+                "rows_with_south_money": stored[2],
+                "coverage_note": (
+                    "Southbound (港股通) is current. Northbound columns are NULL for "
+                    "recent dates because the disclosure was discontinued, not because "
+                    "the feed is missing. Do not read them as zero."
+                ),
+            },
+        )
+        conn.commit()
+
+    return {
+        "category": "north",
+        "source": result["source"],
+        "window_from": on_or_after,
+        "days_read": result["days"],
+        "written": written,
+        "complete": result["complete"],
+        "duplicate_rows": result["duplicate_rows"],
+        "published_channels": result["published_channels"],
+        "discontinued_channels": result["discontinued_channels"],
+        "stored_rows": stored[0],
+        "stored_with_north_money": stored[1],
+        "stored_with_south_money": stored[2],
+        "stored_range": (stored[3], stored[4]),
+        "completeness_registered": registration,
     }
 
 
@@ -679,6 +882,10 @@ def main(argv: list[str] | None = None) -> int:
             reports.append(sync_dragon(conn, args))
         if "margin" in chosen:
             reports.append(sync_margin(conn, args))
+        if "margin_detail" in chosen:
+            reports.append(sync_margin_detail(conn, args))
+        if "north" in chosen:
+            reports.append(sync_north(conn, args))
 
     if args.json:
         print(json.dumps({"applied": bool(args.apply), "reports": reports}, ensure_ascii=False, indent=2, default=str))

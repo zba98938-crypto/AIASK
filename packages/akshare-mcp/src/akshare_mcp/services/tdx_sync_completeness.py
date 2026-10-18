@@ -206,6 +206,18 @@ class _CompletenessMixin:
             ]),
             ("sync_relation", [("tdx_relation", "updated_at", "")]),
         ]
+        # Keys whose provider was probed and found to serve no data at all. Their
+        # tables stay empty, and reporting that as `missing` or `stale` implies a
+        # feed that lapsed and will return. Measured 2026-10-18 against all twelve
+        # pool servers: two complete the handshake and answer `get_security_count`
+        # (24444) — so the protocol is fine — while `get_security_bars` on every
+        # category, `get_index_bars`, `get_security_list` and `get_security_quotes`
+        # all return nothing; the other ten time out. That is a provider-side
+        # condition, so these keys say so instead of looking overdue.
+        source_unavailable_keys = {
+            "stock_quotes": "tdx_online_protocol_ok_but_all_data_commands_empty",
+            "sync_relation": "tdx_online_protocol_ok_but_all_data_commands_empty",
+        }
         stale_after_days = {
             "stock_quotes": 5,
             "index_klines": 10,
@@ -300,6 +312,21 @@ class _CompletenessMixin:
                     logger.warning("packages/akshare-mcp/src/akshare_mcp/services/tdx_sync_completeness.py:299: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                     pass
             previous_detail = previous.get("detail") if isinstance(previous, dict) else {}
+            if key in source_unavailable_keys:
+                # Always say the provider is gone, so the fact is not lost while the
+                # cache still looks healthy.
+                detail["provider"] = "tdx_online"
+                detail["provider_status"] = "source_unavailable"
+                detail["provider_reason"] = source_unavailable_keys[key]
+                detail["provider_probe"] = "2026-10-18: 12/12 pool servers, 0 serving data"
+                # But only demote the *table* when it holds nothing fresh. Rows that
+                # are still within their freshness window remain `ok` — they are
+                # valid data, and reporting them as unavailable would be its own lie.
+                # The branch below could previously only inherit this status from a
+                # previous row, so on a first run it was unreachable.
+                if status in ("missing", "stale"):
+                    status = "source_unavailable"
+                    detail["reason"] = source_unavailable_keys[key]
             if row_count == 0 and isinstance(previous, dict) and previous.get("status") == "source_unavailable":
                 status = "source_unavailable"
                 if isinstance(previous_detail, dict) and previous_detail:

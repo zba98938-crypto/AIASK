@@ -28,6 +28,7 @@ import logging
 import os
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any, Optional
 
@@ -86,7 +87,36 @@ REPORTS: dict[str, dict[str, str]] = {
         "what": "所属板块 (all board memberships per security)",
         "history": "about 94k rows",
     },
+    # 个股融资融券明细: per-security margin balances, **both** exchanges in one
+    # report. The exchange endpoints cannot do this — 上交所's answers at market
+    # level and ignores its `stockCode` parameter, and 深交所 returns 403 from
+    # this host — so `margin_detail` had no source until this one was found.
+    # 沪证 and 深证 must be queried separately: sorted by date descending, the
+    # first 2,000 rows of a date are all 沪证 and 深证 never appears.
+    "RPTA_WEB_RZRQ_GGMX": {
+        "what": "个股融资融券明细 (per-security margin balance, 沪/深/北)",
+        "history": "about 6.9M rows, one per security per day",
+    },
+    # 沪深港通资金流向: one row per channel per day. Types 002/004/006 carry
+    # southbound (港股通) totals and still update; 001/003/005 are the northbound
+    # channels and have carried no value in any recent row.
+    "RPT_MUTUAL_DEAL_HISTORY": {
+        "what": "沪深港通资金流向 (northbound and southbound daily flows)",
+        "history": "about 15.6k rows; northbound values discontinued",
+    },
 }
+
+
+def report_filter(expression: str) -> str:
+    """URL-encode a datacenter filter such as ``(REPORT_DATE>='2021-01-01')``.
+
+    The expression has to arrive as ``&filter=<...>``. A call site that passes the
+    bare expression does not fail loudly: the server concatenates it onto
+    ``pageNumber`` and answers 400 about a malformed integer, which reads as a
+    provider outage rather than a caller mistake. Use this, not string joining.
+    """
+
+    return f"&filter={urllib.parse.quote(expression)}" if expression else ""
 
 
 def _opener(transport: str):
@@ -227,6 +257,15 @@ def fetch_report(
             f"report {report_name} returned no row (failed pages: {failed_pages or 'none'})"
         )
 
+    # Pagination is offset-based, so a sort key with huge ties lets the server's page
+    # boundaries move between requests: rows come back repeated and others are
+    # skipped. Measured on `RPTA_WEB_RZRQ_GGMX` sorted on `DATE` alone — one day
+    # holds thousands of tied rows and 74.9% of the read was duplicates, with rows
+    # missing besides. A repeated *whole* row is never legitimate, so counting them
+    # turns the failure mode visible for any report and any sort.
+    distinct = len({json.dumps(row, sort_keys=True, default=str) for row in rows})
+    duplicate_rows = len(rows) - distinct
+
     return {
         "rows": rows,
         "source": f"eastmoney:{report_name}",
@@ -235,7 +274,12 @@ def fetch_report(
         "complete": not failed_pages and not truncated,
         "failed_pages": failed_pages,
         "truncated": truncated,
+        "distinct_rows": distinct,
+        "duplicate_rows": duplicate_rows,
+        # A caller sorting on one column can lose rows it never sees; this is the
+        # only signal that it happened.
+        "pagination_unstable": duplicate_rows > 0,
     }
 
 
-__all__ = ["fetch_report", "REPORTS", "DATACENTER_URL"]
+__all__ = ["fetch_report", "report_filter", "REPORTS", "DATACENTER_URL"]

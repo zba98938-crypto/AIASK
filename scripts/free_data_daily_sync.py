@@ -648,19 +648,134 @@ async def sync_index_klines() -> dict[str, Any]:
 
 
 def sync_sector_fund_flow() -> dict[str, Any]:
-    """Unavailable: the akshare industry fund-flow source was removed.
+    """Aggregate per-stock fund flow up to its industry board.
 
-    akshare was never a declared dependency of this project, so this step never
-    ran. It returns the caller's shape with an explicit reason rather than zeros
-    that would read as "measured no flow".
+    The akshare source for this was removed and no East money report carries board
+    fund flow — six candidate report names were probed and none exists, and the
+    ``push2`` board endpoint's host does not answer. Rather than keep returning a
+    stub, this **derives** the figure from two tables the project already has:
+    ``stock_fund_flow`` (per-stock, daily) joined to ``block_stocks`` (membership).
+
+    It is written to its own table, not to ``market_blocks``: that table's
+    ``total_amount`` means turnover, and putting a net inflow there would be a
+    different quantity under an existing name.
+
+    Two limits are recorded rather than hidden: only the members that have fund-flow
+    data contribute, and the result is an aggregation of the provider's per-stock
+    figures, **not an exchange-published board total**. ``complete`` is False when
+    coverage is short, and the per-row ``members_with_flow`` against
+    ``members_total`` says by how much.
     """
+
+    import sqlite3
+
+    from _integration_paths import default_sqlite_path
+
+    path = default_sqlite_path()
+    conn = sqlite3.connect(str(path))
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS sector_fund_flow_derived (
+                trade_date TEXT NOT NULL,
+                block_code TEXT NOT NULL,
+                block_name TEXT,
+                block_type TEXT,
+                members_total INTEGER,
+                members_with_flow INTEGER,
+                main_net_inflow REAL,
+                super_large_net_inflow REAL,
+                large_net_inflow REAL,
+                source TEXT,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (trade_date, block_code)
+            )
+            """
+        )
+        latest = conn.execute("SELECT max(trade_date) FROM stock_fund_flow").fetchone()[0]
+        if not latest:
+            conn.commit()
+            return {
+                "ok": False,
+                "rows": 0,
+                "source": "derived:stock_fund_flow×block_stocks",
+                "reason": "stock_fund_flow is empty, so there is nothing to aggregate",
+            }
+
+        members = {}
+        for block_code, stock_code in conn.execute(
+            "SELECT block_code, stock_code FROM block_stocks WHERE block_code LIKE 'BK%'"
+        ):
+            members.setdefault(block_code, []).append(str(stock_code))
+        names = {
+            str(code): (str(name or ""), str(btype or ""))
+            for code, name, btype in conn.execute(
+                "SELECT block_code, block_name, block_type FROM market_blocks WHERE block_type='industry'"
+            )
+        }
+        flow = {
+            str(code): (main, sup, large)
+            for code, main, sup, large in conn.execute(
+                "SELECT code, main_net_inflow, super_large_net_inflow, large_net_inflow "
+                "FROM stock_fund_flow WHERE trade_date = ?",
+                (latest,),
+            )
+        }
+
+        rows = []
+        short = 0
+        for block_code, codes in members.items():
+            present = [flow[c] for c in codes if c in flow]
+            if len(present) < len(codes):
+                short += 1
+            name, btype = names.get(block_code, ("", "industry"))
+            rows.append(
+                (
+                    latest,
+                    block_code,
+                    name,
+                    btype,
+                    len(codes),
+                    len(present),
+                    sum(x[0] for x in present) if present else None,
+                    sum(x[1] for x in present) if present else None,
+                    sum(x[2] for x in present) if present else None,
+                    "derived:stock_fund_flow×block_stocks",
+                )
+            )
+        conn.executemany(
+            """
+            INSERT INTO sector_fund_flow_derived
+                (trade_date, block_code, block_name, block_type, members_total, members_with_flow,
+                 main_net_inflow, super_large_net_inflow, large_net_inflow, source, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ON CONFLICT(trade_date, block_code) DO UPDATE SET
+                block_name = excluded.block_name, block_type = excluded.block_type,
+                members_total = excluded.members_total,
+                members_with_flow = excluded.members_with_flow,
+                main_net_inflow = excluded.main_net_inflow,
+                super_large_net_inflow = excluded.super_large_net_inflow,
+                large_net_inflow = excluded.large_net_inflow,
+                source = excluded.source, updated_at = CURRENT_TIMESTAMP
+            """,
+            rows,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
     return {
-        "rows": 0,
-        "market_blocks_inserted": 0,
-        "market_blocks_count": 0,
-        "ok": False,
-        "source": "none",
-        "reason": "akshare_removed",
+        "ok": bool(rows),
+        "rows": len(rows),
+        "trade_date": latest,
+        "blocks_with_incomplete_membership": short,
+        # Not an exchange figure; say so where a caller will see it.
+        "complete": short == 0,
+        "source": "derived:stock_fund_flow×block_stocks",
+        "note": (
+            "Derived by aggregating the provider's per-stock fund flow over board "
+            "membership. Not an exchange-published board total."
+        ),
     }
 
 

@@ -112,7 +112,12 @@ def _get_minute_kline_from_sina(code: str, minutes: int, limit: int) -> list[dic
             )
         except Exception:
             return []
-    except Exception:
+    except Exception as _failure:
+        # A transport refusal is not an empty series. Tencent answers 501 to
+        # everything once it has had enough requests from one host, and returning []
+        # here would let the chain report "channel empty" for a channel that was
+        # actually refusing. Disclosed, then treated as empty by the caller.
+        logger.warning("minute kline channel failed: %s: %s", type(_failure).__name__, _failure)
         return []
     try:
         payload = resp.text or ""
@@ -135,7 +140,12 @@ def _get_minute_kline_from_sina(code: str, minutes: int, limit: int) -> list[dic
                 }
             )
         return results
-    except Exception:
+    except Exception as _failure:
+        # A transport refusal is not an empty series. Tencent answers 501 to
+        # everything once it has had enough requests from one host, and returning []
+        # here would let the chain report "channel empty" for a channel that was
+        # actually refusing. Disclosed, then treated as empty by the caller.
+        logger.warning("minute kline channel failed: %s: %s", type(_failure).__name__, _failure)
         return []
 
 
@@ -173,7 +183,12 @@ def _get_minute_kline_from_eastmoney(code: str, minutes: int, limit: int) -> lis
         )
         resp.raise_for_status()
         klines = (resp.json().get("data") or {}).get("klines") or []
-    except Exception:
+    except Exception as _failure:
+        # A transport refusal is not an empty series. Tencent answers 501 to
+        # everything once it has had enough requests from one host, and returning []
+        # here would let the chain report "channel empty" for a channel that was
+        # actually refusing. Disclosed, then treated as empty by the caller.
+        logger.warning("minute kline channel failed: %s: %s", type(_failure).__name__, _failure)
         return []
 
     results: list[dict] = []
@@ -288,5 +303,10 @@ def _get_minute_kline_from_tencent(code: str, minutes: int, limit: int) -> list[
                 logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/market/kline/kline_minute.py:250: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
         return results
-    except Exception:
+    except Exception as _failure:
+        # A transport refusal is not an empty series. Tencent answers 501 to
+        # everything once it has had enough requests from one host, and returning []
+        # here would let the chain report "channel empty" for a channel that was
+        # actually refusing. Disclosed, then treated as empty by the caller.
+        logger.warning("minute kline channel failed: %s: %s", type(_failure).__name__, _failure)
         return []
