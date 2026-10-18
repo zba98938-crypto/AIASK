@@ -739,11 +739,6 @@ async def build_incubation_overview(
     if mdd > DEPRECATION_THRESHOLDS["mdd_critical"]:
         risk_flags.append(f"\u6700\u5927\u56de\u64a4 {mdd:.1%} > {DEPRECATION_THRESHOLDS['mdd_critical']:.0%}")
     try:
-        from ...config._strategy_factory_toggles import _as_bool  # type: ignore
-    except Exception as _swallowed:
-        logger.warning("packages/akshare-mcp/src/akshare_mcp/services/strategy_lifecycle_shared/overview.py:741: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-        pass
-    try:
         import os as _os
         from ..factor_mining_factory.quality import QUALITY_PROFILE_ACTIVE as _ov_profile
         _min_n = 12 if str(_ov_profile or "strict").lower() in {"lite", "minimum"} else 20

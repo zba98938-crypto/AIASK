@@ -873,12 +873,30 @@ class BacktestFilter:
 
         trade_floor = float(FACTORY_SUBMISSION_MIN_BACKTEST_TRADES)
         try:
-            from .submission_gate import _resolve_validation_profile, _trade_gate_thresholds
+            from .submission_gate import (
+                _resolve_validation_profile,
+                _trade_gate_thresholds,
+                resolve_attempt_adjustment,
+            )
 
             profile = _resolve_validation_profile(payload)
+            # `_trade_gate_thresholds(strategy, profile, attempt_adjustment, *,
+            # admission_level)` takes three positional arguments. This call passed
+            # only the profile, so it raised `missing 2 required positional
+            # arguments` on every evaluation and the handler swallowed it — leaving
+            # `trade_floor` at the generic default. The profile-specific floor was
+            # therefore never applied, which silently *loosened* the submission gate
+            # this function exists to compute. Use it the way `_evaluate_trade_profile`
+            # does.
+            attempt_adjustment = resolve_attempt_adjustment(payload)
             trade_floor = max(
                 trade_floor,
-                float(_trade_gate_thresholds(profile, admission_level="incubation").get("trade_count_min") or 0.0),
+                float(
+                    _trade_gate_thresholds(
+                        payload, profile, attempt_adjustment, admission_level="incubation"
+                    ).get("trade_count_min")
+                    or 0.0
+                ),
             )
         except Exception as _swallowed:
             logger.warning("packages/strategy-factory/src/strategy_factory/application/backtest_filter.py:882: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
