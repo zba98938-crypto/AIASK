@@ -18,6 +18,7 @@ from ....core.cache_manager import cached
 from ....core.rate_limiter import get_limiter
 from ....core.validators import validate_kline_list
 from ....data_source import data_source
+from ....data_source.volume_units import tencent_volume_to_shares
 from ....provider_contracts import attach_provider_contract_meta
 from ....storage import get_db
 from ....utils import (
@@ -273,10 +274,10 @@ def _get_minute_kline_from_tencent(code: str, minutes: int, limit: int) -> list[
                     "close": safe_float(row[2]),
                     "high": safe_float(row[3]),
                     "low": safe_float(row[4]),
-                    # Tencent reports 手 and Sina reports 股. Writing them through
-                    # unconverted mixes the two in one column, so a fallback bar
-                    # would read 100x smaller than its neighbour from the primary.
-                    "volume": safe_int(row[5]) * 100,
+                    # Sina reports 股; Tencent reports 手 except for 科创板, where it
+                    # already states shares. Measured across 144 settled 688 bars and
+                    # 96 bars in each of the other markets — see `volume_units`.
+                    "volume": int(tencent_volume_to_shares(code, safe_int(row[5]))),
                     # Tencent puts a dict at index 6, so `safe_float` swallowed a
                     # TypeError once per row — 300 disclosed-and-ignored errors per
                     # call, which is enough noise to hide a real one.

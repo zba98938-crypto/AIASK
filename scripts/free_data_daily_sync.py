@@ -182,7 +182,10 @@ def _fetch_sina_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any]]:
 #     forgot this writes a 100× low `volume` into a column shared with the others.
 
 KLINE_CHANNELS = ("sina", "eastmoney", "tencent")
-LOTS_TO_SHARES = 100.0
+from akshare_mcp.data_source.volume_units import (  # noqa: E402
+    LOTS_TO_SHARES,
+    tencent_volume_to_shares,
+)
 # How far a fallback's series may end before the market's latest bar while we hold
 # no history for the code. A brand-new listing is a few days late at most; the case
 # this catches is answerable about a different security (see ``_agreement_with_stored``).
@@ -289,7 +292,12 @@ def _fetch_tencent_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any
     for item in payload.get("day") or []:
         if len(item) < 5:
             continue
-        volume_lots = float(item[5]) if len(item) > 5 and item[5] else 0.0
+        raw_volume = float(item[5]) if len(item) > 5 and item[5] else 0.0
+        # Tencent states 科创板 volume in 股 and every other market in 手, so the
+        # conversion is per symbol. A blanket x100 is wrong by 100x for 688xxx —
+        # which the fallback guard caught, refusing 57 such symbols rather than
+        # writing them.
+        shares = tencent_volume_to_shares(code, raw_volume)
         close = float(item[2])
         rows.append(
             {
@@ -299,8 +307,8 @@ def _fetch_tencent_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any
                 "high": float(item[3]),
                 "low": float(item[4]),
                 "close": close,
-                "volume": volume_lots * LOTS_TO_SHARES,
-                "amount": close * volume_lots * LOTS_TO_SHARES,
+                "volume": shares,
+                "amount": close * shares,
             }
         )
     return rows
