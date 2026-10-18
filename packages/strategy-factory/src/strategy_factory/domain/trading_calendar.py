@@ -41,10 +41,12 @@ _KNOWN_HOLIDAYS: Set[date] = {
     date(2026, 5, 1), date(2026, 5, 2), date(2026, 5, 3), date(2026, 5, 4), date(2026, 5, 5),
     # 2026 端午
     date(2026, 6, 19), date(2026, 6, 20), date(2026, 6, 21),
+    # 2026 中秋(09-25)。国庆区间到 10-07 为止：10-08 是复市首日，
+    # 由当日 5,561 条 bar 与交易所融资融券数据双证，此前误列一天。
+    date(2026, 9, 25),
     # 2026 中秋+国庆
     date(2026, 10, 1), date(2026, 10, 2), date(2026, 10, 3), date(2026, 10, 4),
-    date(2026, 10, 5), date(2026, 10, 6), date(2026, 10, 7), date(2026, 10, 8),
-}
+    date(2026, 10, 5), date(2026, 10, 6), date(2026, 10, 7), }
 
 # 调休工作日（周末但需要上班的日子）
 _KNOWN_WORKDAYS: Set[date] = {
@@ -117,13 +119,17 @@ class TradingCalendar:
                 logger.warning("packages/strategy-factory/src/strategy_factory/domain/trading_calendar.py:114: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
-        # Fallback：使用内置节假日列表
-        if d in self._holidays:
-            return False
-        if d in self._workdays:
-            return True
-        # 周末非调休 → 非交易日
-        return d.weekday() < 5
+        # Fallback：使用内置节假日列表。
+        #
+        # A-share trading days are weekdays minus holidays, and that is all. This
+        # used to return True for a 调休 workday, on the reading that a Saturday the
+        # government designates as a working day is a session. It is not: the
+        # exchanges stay shut. Measured against the stored calendar, no Saturday or
+        # Sunday in 2026 carries a bar, and the exchange's own margin feed published
+        # nothing for 2026-10-10 or 2026-09-27, both of which this returned as
+        # trading days — so the factory would have run on closed days and, on
+        # 2026-10-08, refused to run on an open one.
+        return d.weekday() < 5 and d not in self._holidays
 
     def next_trading_day(self, d: date) -> date:
         """返回给定日期之后的下一个交易日。"""
