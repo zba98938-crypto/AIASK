@@ -47,6 +47,13 @@ CLOSE_TOLERANCE = 5e-4
 # expected to be identical; this bound is what makes "identical" falsifiable.
 VOLUME_TOLERANCE = 0.01
 TODAY = time.strftime("%Y-%m-%d")
+# Shared across symbols; see the note in `_eastmoney_bars`.
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+# A per-symbol pause. A burst of a few hundred requests gets the provider to answer
+# 501 for everything — measured: ~1,300 requests in 15 minutes across runs did it, and
+# the block outlasted the run. The run then reports "unreachable" for symbols that are
+# fine, which is why the summary now says so explicitly rather than showing 0% match.
+PAUSE_SECONDS = 0.5
 
 
 def _eastmoney_bars(code: str) -> list[tuple[str, float, float]]:
@@ -58,11 +65,13 @@ def _eastmoney_bars(code: str) -> list[tuple[str, float, float]]:
         f"?secid={secid}&fields1=f1,f2,f3&fields2=f51,f52,f53,f54,f55,f56"
         "&klt=101&fqt=0&end=20500101&lmt=1000"
     )
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    # One opener for the process: building one per symbol leaked a socket each
+    # time, which showed up as pages of `unclosed SSLSocket` over a few hundred
+    # symbols and helped trip the rate limiter.
     request = urllib.request.Request(
         url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://quote.eastmoney.com/"}
     )
-    with opener.open(request, timeout=TIMEOUT) as response:
+    with _OPENER.open(request, timeout=TIMEOUT) as response:
         payload = json.loads(response.read().decode("utf-8", errors="replace"))
     out: list[tuple[str, float, float]] = []
     for item in (payload.get("data") or {}).get("klines") or []:
@@ -71,6 +80,66 @@ def _eastmoney_bars(code: str) -> list[tuple[str, float, float]]:
             continue
         out.append((parts[0][:10], float(parts[2]), float(parts[5]) * LOTS_TO_SHARES))
     return out
+
+
+def _tencent_bars(code: str) -> list[tuple[str, float, float]]:
+    """The same bars from a second, independent vendor.
+
+    This checker had one channel, which is the defect it exists to find: when East
+    money's kline host went down, the verification silently became "0 bars
+    compared" and could not be run at all. Tencent answers from a different vendor
+    on a different endpoint, and its volume needs the per-market conversion —
+    科创板 in 股, every other market in 手.
+    """
+
+    from akshare_mcp.data_source.volume_units import tencent_volume_to_shares
+
+    symbol = ("sh" if code.startswith(("6", "5")) else "bj" if code.startswith(("92", "43", "83", "87", "88", "4", "8")) else "sz") + code
+    url = f"https://ifzq.gtimg.cn/appstock/app/fqkline/get?param={symbol},day,,,640,"
+    request = urllib.request.Request(
+        url, headers={"User-Agent": "Mozilla/5.0", "Referer": "https://gu.qq.com/"}
+    )
+    with _OPENER.open(request, timeout=TIMEOUT) as response:
+        payload = json.loads(response.read().decode("utf-8", errors="replace"))
+    rows = (payload.get("data") or {}).get(symbol, {}).get("day") or []
+    out: list[tuple[str, float, float]] = []
+    for item in rows:
+        if len(item) < 6:
+            continue
+        out.append(
+            (
+                str(item[0])[:10],
+                float(item[2]),
+                tencent_volume_to_shares(code, float(item[5])),
+            )
+        )
+    return out
+
+
+CHANNELS = {"eastmoney": _eastmoney_bars, "tencent": _tencent_bars}
+# Tried in order. East money is preferred because it is a different endpoint family
+# from the one that wrote the rows, but either is an independent vendor.
+CHANNEL_ORDER = ("eastmoney", "tencent")
+
+
+def _bars(code: str, channel: str) -> list[tuple[str, float, float]]:
+    """Fetch ``code`` from ``channel``, or from the first channel that answers."""
+
+    if channel != "auto":
+        if channel not in CHANNELS:
+            raise SystemExit(f"unknown --channel {channel!r}; known: {','.join(CHANNELS)}")
+        return CHANNELS[channel](code)
+
+    last: Exception | None = None
+    for name in CHANNEL_ORDER:
+        try:
+            rows = CHANNELS[name](code)
+        except Exception as exc:  # a dead channel must not read as "no disagreement"
+            last = exc
+            continue
+        if rows:
+            return rows
+    raise RuntimeError(f"every channel failed or returned nothing: {type(last).__name__}: {last}")
 
 
 def _stored_bars(conn: sqlite3.Connection, code: str) -> dict[str, tuple[float, float]]:
@@ -108,12 +177,14 @@ def _sample_codes(conn: sqlite3.Connection, size: int, seed: int) -> list[str]:
     return picked
 
 
-def run(sample: int, seed: int) -> dict[str, Any]:
+def run(sample: int, seed: int, channel: str = "auto", day: str = "") -> dict[str, Any]:
     conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
     codes = _sample_codes(conn, sample, seed)
     report: dict[str, Any] = {
         "as_of": time.strftime("%Y-%m-%d %H:%M:%S"),
         "sampled": len(codes),
+        "channel": channel,
+        "day": day or "all settled dates",
         "per_symbol": [],
         "failures": [],
     }
@@ -123,13 +194,15 @@ def run(sample: int, seed: int) -> dict[str, Any]:
     for index, code in enumerate(codes, 1):
         stored = _stored_bars(conn, code)
         try:
-            remote = {d: (c, v) for d, c, v in _eastmoney_bars(code)}
+            remote = {d: (c, v) for d, c, v in _bars(code, channel)}
         except Exception as exc:
             report["failures"].append({"code": code, "error": f"{type(exc).__name__}: {str(exc)[:70]}"})
             continue
         # Only settled bars: today's is still moving, and comparing it would report a
         # disagreement for every symbol that trades.
-        shared = sorted(d for d in set(stored) & set(remote) if d < TODAY)
+        shared = sorted(
+            d for d in set(stored) & set(remote) if d < TODAY and (not day or d == day)
+        )
         if not shared:
             report["per_symbol"].append({"code": code, "shared": 0})
             continue
@@ -162,6 +235,7 @@ def run(sample: int, seed: int) -> dict[str, Any]:
         )
         if index % 50 == 0:
             print(f"    ... {index}/{len(codes)} symbols compared", flush=True)
+        time.sleep(PAUSE_SECONDS)
 
     conn.close()
     compared = totals["compared"] or 1
@@ -183,10 +257,22 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--sample", type=int, default=300)
     parser.add_argument("--seed", type=int, default=20261016)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument(
+        "--day",
+        default="",
+        help="compare only this date (YYYY-MM-DD). Use it to check a bar a sync has "
+             "just written, which is otherwise one of ~250 per symbol",
+    )
+    parser.add_argument(
+        "--channel",
+        default="auto",
+        help="eastmoney | tencent | auto (try in that order). Any of them is an "
+             "independent vendor from the one that wrote the rows",
+    )
     args = parser.parse_args(argv)
 
-    print(f"comparing {args.sample} symbols across four markets against East money")
-    report = run(args.sample, args.seed)
+    print(f"comparing {args.sample} symbols across four markets via channel={args.channel}")
+    report = run(args.sample, args.seed, args.channel, args.day)
 
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
@@ -194,6 +280,9 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     totals = report["totals"]
     print(f"\n=== {report['sampled']} sampled, {len(report['failures'])} unreachable ===")
+    if len(report["failures"]) == report["sampled"] and report["sampled"]:
+        # A checker that cannot reach its channel must not be read as agreement.
+        print("  EVERY symbol was unreachable — this run proves nothing; check the channel")
     print(f"  bars compared            : {totals['compared']:,}")
     print(f"  close agreement          : {report['close_agreement']:.4%}")
     print(f"  volume agreement (±1%)   : {report['volume_agreement']:.4%}")
