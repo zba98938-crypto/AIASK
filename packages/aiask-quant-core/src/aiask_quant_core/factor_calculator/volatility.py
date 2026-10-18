@@ -8,10 +8,24 @@ class VolatilityFactorsMixin:
 
     @staticmethod
     def calculate_volatility(closes: List[float], period: int = 20) -> float:
-        """波动率因子（通用）"""
+        """波动率因子（通用）。
+
+        The denominator must have one element per difference: ``np.diff`` over the
+        last ``period`` values yields ``period - 1`` returns, so it pairs with
+        ``closes[-period:-1]``. It was written ``closes[-period-1:-1]``, which is
+        ``period`` long, and the two shapes cannot broadcast. That raised
+        ``operands could not be broadcast together with shapes (19,) (20,)`` — and
+        the callers swallowed it, so ``volatility_20d`` and ``volatility_60d`` were
+        never produced by `get_investment_analysis`.
+
+        The bug hid whenever ``len(closes) == period``: ``-period-1`` clamps to 0 and
+        both slices come out ``period - 1`` long. Any longer series failed, which is
+        the ordinary case. ``calculate_vol_5d`` and ``calculate_vol_10d`` in this same
+        file are written correctly, which is why the defect looked period-specific.
+        """
         if len(closes) < period:
             return 0.0
-        returns = np.diff(closes[-period:]) / closes[-period-1:-1]
+        returns = np.diff(closes[-period:]) / closes[-period:-1]
         return float(np.std(returns) * np.sqrt(252))
 
     @staticmethod

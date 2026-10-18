@@ -102,7 +102,12 @@ async def get_investment_analysis(code: str) -> dict:
             try:
                 async with db.acquire() as conn:
                     peer_rows = await conn.fetch(
-                        """SELECT pe_ratio, pb_ratio FROM stocks WHERE industry = $1 AND code <> $2 AND pe_ratio IS NOT NULL""",
+                        # `stocks` names its column `stock_code`; `code` does not exist,
+                        # so this raised `no such column: code` on every call and the
+                        # handler swallowed it — leaving `industry_median_pe` and
+                        # `industry_relative_pe` unset for every valuation this tool
+                        # ever produced. The peer comparison never ran once.
+                        """SELECT pe_ratio, pb_ratio FROM stocks WHERE industry = $1 AND stock_code <> $2 AND pe_ratio IS NOT NULL""",
                         info["industry"],
                         code,
                     )
