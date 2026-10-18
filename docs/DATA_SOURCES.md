@@ -360,6 +360,16 @@ questioning the earlier probes rather than the providers:
 | `north_fund_flow` | the akshare source was removed, no replacement | `RPT_MUTUAL_DEAL_HISTORY` still updates — but **only southbound** |
 | TDX online | 2 of 12 pool servers answer | all 12 accept a TCP connection; 2 complete the handshake and answer `get_security_count` (24,444) while **every data command returns nothing** |
 
+The TDX line is worth restating with its parameter question closed. The first
+probe paired **上海** codes with market 0 and **深圳** codes with market 1 — pytdx
+uses 0 = 深圳 and 1 = 上海 — so "no data" could have been a statement about the
+arguments rather than the servers. Re-run with the pairings corrected, against the
+two servers that complete the handshake: `get_security_count` returns 24,444 (深)
+and 27,627 (沪), and `get_security_bars` at categories 9 and 0, `get_index_bars`,
+`get_security_list` and `get_security_quotes` all still return **zero rows**. The
+conclusion stands, and now it stands on a probe whose parameters have been checked.
+A negative result is worth exactly as much as its arguments.
+
 **Northbound flow is not missing, it is discontinued.** Measured across 400
 consecutive rows: channels 001/003/005 carry no value, 002/004/006 do, and the
 totals reconcile (`002 + 004 == 006` exactly, e.g. -2065.77 + -1502.66 = -3568.43).
