@@ -48,15 +48,25 @@ class FactorResearchBuilderSupportMixin:
         raw = str(value or "").strip()
         if not raw:
             return None
+        # `date.fromisoformat` rejects any string carrying a time part, and the
+        # values reaching here are usually full ISO timestamps, so the first parser
+        # fails on the ordinary case and the second one succeeds. Warning inside the
+        # loop disclosed that normal path 21 times per cycle, which is noise the real
+        # failures then have to compete with. A value neither parser can read is the
+        # only thing worth saying out loud, and it is said once, below.
         for parser in (
             date.fromisoformat,
             lambda item: datetime.fromisoformat(item.replace("Z", "+00:00")).date(),
         ):
             try:
                 return parser(raw)
-            except Exception as _swallowed:
-                logger.warning("packages/strategy-factory/src/strategy_factory/application/research/_builder_support.py:54: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
+            except Exception:
                 continue
+        logger.warning(
+            "packages/strategy-factory/src/strategy_factory/application/research/_builder_support.py:54: "
+            "could not parse %r as a date; both parsers failed",
+            raw,
+        )
         return None
 
     @classmethod
