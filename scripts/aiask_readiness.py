@@ -232,6 +232,56 @@ def _check(checks: list[dict[str, Any]], name: str, status: str, severity: str, 
     checks.append(item)
 
 
+# ---------------------------------------------------------------------------
+# Business acceptance (explicit, separate from environment pre-check)
+#
+# The critical checks above are an *environment pre-check*: they verify the
+# interpreter, the package source tree, and importability. They do NOT verify
+# that the product has data to serve. This section probes the SQLite database
+# with stdlib only (no AIASK package imports, matching this script's
+# contract) and reports a separate, clearly-labelled verdict so that
+# "environment is ready" can never be read as "product has business data".
+# ---------------------------------------------------------------------------
+
+BUSINESS_PROBE_TABLES = ("kline_1d", "stocks", "factor_values")
+
+
+def _sqlite_business_probe(sqlite_path: Path) -> dict[str, Any]:
+    probe: dict[str, Any] = {"path": str(sqlite_path), "exists": sqlite_path.is_file()}
+    if not probe["exists"]:
+        probe["status"] = "missing"
+        return probe
+    import sqlite3
+
+    try:
+        uri = f"file:{sqlite_path}?mode=ro"
+        conn = sqlite3.connect(uri, uri=True, timeout=5)
+    except sqlite3.Error as exc:
+        probe["status"] = "open_failed"
+        probe["error"] = str(exc)
+        return probe
+    try:
+        rows: dict[str, int | str] = {}
+        for name in BUSINESS_PROBE_TABLES:
+            try:
+                count = conn.execute(f"SELECT COUNT(*) FROM {name}").fetchone()[0]
+                rows[name] = int(count)
+            except sqlite3.Error:
+                rows[name] = "table_missing"
+        probe["table_rows"] = rows
+        missing_table = any(v == "table_missing" for v in rows.values())
+        all_zero = all(isinstance(v, int) and v == 0 for v in rows.values())
+        if missing_table:
+            probe["status"] = "incomplete"
+        elif all_zero:
+            probe["status"] = "empty"
+        else:
+            probe["status"] = "ok"
+    finally:
+        conn.close()
+    return probe
+
+
 def collect_readiness() -> dict[str, Any]:
     root = _aiask_root()
     hermes_root = _hermes_root(root)
@@ -277,6 +327,23 @@ def collect_readiness() -> dict[str, Any]:
         "critical",
         "SQLite path is outside integrations/aiask" if not sqlite_inside_source else "SQLite path points inside the source copy",
         path=str(sqlite_path),
+    )
+
+    # Business acceptance probe (separate scope, not a critical gate).
+    sqlite_probe = _sqlite_business_probe(sqlite_path)
+    business_status = "pass" if sqlite_probe.get("status") == "ok" else "fail"
+    _check(
+        checks,
+        "sqlite_business_data",
+        business_status,
+        "business",
+        (
+            f"SQLite business data reachable ({sqlite_probe.get('table_rows')})"
+            if business_status == "pass"
+            else f"SQLite business data NOT verified: status={sqlite_probe.get('status')}"
+        ),
+        probe=sqlite_probe,
+        note="business-scope check: environment pre-check does not cover this",
     )
 
     runtime_dirs = {
@@ -451,12 +518,26 @@ def collect_readiness() -> dict[str, Any]:
         if item["status"] == "warn"
         or (item["severity"] == "warning" and item["status"] != "pass")
     ]
+    business_items = [item for item in checks if item["severity"] == "business"]
+    business_failures = [item for item in business_items if item["status"] == "fail"]
     # This is a backend-only tree: the Desktop workbench source was removed when
     # it was extracted, so its absence is the expected state and must not be
     # reported as a product blocker.
     product_blockers: list[dict[str, Any]] = []
     backend_ready = not critical_failures
     product_ready = backend_ready and not product_blockers
+
+    business_acceptance: dict[str, Any] = {
+        "scope": "business",
+        "note": (
+            "Separate from the environment pre-check: verifies the SQLite "
+            "database actually holds data the product serves. A green "
+            "environment pre-check does not imply this."
+        ),
+        "sqlite": sqlite_probe,
+        "failures": [item["name"] for item in business_failures],
+        "verdict": "pass" if not business_failures else "fail",
+    }
 
     return {
         "schema_version": 1,
@@ -509,11 +590,15 @@ def collect_readiness() -> dict[str, Any]:
             "backend_ready": backend_ready,
             "product_ready": product_ready,
             "blockers": product_blockers,
+            "gate_type": "environment_precheck",
         },
+        "business_acceptance": business_acceptance,
         "checks": checks,
         "summary": {
+            "environment_ready": backend_ready,
             "ready": backend_ready,
             "product_ready": product_ready,
+            "business_verdict": business_acceptance["verdict"],
             "critical_failures": len(critical_failures),
             "warnings": len(warnings),
             "product_blockers": len(product_blockers),
@@ -524,11 +609,12 @@ def collect_readiness() -> dict[str, Any]:
 def print_human(payload: dict[str, Any]) -> None:
     summary = payload["summary"]
     print("AIASK readiness")
-    print(f"  ready: {summary['ready']}")
+    print(f"  environment_ready: {summary['environment_ready']}  (pre-check only, not a business certification)")
     print(f"  product_ready: {summary.get('product_ready', False)}")
     print(f"  critical_failures: {summary['critical_failures']}")
     print(f"  warnings: {summary['warnings']}")
     print(f"  product_blockers: {summary.get('product_blockers', 0)}")
+    print(f"  business_verdict: {summary.get('business_verdict', 'n/a')}")
     print(f"  aiask_root: {payload['paths']['aiask_root']}")
     print(f"  runtime_home: {payload['paths']['runtime_home']}")
     print(f"  sqlite_path: {payload['paths']['sqlite_path']}")
@@ -537,6 +623,14 @@ def print_human(payload: dict[str, Any]) -> None:
     for item in payload["checks"]:
         marker = item["status"].upper()
         print(f"[{marker}] {item['name']}: {item['message']}")
+
+    ba = payload.get("business_acceptance")
+    if ba:
+        print()
+        print("Business acceptance (separate scope):")
+        print(f"  verdict: {ba['verdict']}")
+        if ba.get("sqlite"):
+            print(f"  sqlite: {ba['sqlite'].get('status')} {ba['sqlite'].get('table_rows', {})}")
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
