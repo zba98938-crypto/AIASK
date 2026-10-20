@@ -305,6 +305,7 @@ async def validate_factor_candidate_pipeline(
     persist_outputs: bool = False,
     factor_key: str | None = None,
     persist_ic_history: bool = True,
+    recorded_trial_count: int | None = None,
 ) -> dict[str, Any]:
     """对候选因子执行编译、验证并输出 P1 级治理报告。"""
 
@@ -553,6 +554,7 @@ async def validate_factor_candidate_pipeline(
         frame_map,
         factor_df,
         return_df,
+        recorded_trial_count=recorded_trial_count,
     )
     if multiple_testing_report.get("available"):
         source_chain.append("services.factor_validation_pipeline.multiple_testing")

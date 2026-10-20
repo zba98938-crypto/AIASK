@@ -30,7 +30,9 @@ _QC_TIERED_THRESHOLDS: dict[str, dict[str, float]] = {
         "walk_forward_ic_ir_min": 0.20,
         "bootstrap_ci_lower_min": -0.01,
         "param_sensitivity_max": 0.35,
-        "deflated_sharpe_ratio_min": -0.10,
+        # Mirrors strategy-factory RESEARCH_ADMISSION_THRESHOLDS (0.0 as of
+        # 2026-10-21; DSR is a probability in [0,1], so -0.10 was a no-op).
+        "deflated_sharpe_ratio_min": 0.0,
         "pbo_max": 0.75,
     },
     "incubation": {

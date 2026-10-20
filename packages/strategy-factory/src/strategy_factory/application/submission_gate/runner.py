@@ -1720,7 +1720,8 @@ def _admission_threshold_bundle(admission_level: str) -> dict[str, Any]:
 def _multiple_testing_thresholds(admission_level: str) -> dict[str, float]:
     base = dict(_admission_threshold_bundle(admission_level).get("multiple_testing") or {})
     return {
-        "deflated_sharpe_ratio_min": float(base.get("deflated_sharpe_ratio_min", -0.10)),
+        # DSR is a probability in [0, 1]; -0.10 was a tautological floor.
+        "deflated_sharpe_ratio_min": float(base.get("deflated_sharpe_ratio_min", 0.0)),
         "pbo_max": float(base.get("pbo_max", 0.75)),
         "white_reality_check_pvalue_max": float(base.get("white_reality_check_pvalue_max", 0.35)),
         "hansen_spa_pvalue_max": float(base.get("hansen_spa_pvalue_max", 0.35)),

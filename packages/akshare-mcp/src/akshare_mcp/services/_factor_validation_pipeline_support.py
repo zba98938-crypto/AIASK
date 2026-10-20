@@ -477,6 +477,7 @@ def _build_multiple_testing_report(
     frame_map: dict[str, pd.DataFrame],
     factor_df: pd.DataFrame,
     return_df: pd.DataFrame,
+    recorded_trial_count: int | None = None,
 ) -> dict[str, Any]:
     if not frame_map or factor_df.empty or return_df.empty:
         return {"available": False, "reason": "empty_frame_map_or_factor_return_panel"}
@@ -557,7 +558,14 @@ def _build_multiple_testing_report(
 
     candidate_series = family_matrix[:, 0]
     split_count = max(4, min(8, int(family_matrix.shape[0] // 20) or 4))
-    dsr = deflated_sharpe_ratio(candidate_series, n_trials=int(family_matrix.shape[1]), periods_per_year=252.0)
+    # The family column count is the number of compared members, not the number
+    # of trials that were actually run. When a real trial count is recorded,
+    # DSR must not use a smaller denominator (a tautologically optimistic one).
+    family_column_count = int(family_matrix.shape[1])
+    recorded = int(recorded_trial_count) if recorded_trial_count is not None else None
+    n_trials = max(family_column_count, recorded) if recorded is not None else family_column_count
+    n_trials_source = "recorded_trial_count" if recorded is not None and recorded > family_column_count else "family_columns"
+    dsr = deflated_sharpe_ratio(candidate_series, n_trials=n_trials, periods_per_year=252.0)
     pbo = probability_of_backtest_overfitting(family_matrix, n_splits=split_count, seed=42)
     white_rc = white_reality_check(family_matrix, n_bootstrap=200, seed=42)
     hansen_spa = hansen_spa_test(family_matrix, n_bootstrap=200, seed=42, center="consistent")
@@ -609,6 +617,8 @@ def _build_multiple_testing_report(
         "risk_level": risk_level,
         "sample_size": int(family_matrix.shape[0]),
         "family_member_count": int(family_matrix.shape[1]),
+        "n_trials": int(n_trials),
+        "n_trials_source": n_trials_source,
         "family_members": family_members,
         "warnings": warnings,
         "deflated_sharpe": dsr,

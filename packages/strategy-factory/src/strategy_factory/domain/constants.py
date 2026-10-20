@@ -161,7 +161,10 @@ RESEARCH_ADMISSION_THRESHOLDS: Dict[str, dict] = {
         "param_sensitivity_max": 0.35,
     },
     "multiple_testing": {
-        "deflated_sharpe_ratio_min": -0.10,
+        # DSR is a probability in [0, 1]; the previous -0.10 floor was a tautology
+        # (every computed DSR passed). 0.0 still admits a DSR at the zero-quantile
+        # of the null distribution — research-tier evidence, no better.
+        "deflated_sharpe_ratio_min": 0.0,
         "pbo_max": 0.75,
         "white_reality_check_pvalue_max": 0.35,
         "hansen_spa_pvalue_max": 0.35,

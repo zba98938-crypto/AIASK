@@ -483,6 +483,9 @@ class FactorMiningFactory:
         validation_limit = _strict_validation_candidate_limit()
         if validation_limit > 0:
             candidate_list = candidate_list[:validation_limit]
+        # DSR denominator: the real number of candidates validated in this cycle,
+        # never fewer than the family columns the report compares.
+        recorded_trial_count = max(1, len(candidate_list))
         for rank, candidate in enumerate(candidate_list, start=1):
             generation_trace = dict(getattr(candidate, "generation_trace", None) or {})
             generation_trace["strict_validation_attempted"] = True
@@ -502,6 +505,7 @@ class FactorMiningFactory:
                     persist_outputs=True,
                     factor_key=candidate.name,
                     persist_ic_history=True,
+                    recorded_trial_count=recorded_trial_count,
                 )
                 generation_trace = dict(getattr(candidate, "generation_trace", None) or {})
                 generation_trace["strict_validation_success"] = bool(result.get("success"))
