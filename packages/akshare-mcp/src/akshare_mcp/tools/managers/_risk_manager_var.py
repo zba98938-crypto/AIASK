@@ -21,6 +21,29 @@ from .risk_mgr_helpers import _empty_var_payload, _parse_codes_weights, _safe_po
 MONTE_CARLO_SEED = 20260101
 
 
+def _returns_by_date(klines: list[dict[str, Any]]) -> dict[str, float]:
+    """Per-trading-day simple returns, keyed by the bar's trade date.
+
+    The previous implementation kept a bare list and later aligned constituents
+    by list position, which silently paired the first return of a short history
+    with the oldest return of a long one.
+    """
+    series: dict[str, float] = {}
+    previous_price: float | None = None
+    for bar in klines:
+        try:
+            price = float(bar["close"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        day = str(bar.get("date") or bar.get("time") or "")[:10]
+        if not day:
+            continue
+        if previous_price is not None and previous_price > 0:
+            series[day] = (price - previous_price) / previous_price
+        previous_price = price if price > 0 else None
+    return series
+
+
 async def _handle_calculate_var(
     *,
     db: Any,
@@ -38,6 +61,7 @@ async def _handle_calculate_var(
     portfolio_value_input = float(kwargs.get("portfolio_value", 1_000_000) or 1_000_000)
 
     returns_data: list[dict[str, Any]] = []
+    requested_codes: list[str] = []
     total_value = 0.0
     input_mode = "portfolio_id"
 
@@ -52,24 +76,18 @@ async def _handle_calculate_var(
                 source_chain=_dedupe_chain(source_chain),
             )
 
+        requested_codes = [_extract_holding_code(holding) for holding in holdings]
         for holding in holdings:
             code = _extract_holding_code(holding)
             shares = _extract_holding_shares(holding)
             klines, one_chain = await _get_klines_with_fallback(db, code, lookback_days)
             source_chain.extend(one_chain)
-            if len(klines) < 2:
-                continue
-
             prices = [float(item["close"]) for item in klines]
-            if prices[-1] <= 0:
+            if len(klines) < 2 or not prices or prices[-1] <= 0:
                 continue
 
-            returns = [
-                (prices[index] - prices[index - 1]) / prices[index - 1]
-                for index in range(1, len(prices))
-                if prices[index - 1] > 0
-            ]
-            if not returns:
+            series = _returns_by_date(klines)
+            if not series:
                 continue
 
             current_value = shares * prices[-1]
@@ -77,7 +95,7 @@ async def _handle_calculate_var(
             returns_data.append(
                 {
                     "code": code,
-                    "returns": returns,
+                    "returns_by_date": series,
                     "weight": 0.0,
                     "current_value": current_value,
                 }
@@ -96,26 +114,23 @@ async def _handle_calculate_var(
         input_mode = "codes_weights"
         source_chain.append("input.codes_weights")
         total_value = portfolio_value_input
+        requested_codes = list(codes)
 
         for code, weight in zip(codes, weights):
             klines, one_chain = await _get_klines_with_fallback(db, code, lookback_days)
             source_chain.extend(one_chain)
-            if len(klines) < 2:
+            prices = [float(item["close"]) for item in klines]
+            if len(klines) < 2 or not prices or prices[-1] <= 0:
                 continue
 
-            prices = [float(item["close"]) for item in klines]
-            returns = [
-                (prices[index] - prices[index - 1]) / prices[index - 1]
-                for index in range(1, len(prices))
-                if prices[index - 1] > 0
-            ]
-            if not returns:
+            series = _returns_by_date(klines)
+            if not series:
                 continue
 
             returns_data.append(
                 {
                     "code": code,
-                    "returns": returns,
+                    "returns_by_date": series,
                     "weight": float(weight),
                     "current_value": float(weight * total_value),
                 }
@@ -128,13 +143,46 @@ async def _handle_calculate_var(
                     item["weight"] = item["weight"] / total_weight
                     item["current_value"] = item["weight"] * total_value
 
+    # A missing constituent is not silently dropped and the survivors are no
+    # longer renormalised to 100%: that produced a confident VaR for a portfolio
+    # nobody holds. It is reported as unmeasurable instead.
+    present_codes = {str(item["code"]) for item in returns_data}
+    missing_codes = [code for code in requested_codes if code not in present_codes]
+    if missing_codes:
+        return fail(
+            "missing_constituents",
+            source_chain=_dedupe_chain(source_chain),
+            missing_codes=sorted(set(missing_codes)),
+            measured_codes=sorted(present_codes),
+        )
+
     if not returns_data:
         return fail("no available kline data for VaR calculation", source_chain=_dedupe_chain(source_chain))
 
-    min_length = min(len(item["returns"]) for item in returns_data)
-    portfolio_returns = np.array(
-        [sum(item["returns"][index] * item["weight"] for item in returns_data) for index in range(min_length)]
+    common_dates = sorted(
+        set.intersection(*(set(item["returns_by_date"]) for item in returns_data))
     )
+    if not common_dates:
+        return fail(
+            "no common trading dates across constituents",
+            source_chain=_dedupe_chain(source_chain),
+            measured_codes=sorted(present_codes),
+        )
+
+    total_weight = float(sum(item["weight"] for item in returns_data))
+    if total_weight <= 0:
+        return fail("portfolio weights sum to zero", source_chain=_dedupe_chain(source_chain))
+
+    portfolio_returns = np.array(
+        [
+            sum(
+                item["returns_by_date"][day] * (item["weight"] / total_weight)
+                for item in returns_data
+            )
+            for day in common_dates
+        ]
+    )
+    observations = len(common_dates)
 
     if method == "historical":
         var = float(np.percentile(portfolio_returns, (1 - confidence) * 100))
@@ -182,6 +230,11 @@ async def _handle_calculate_var(
             },
             "volatility": float(np.std(portfolio_returns)),
             "max_drawdown": float(np.min(portfolio_returns)),
+            # The aligned sample actually measured, so a consumer can tell a
+            # 12-observation VaR from a 252-observation one.
+            "observations": int(observations),
+            "aligned_from": common_dates[0] if common_dates else None,
+            "aligned_to": common_dates[-1] if common_dates else None,
         },
         source_chain=_dedupe_chain(source_chain),
     )

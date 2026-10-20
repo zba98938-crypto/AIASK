@@ -403,8 +403,15 @@ class DataSyncService:
                 data = self._filter_and_enrich_klines(cached, start_date, end_date, limit)
                 return {"success": True, "data": data, "source": "simple_cache"}
 
+        # Storage has no period dimension: db.get_klines reads kline_1d and
+        # db.save_klines upserts it. Both paths must therefore be bypassed for
+        # non-daily requests, otherwise a weekly/monthly request is served daily
+        # bars (or the reverse) and the daily table gets overwritten with
+        # aggregated bars.
+        daily_period = str(period or "daily").strip().lower() in {"", "daily"}
+
         # 2. 查询 SQLite
-        if use_cache:
+        if use_cache and daily_period:
             try:
                 db = await self.get_db()
                 db_data = await db.get_klines(stock_code, start_date, end_date, limit)
@@ -449,7 +456,13 @@ class DataSyncService:
             cache.set(cache_key_v2, data)
 
             # 6. 入队异步写入 SQLite（受控队列 + worker）
-            await self._enqueue_save_task(stock_code, data)
+            if daily_period:
+                await self._enqueue_save_task(stock_code, data)
+            else:
+                logger.info(
+                    "[DataSync] skipping daily-table persistence for non-daily period",
+                    extra={"code": stock_code, "period": period},
+                )
 
             return {"success": True, "data": data, "source": "api"}
 

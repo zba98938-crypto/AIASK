@@ -141,6 +141,18 @@ def fetch_margin_detail(
         per_market[market] = kept
         if result.get("truncated"):
             failed.append({"market": market, "error": "truncated by max_rows"})
+        # fetch_report can return partial rows with complete=False and non-empty
+        # failed_pages instead of raising. Only checking `truncated` turned a
+        # known-partial fetch into complete=True.
+        if result.get("complete") is False:
+            failed.append(
+                {
+                    "market": market,
+                    "error": "incomplete_fetch",
+                    "failed_pages": list(result.get("failed_pages") or []),
+                    "pagination_unstable": bool(result.get("pagination_unstable")),
+                }
+            )
 
     missing = [m for m in REQUIRED_MARKETS if not per_market.get(m)]
     return {

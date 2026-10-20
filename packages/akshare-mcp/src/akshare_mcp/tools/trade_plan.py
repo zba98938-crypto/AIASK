@@ -19,7 +19,7 @@ import numpy as np
 from ..services.technical_analysis import TechnicalAnalysis as _TA
 from ..services import pattern_recognition
 from ..storage import get_db
-from ..utils import fail, ok
+from ..utils import fail, ok, resolve_existing_security_code_async
 
 from .key_levels import compute_key_levels
 from .stop_levels import compute_stop_levels

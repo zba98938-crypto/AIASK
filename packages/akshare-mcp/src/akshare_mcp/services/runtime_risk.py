@@ -246,6 +246,19 @@ class StrategyRuntimeRiskService:
         sid = str(strategy.get('id') or '')
         if str(strategy.get('status') or '') != 'suspended':
             return None
+        # An explicit human stop outranks the metric safe zone. Without this the
+        # next scheduled scan silently released a manual_stop back to active,
+        # because this path only looked at status and metrics.
+        current_control = (
+            await db.get_strategy_runtime_control(sid)
+            if hasattr(db, 'get_strategy_runtime_control')
+            else None
+        )
+        control_mode = str((current_control or {}).get('control_mode') or 'active').strip().lower()
+        if control_mode in {'halted', 'manual_stop'}:
+            control_source = str((current_control or {}).get('source') or '').strip()
+            if control_mode == 'manual_stop' or control_source != 'runtime_risk':
+                return None
         if abs(float(metric.get('max_drawdown') or 0)) >= self.recovery_drawdown:
             return None
         if float(metric.get('daily_return') or 0) <= -0.03:

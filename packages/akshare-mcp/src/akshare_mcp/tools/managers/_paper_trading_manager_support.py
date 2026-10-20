@@ -816,6 +816,17 @@ async def _fill_order(conn, account_id: str, code: str, trade_type: str,
         reject = await _validate_sell_request(conn, account_id, code, shares)
         if reject:
             raise ValueError(reject)
+    else:
+        # A buy must not spend cash the account does not have. Position-size
+        # checks compare against total assets, so an account that still holds
+        # positions could keep buying past zero and end with negative cash.
+        available_cash = float(account.get('current_capital') or 0.0)
+        required_cash = amount + commission
+        if required_cash > available_cash + 1e-9:
+            raise ValueError(
+                "insufficient_cash: "
+                f"required {required_cash:.2f} > available {available_cash:.2f}"
+            )
 
     existing_pos = await conn.fetchrow(
         "SELECT * FROM paper_positions WHERE account_id = $1 AND stock_code = $2",

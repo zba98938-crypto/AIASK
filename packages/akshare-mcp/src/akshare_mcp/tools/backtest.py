@@ -14,14 +14,21 @@ from .pit_middleware import build_pit_meta_simple
 
 logger = logging.getLogger(__name__)
 
-# 检查Ray是否可用
+# 检查Ray是否可用。Ray 是可选依赖；缺失时回退到本地回测，不应产生告警。
 RAY_AVAILABLE = False
 try:
-    from ..services.backtest import ParallelBacktestEngine
-    RAY_AVAILABLE = True
-except ImportError as _swallowed:
-    logger.warning("packages/akshare-mcp/src/akshare_mcp/tools/backtest.py:21: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-    pass
+    from aiask_quant_core.backtest import RAY_AVAILABLE as _RAY_BACKEND_AVAILABLE
+except ImportError:
+    _RAY_BACKEND_AVAILABLE = False
+if _RAY_BACKEND_AVAILABLE:
+    try:
+        from ..services.backtest import ParallelBacktestEngine
+        RAY_AVAILABLE = True
+    except ImportError as _swallowed:
+        logger.warning(
+            "ParallelBacktestEngine is unavailable despite RAY_AVAILABLE: %s",
+            _swallowed,
+        )
 
 
 

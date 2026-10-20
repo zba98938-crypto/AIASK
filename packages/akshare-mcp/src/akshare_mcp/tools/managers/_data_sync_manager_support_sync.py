@@ -43,8 +43,15 @@ async def _sync_klines_now(codes: list) -> dict:
                 try:
                     await db.save_klines(code, klines)
                 except Exception as e:
+                    # A persistence failure is not a successful sync. Counting it
+                    # as one let a batch where every write failed report success,
+                    # and the task runner derives its terminal status from these
+                    # counters.
                     logger.warning(f"[DataSyncManager] {code} K线写入DB失败: {e}")
-                results['success'] += 1
+                    results['failed'] += 1
+                    results['errors'].append(f"{code}: 写入DB失败: {e}")
+                else:
+                    results['success'] += 1
             else:
                 results['failed'] += 1
                 results['errors'].append(f"{code}: 所有数据源均无数据")

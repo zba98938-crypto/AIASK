@@ -388,17 +388,11 @@ def register_backtest_manager(mcp):
                 benchmark_klines = []
                 if benchmark_code:
                     benchmark_normalized = normalize_code(benchmark_code)
-                    benchmark_klines = await _get_db_klines_compatible(
-                        db,
-                        benchmark_normalized,
-                        start_date=start_date,
-                        end_date=end_date,
-                        limit=db_limit,
-                    )
-                    if benchmark_klines:
-                        source_chain.append('db.get_klines')
-                        benchmark_klines = _filter_klines_by_window(benchmark_klines, start_date, end_date)
-                    if not benchmark_klines and hasattr(db, "get_index_klines"):
+                    # Ask for the index first. normalize_code() drops exchange
+                    # identity, so looking up a stock first let `sh000001` resolve
+                    # to stock 000001 (Ping An Bank) whenever that stock had data,
+                    # and the index lookup below then never ran.
+                    if hasattr(db, "get_index_klines"):
                         benchmark_klines = await db.get_index_klines(
                             benchmark_code,
                             start_date=start_date,
@@ -407,6 +401,17 @@ def register_backtest_manager(mcp):
                         )
                         if benchmark_klines:
                             source_chain.append('db.get_index_klines')
+                            benchmark_klines = _filter_klines_by_window(benchmark_klines, start_date, end_date)
+                    if not benchmark_klines:
+                        benchmark_klines = await _get_db_klines_compatible(
+                            db,
+                            benchmark_normalized,
+                            start_date=start_date,
+                            end_date=end_date,
+                            limit=db_limit,
+                        )
+                        if benchmark_klines:
+                            source_chain.append('db.get_klines')
                             benchmark_klines = _filter_klines_by_window(benchmark_klines, start_date, end_date)
 
                 supported_strategies = ['ma_cross', 'buy_and_hold', 'momentum', 'rsi', 'volatility_breakout', 'event_structure_breakout', 'margin_divergence']

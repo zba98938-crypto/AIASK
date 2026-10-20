@@ -402,7 +402,10 @@ class GeneticProgrammingEngine:
                     "name": f"gp_factor_{len(candidates) + 1}",
                     "hypothesis": "Discovered via genetic programming",
                     "family": "custom",
-                    "inputs": compiled.get("referenced_fields", ["close"]) if "compiled" in dir() else ["close"],
+                    # Omitting `inputs` lets the compiler derive the referenced
+                    # fields from this candidate's own DSL. It used to inherit the
+                    # *previous* loop iteration's fields via `"compiled" in dir()`
+                    # and hardcode ["close"] for the first candidate.
                     "expression_dsl": dsl,
                 })
                 if not compiled.get("valid"):

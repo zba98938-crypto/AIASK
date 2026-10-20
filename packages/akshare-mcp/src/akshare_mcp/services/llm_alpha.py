@@ -557,12 +557,17 @@ class LLMAlphaMiner:
         
         if len(aligned_data) < 10:
             return {
-                'ic': 0.0,
-                'rank_ic': 0.0,
-                'ic_ir': 0.0,
-                'positive_rate': 0.0,
-                't_stat': 0.0,
-                'p_value': 1.0
+                # <10 aligned observations cannot support an IC estimate.
+                # Returning 0.0 made "not measurable" indistinguishable from a
+                # measured zero, and callers ranked such candidates as scored.
+                'ic': None,
+                'rank_ic': None,
+                'ic_ir': None,
+                'positive_rate': None,
+                't_stat': None,
+                'p_value': None,
+                'unmeasurable_reason': 'insufficient_samples',
+                'sample_size': int(len(aligned_data)),
             }
         
         # 计算IC
@@ -706,15 +711,26 @@ class LLMAlphaMiner:
             ic_values = {}
             for name, factor_values in factors.items():
                 evaluation = self.evaluate_factor(factor_values, returns)
-                ic_values[name] = abs(evaluation['ic'])
+                ic_value = evaluation.get('ic')
+                if ic_value is None:
+                    # Unmeasurable: excluded instead of being weighted as if it
+                    # had been measured at zero.
+                    continue
+                ic_values[name] = float(ic_value)
 
-            # 归一化
-            total_ic = sum(ic_values.values())
-            if total_ic > 0:
-                return {name: ic/total_ic for name, ic in ic_values.items()}
-            else:
+            if not ic_values:
                 n = len(factors)
                 return {name: 1.0/n for name in factors.keys()}
+
+            # Signed weighting. ``abs(ic)`` gave a genuinely negatively
+            # predictive factor the same positive weight as a positively
+            # predictive one, so the blend traded it in the wrong direction.
+            # Gross exposure is normalised to 1 by the sum of |IC|.
+            gross_ic = sum(abs(value) for value in ic_values.values())
+            if gross_ic > 0:
+                return {name: value/gross_ic for name, value in ic_values.items()}
+            n = len(factors)
+            return {name: 1.0/n for name in factors.keys()}
 
         elif method == 'max_sharpe':
             # 最大化夏普比率（简化版）
@@ -787,20 +803,39 @@ class LLMAlphaMiner:
             evaluation = self.evaluate_factor(factor_values, returns)
             decay = self.detect_alpha_decay(factor_values, returns)
 
-            # 综合评分：IC * IC_IR * (1 - decay_rate)
-            score = abs(evaluation['ic']) * evaluation['ic_ir'] * (1 - decay['decay_rate'])
+            ic_value = evaluation.get('ic')
+            ic_ir_value = evaluation.get('ic_ir')
+            if ic_value is None or ic_ir_value is None:
+                factor_scores.append({
+                    'name': name,
+                    'score': None,
+                    'ic': ic_value,
+                    'ic_ir': ic_ir_value,
+                    'is_decaying': decay['is_decaying'],
+                    'decay_rate': decay['decay_rate'],
+                    'unmeasurable_reason': evaluation.get('unmeasurable_reason') or 'missing_ic',
+                })
+                continue
+
+            # Signed score. The direction benchmark is the in-sample IC sign, so
+            # a legitimate reverse factor scores on its own sign instead of being
+            # ranked by magnitude alone.
+            score = float(ic_value) * float(ic_ir_value) * (1 - decay['decay_rate'])
 
             factor_scores.append({
                 'name': name,
                 'score': float(score),
-                'ic': evaluation['ic'],
-                'ic_ir': evaluation['ic_ir'],
+                'ic': ic_value,
+                'ic_ir': ic_ir_value,
                 'is_decaying': decay['is_decaying'],
                 'decay_rate': decay['decay_rate']
             })
 
-        # 按评分排序
-        factor_scores.sort(key=lambda x: x['score'], reverse=True)
+        # 按评分排序；不可测量者排在已测量者之后，而不是被当作 0 分参与排名。
+        factor_scores.sort(
+            key=lambda x: (x['score'] is not None, x['score'] if x['score'] is not None else 0.0),
+            reverse=True,
+        )
 
         return factor_scores[:top_n]
 
