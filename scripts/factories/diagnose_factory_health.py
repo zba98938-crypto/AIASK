@@ -13,7 +13,10 @@ Usage:
 import argparse
 import json
 import sqlite3
+import subprocess
 import sys
+import urllib.error
+import urllib.request
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
@@ -188,22 +191,64 @@ class FactoryHealthDiagnostics:
                 print(f"    SQL: {sql}")
             return []
 
-    def check_supervisor_processes(self):
-        """检查 1: 四工厂 supervisor 进程是否存活"""
-        print("\n[1] 检查四工厂 supervisor 进程...")
+    @staticmethod
+    def _find_processes_via_ps(target_scripts: list[str]) -> list[dict[str, Any]]:
+        """Portable process scan without a psutil dependency."""
+        try:
+            completed = subprocess.run(
+                ["ps", "-axo", "pid=,command="],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return []
+        if completed.returncode != 0:
+            return []
+        found: list[dict[str, Any]] = []
+        for line in completed.stdout.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            pid_text, _, command = line.partition(" ")
+            if not pid_text.isdigit() or not command:
+                continue
+            if not any(script in command for script in target_scripts):
+                continue
+            parts = command.split()
+            found.append(
+                {
+                    "pid": int(pid_text),
+                    "name": Path(parts[0]).name if parts else "python",
+                    "cmdline": " ".join(parts[:5]),
+                }
+            )
+        return found
 
+    def check_supervisor_processes(self):
+        """检查 1: 四工厂 supervisor、sidecar 与 Agent 进程是否存活"""
+        print("\n[1] 检查四工厂 supervisor / sidecar / Agent 进程...")
+
+        target_scripts = [
+            "run_three_factories.py",
+            "run_strategy_factory.py",
+            "run_factor_mining_factory.py",
+            "run_incubation_factory.py",
+            "run_market_event_ingest.py",
+            "run_signal_tracker.py",
+            "run_factor_scheduler.py",
+            "run_sidecars.py",
+            "aiask_agent.server",
+        ]
+
+        found_processes: list[dict[str, Any]] = []
+        scan_backend = "ps"
         try:
             import psutil
-
-            target_scripts = [
-                "run_three_factories.py",
-                "run_strategy_factory.py",
-                "run_factor_mining_factory.py",
-                "run_incubation_factory.py",
-                "run_market_event_ingest.py",
-            ]
-
-            found_processes = []
+        except ImportError:
+            found_processes = self._find_processes_via_ps(target_scripts)
+        else:
+            scan_backend = "psutil"
             for proc in psutil.process_iter(["pid", "name", "cmdline"]):
                 try:
                     cmdline = proc.info.get("cmdline", [])
@@ -215,32 +260,58 @@ class FactoryHealthDiagnostics:
                                 "cmdline": " ".join(cmdline[:5]),
                             }
                         )
-                except (psutil.NoSuchProcess, psutil.AccessDenied) as _swallowed:
-                    logger.warning("scripts/factories/diagnose_factory_health.py:194: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                    pass
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
 
-            if not found_processes:
-                self._add_check(
-                    "supervisor_processes",
-                    "warning",
-                    "未找到四工厂 supervisor 或子进程",
-                    {"hint": "运行 uv run python scripts/factories/run_three_factories.py"},
-                )
-            else:
-                self._add_check(
-                    "supervisor_processes",
-                    "passed",
-                    f"找到 {len(found_processes)} 个工厂相关进程",
-                    {"processes": found_processes},
-                )
-
-        except ImportError:
-            # psutil 未安装，跳过进程检查
+        if not found_processes:
             self._add_check(
                 "supervisor_processes",
                 "warning",
-                "跳过进程检查（psutil 未安装）- 仅检查数据库证据",
-                {"hint": "安装 psutil: pip install psutil"},
+                "未找到四工厂 supervisor、sidecar 或 Agent 进程",
+                {
+                    "hint": "运行 uv run python scripts/factories/run_three_factories.py",
+                    "scan_backend": scan_backend,
+                },
+            )
+        else:
+            self._add_check(
+                "supervisor_processes",
+                "passed",
+                f"找到 {len(found_processes)} 个工厂/sidecar/Agent 相关进程",
+                {
+                    "processes": found_processes,
+                    "scan_backend": scan_backend,
+                },
+            )
+
+    def check_agent_http(self):
+        """检查 1b: Agent HTTP 是否真的健康（进程在 != 服务可用）"""
+        print("\n[1b] 检查 Agent HTTP...")
+        url = "http://127.0.0.1:8765/health"
+        try:
+            with urllib.request.urlopen(url, timeout=5) as response:
+                payload = json.loads(response.read().decode("utf-8", errors="replace"))
+        except (OSError, urllib.error.URLError, ValueError) as exc:
+            self._add_check(
+                "agent_http",
+                "warning",
+                f"Agent HTTP 不可达: {url}",
+                {"error": f"{type(exc).__name__}: {exc}"},
+            )
+            return
+        if str(payload.get("status") or "").lower() == "ok":
+            self._add_check(
+                "agent_http",
+                "passed",
+                f"Agent HTTP 正常: {payload.get('service') or 'aiask-agent'}",
+                {"url": url},
+            )
+        else:
+            self._add_check(
+                "agent_http",
+                "warning",
+                f"Agent HTTP 返回非 ok: {payload}",
+                {"url": url},
             )
 
     def check_signal_tracker_recent_run(self):
@@ -304,26 +375,29 @@ class FactoryHealthDiagnostics:
         """检查 3: 非零信号是否转成 paper order"""
         print("\n[3] 检查信号到订单的转换...")
 
-        # 查询有信号但无订单的策略
+        # 只看买入信号：卖出信号在没有持仓时本来就不会产生订单，不是 backlog。
         result = self._query_one(
             """
-            SELECT COUNT(DISTINCT s.strategy_id) as signal_only_backlog
-            FROM strategy_signals s
-            LEFT JOIN paper_orders o ON o.strategy_id = s.strategy_id
-            WHERE COALESCE(s.signal, 0) <> 0
-            GROUP BY s.strategy_id
-            HAVING COUNT(o.id) = 0
+            SELECT COUNT(*) as signal_only_backlog
+            FROM (
+                SELECT s.strategy_id
+                FROM strategy_signals s
+                LEFT JOIN paper_orders o ON o.strategy_id = s.strategy_id
+                WHERE s.signal > 0
+                GROUP BY s.strategy_id
+                HAVING COUNT(o.id) = 0
+            )
             """
         )
 
         signal_only_backlog = result["signal_only_backlog"] if result else 0
 
-        # 查询总共有多少策略产生过信号
+        # 查询总共有多少策略产生过买入信号
         total_with_signals = self._query_one(
             """
             SELECT COUNT(DISTINCT strategy_id) as count
             FROM strategy_signals
-            WHERE COALESCE(signal, 0) <> 0
+            WHERE signal > 0
             """
         )
         total = total_with_signals["count"] if total_with_signals else 0
@@ -339,17 +413,17 @@ class FactoryHealthDiagnostics:
             self._add_check(
                 "signal_to_order_conversion",
                 "passed",
-                f"所有产生信号的策略 ({total}) 都有 paper order",
-                {"total_with_signals": total},
+                f"所有产生买入信号的策略 ({total}) 都有 paper order",
+                {"total_with_buy_signals": total},
             )
         elif signal_only_backlog / total > 0.5:
             self._add_check(
                 "signal_to_order_conversion",
                 "failed",
-                f"signal-only backlog: {signal_only_backlog}/{total} 策略",
+                f"entry-signal backlog: {signal_only_backlog}/{total} 策略",
                 {
                     "signal_only_backlog": signal_only_backlog,
-                    "total_with_signals": total,
+                    "total_with_buy_signals": total,
                     "hint": "检查 execution universe、price、account、shares 规则",
                 },
             )
@@ -357,10 +431,10 @@ class FactoryHealthDiagnostics:
             self._add_check(
                 "signal_to_order_conversion",
                 "warning",
-                f"signal-only backlog: {signal_only_backlog}/{total} 策略",
+                f"entry-signal backlog: {signal_only_backlog}/{total} 策略",
                 {
                     "signal_only_backlog": signal_only_backlog,
-                    "total_with_signals": total,
+                    "total_with_buy_signals": total,
                 },
             )
 
@@ -487,17 +561,22 @@ class FactoryHealthDiagnostics:
         )
         count = forward_returns_count["count"] if forward_returns_count else 0
 
-        # 同时检查 incubation metrics
+        # 同时检查 incubation metrics。总行数与“有有效样本”的行数是
+        # 两个不同事实；只报后者会让 1,383 行看起来像 0 行。
+        metrics_total_count = self._query_one(
+            "SELECT COUNT(*) as count FROM strategy_incubation_metrics"
+        )
+        metrics_total = metrics_total_count["count"] if metrics_total_count else 0
         metrics_count = self._query_one(
             """
             SELECT COUNT(*) as count
             FROM strategy_incubation_metrics
-            WHERE effective_n_5d > 0 OR effective_n_10d > 0 OR effective_n_20d > 0
+            WHERE COALESCE(effective_n_5d, 0) > 0
             """
         )
         metrics = metrics_count["count"] if metrics_count else 0
 
-        if count == 0 and metrics == 0:
+        if count == 0 and metrics_total == 0:
             self._add_check(
                 "forward_returns",
                 "blocked",
@@ -508,15 +587,28 @@ class FactoryHealthDiagnostics:
             self._add_check(
                 "forward_returns",
                 "passed",
-                f"前向收益证据：{count} 条 signal_forward_returns，{metrics} 条 incubation_metrics",
-                {"signal_forward_returns": count, "incubation_metrics": metrics},
+                (
+                    f"前向收益证据：{count} 条 signal_forward_returns，"
+                    f"{metrics_total} 条 incubation_metrics（{metrics} 条有有效样本）"
+                ),
+                {
+                    "signal_forward_returns": count,
+                    "incubation_metrics": metrics,
+                    "incubation_metrics_total": metrics_total,
+                },
             )
         else:
             self._add_check(
                 "forward_returns",
                 "warning",
-                f"只有 incubation_metrics ({metrics})，缺少原始 signal_forward_returns",
-                {"incubation_metrics": metrics},
+                (
+                    f"只有 incubation_metrics ({metrics_total} 条，"
+                    f"{metrics} 条有有效样本)，缺少原始 signal_forward_returns"
+                ),
+                {
+                    "incubation_metrics": metrics,
+                    "incubation_metrics_total": metrics_total,
+                },
             )
 
     def check_execution_audit_gate(self):
@@ -751,6 +843,7 @@ class FactoryHealthDiagnostics:
 
         try:
             self.check_supervisor_processes()
+            self.check_agent_http()
             self.check_signal_tracker_recent_run()
             self.check_signal_to_order_conversion()
             self.check_order_to_trade_conversion()

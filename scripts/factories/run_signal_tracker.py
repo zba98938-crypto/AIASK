@@ -113,6 +113,31 @@ def _setup_logging(verbose: bool) -> None:
     )
 
 
+def _status_path() -> Path:
+    explicit = str(os.getenv("AIASK_SIGNAL_TRACKER_STATUS_PATH") or "").strip()
+    if explicit:
+        return Path(explicit).expanduser()
+    runtime_home = str(os.getenv("AIASK_RUNTIME_HOME") or "").strip()
+    base = Path(runtime_home).expanduser() if runtime_home else Path.home() / ".aiask"
+    return base / "run" / "signal_tracker.status.json"
+
+
+def _write_status(payload: dict) -> None:
+    path = _status_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        tmp.write_text(
+            json.dumps(payload, ensure_ascii=False, default=str, indent=2),
+            encoding="utf-8",
+        )
+        tmp.replace(path)
+    except Exception as exc:  # noqa: BLE001 - status must never break a run
+        logging.getLogger("signal_tracker_runner").warning(
+            "SignalTracker: status write failed: %s", exc
+        )
+
+
 def _parse_run_time(raw: str) -> tuple[int, int]:
     parts = raw.strip().split(":")
     if len(parts) != 2:
@@ -134,9 +159,21 @@ def _build_runtime():
 
 async def _run_once_inner(verbose: bool = False) -> dict:
     logger = logging.getLogger("signal_tracker_runner")
-    tracker = _build_runtime()
-    logger.info("SignalTracker: invoking run_once()")
-    result = await tracker.run_once()
+    started_at = datetime.now().isoformat(timespec="seconds")
+    try:
+        tracker = _build_runtime()
+        logger.info("SignalTracker: invoking run_once()")
+        result = await tracker.run_once()
+    except Exception as exc:  # noqa: BLE001 - persist failure before propagating
+        _write_status({
+            "name": "signal_tracker",
+            "status": "failed",
+            "started_at": started_at,
+            "finished_at": datetime.now().isoformat(timespec="seconds"),
+            "pid": os.getpid(),
+            "error": f"{type(exc).__name__}: {exc}",
+        })
+        raise
     logger.info(
         "SignalTracker: run_once finished | signals=%s snapshots=%s fwd_returns=%s "
         "incub_orders=%s incub_metrics=%s risk_events=%s errors=%s",
@@ -154,6 +191,24 @@ async def _run_once_inner(verbose: bool = False) -> dict:
     if errors:
         for err in errors[:10]:
             logger.warning("SignalTracker: error: %s", err)
+    _write_status({
+        "name": "signal_tracker",
+        "status": "completed" if not errors else "degraded",
+        "started_at": started_at,
+        "finished_at": datetime.now().isoformat(timespec="seconds"),
+        "last_run_at": datetime.now().isoformat(timespec="seconds"),
+        "pid": os.getpid(),
+        "summary": {
+            "signals_generated": result.get("signals_generated"),
+            "signal_event_snapshots": result.get("signal_event_snapshots"),
+            "forward_returns_computed": result.get("forward_returns_computed"),
+            "incubation_orders": result.get("incubation_orders"),
+            "incubation_metrics": result.get("incubation_metrics"),
+            "risk_events": result.get("risk_events"),
+            "errors": len(errors),
+        },
+        "errors": list(errors)[:10],
+    })
     return result
 
 
@@ -171,6 +226,13 @@ async def _run_daemon(args: argparse.Namespace) -> None:
         mm,
         ERROR_BACKOFF_SEC,
     )
+    _write_status({
+        "name": "signal_tracker",
+        "status": "running",
+        "pid": os.getpid(),
+        "started_at": datetime.now().isoformat(timespec="seconds"),
+        "run_time": f"{hh:02d}:{mm:02d}",
+    })
     try:
         while True:
             now = datetime.now()
@@ -195,6 +257,12 @@ async def _run_daemon(args: argparse.Namespace) -> None:
                 except Exception as exc2:
                     logger.exception("SignalTracker: retry also failed: %s", exc2)
     except KeyboardInterrupt:
+        _write_status({
+            "name": "signal_tracker",
+            "status": "stopped",
+            "pid": os.getpid(),
+            "stopped_at": datetime.now().isoformat(timespec="seconds"),
+        })
         print("\nSignalTracker daemon stopped")
 
 
