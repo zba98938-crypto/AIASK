@@ -244,6 +244,8 @@ def _healthy_factor_research_with_active_cohort(
     strategy_count: int,
     promotion_ready_count: int = 0,
     zero_signal_ratio: float = 1.0,
+    pending_maturity_not_ready_strategy_count: int | None = None,
+    past_due_not_ready_strategy_count: int | None = None,
 ) -> dict:
     """构建一个 governed_pool 健康但 cohort 实际产出垃圾的 factor_research summary。
 
@@ -252,7 +254,7 @@ def _healthy_factor_research_with_active_cohort(
     promotion_ready_ratio = (
         round(promotion_ready_count / strategy_count, 4) if strategy_count else 1.0
     )
-    return {
+    summary = {
         "summary": {
             "factor_source_mode": "governed_pool",
             "active_candidate_count": strategy_count,
@@ -277,6 +279,15 @@ def _healthy_factor_research_with_active_cohort(
             "refresh_status": "not_needed",
         },
     }
+    if pending_maturity_not_ready_strategy_count is not None:
+        summary["summary"]["budget_feedback_pending_maturity_not_ready_strategy_count"] = (
+            pending_maturity_not_ready_strategy_count
+        )
+    if past_due_not_ready_strategy_count is not None:
+        summary["summary"]["budget_feedback_past_due_not_ready_strategy_count"] = (
+            past_due_not_ready_strategy_count
+        )
+    return summary
 
 
 def test_p0_3_cohort_promotion_ready_complete_failure_blocks_readiness(monkeypatch):
@@ -375,3 +386,90 @@ def test_p0_3_healthy_large_cohort_passes(monkeypatch):
     assert "cohort_zero_signal_pervasive" not in critical
     # 健康 cohort 必须能 proceed
     assert readiness["can_proceed"] is True
+
+
+def test_p0_3_young_cohort_pending_maturity_demotes_critical_to_warning(monkeypatch):
+    """P0-3 maturity-aware demotion:cohort=53 全部未满 45 天成熟期
+    (pending_maturity>0, past_due=0)时,完整失败降级为 warning:
+      1. 不进入 critical_blockers / blockers
+      2. 进入 warnings, code = cohort_promotion_ready_pending_maturity
+      3. 惩罚从 -0.40 降到 -0.10
+      4. 硬阻塞下 can_proceed=True(打破冷启动死锁)
+    """
+    monkeypatch.setenv("STRATEGY_FACTORY_READINESS_HARD_BLOCK", "1")
+
+    from strategy_factory.application.services.readiness_service import ReadinessService
+
+    readiness = ReadinessService().evaluate(
+        _healthy_snapshot(),
+        _healthy_factor_research_with_active_cohort(
+            strategy_count=53,
+            promotion_ready_count=0,
+            zero_signal_ratio=0.49,
+            pending_maturity_not_ready_strategy_count=26,
+            past_due_not_ready_strategy_count=0,
+        ),
+    )
+
+    warnings = readiness.get("warnings") or []
+    blockers = readiness.get("blockers") or []
+    critical = readiness.get("critical_blockers") or []
+    assert "cohort_promotion_ready_pending_maturity" in warnings
+    assert "cohort_promotion_ready_complete_failure" not in warnings
+    assert "cohort_promotion_ready_complete_failure" not in blockers
+    assert "cohort_promotion_ready_complete_failure" not in critical
+    assert readiness["can_proceed"] is True
+    # -0.10 (maturity warning) + -0.05 (zero_signal_backlog_high @0.49<0.75? no —
+    # 0.49 is in the >=0.40 band) => score strictly above the hard-block floor
+    assert readiness["readiness_score"] >= 0.55
+
+
+def test_p0_3_past_due_cohort_keeps_critical_blocker(monkeypatch):
+    """逆向验证:cohort 已到成熟期 (past_due>0, pending=0) 仍 0 ready
+    属于真实的集成健康失败,必须保持 P0-3 critical block。
+    """
+    monkeypatch.setenv("STRATEGY_FACTORY_READINESS_HARD_BLOCK", "1")
+
+    from strategy_factory.application.services.readiness_service import ReadinessService
+
+    readiness = ReadinessService().evaluate(
+        _healthy_snapshot(),
+        _healthy_factor_research_with_active_cohort(
+            strategy_count=53,
+            promotion_ready_count=0,
+            zero_signal_ratio=0.49,
+            pending_maturity_not_ready_strategy_count=0,
+            past_due_not_ready_strategy_count=5,
+        ),
+    )
+
+    critical = readiness.get("critical_blockers") or []
+    blockers = readiness.get("blockers") or []
+    warnings = readiness.get("warnings") or []
+    assert "cohort_promotion_ready_complete_failure" in critical
+    assert "cohort_promotion_ready_complete_failure" in blockers
+    assert "cohort_promotion_ready_pending_maturity" not in warnings
+    assert readiness["can_proceed"] is False
+
+
+def test_p0_3_maturity_unknown_keeps_critical_blocker(monkeypatch):
+    """保守默认:旧版 artifact 没有 maturity 计数键(maturity unknown)时,
+    降级不生效,P0-3 critical block 原样保留(未知状态不可假设年轻)。
+    """
+    monkeypatch.setenv("STRATEGY_FACTORY_READINESS_HARD_BLOCK", "1")
+
+    from strategy_factory.application.services.readiness_service import ReadinessService
+
+    readiness = ReadinessService().evaluate(
+        _healthy_snapshot(),
+        _healthy_factor_research_with_active_cohort(
+            strategy_count=53,
+            promotion_ready_count=0,
+            zero_signal_ratio=0.49,
+            # 键整体缺省 => maturity unknown
+        ),
+    )
+
+    critical = readiness.get("critical_blockers") or []
+    assert "cohort_promotion_ready_complete_failure" in critical
+    assert readiness["can_proceed"] is False

@@ -467,6 +467,19 @@ class ReadinessService:
         budget_feedback_promotion_ready_count = int(
             factor_summary.get("budget_feedback_promotion_ready_count") or 0
         )
+        # Maturity-aware P0-3 gate inputs. When absent from the factor summary
+        # (artifact built before the maturity counters existed), maturity is
+        # "unknown" and the cohort gate must stay in its conservative form.
+        budget_feedback_pending_maturity_strategy_count = int(
+            factor_summary.get("budget_feedback_pending_maturity_not_ready_strategy_count") or 0
+        )
+        budget_feedback_past_due_strategy_count = int(
+            factor_summary.get("budget_feedback_past_due_not_ready_strategy_count") or 0
+        )
+        maturity_known = (
+            "budget_feedback_pending_maturity_not_ready_strategy_count" in factor_summary
+            or "budget_feedback_past_due_not_ready_strategy_count" in factor_summary
+        )
         budget_feedback_promotion_ready_ratio = self._safe_float(
             factor_summary.get("budget_feedback_promotion_ready_ratio"),
             default=1.0,
@@ -705,13 +718,29 @@ class ReadinessService:
         # 这两条阻塞会让 can_proceed=False,readiness_score 降到 0.1 附近,真实反映系统状态
         if budget_feedback_strategy_count >= 50:
             if budget_feedback_promotion_ready_count == 0 and budget_feedback_promotion_ready_ratio <= 0.001:
-                if "cohort_promotion_ready_complete_failure" not in warnings:
-                    warnings.append("cohort_promotion_ready_complete_failure")
-                if "cohort_promotion_ready_complete_failure" not in blockers:
-                    blockers.append("cohort_promotion_ready_complete_failure")
-                if hard_block:
-                    critical_blockers.append("cohort_promotion_ready_complete_failure")
-                score -= 0.40
+                # Maturity-aware demotion: a young cohort that is not yet due
+                # (all not-ready strategies have min_days_remaining > 0) is a
+                # cold-start state, not an integration health failure. It
+                # warns and penalises the score, but does not hard-block;
+                # otherwise factory runs never complete and the cohort can
+                # never accumulate the evidence that clears the gate.
+                cohort_pending_maturity = (
+                    maturity_known
+                    and budget_feedback_past_due_strategy_count == 0
+                    and budget_feedback_pending_maturity_strategy_count > 0
+                )
+                if cohort_pending_maturity:
+                    if "cohort_promotion_ready_pending_maturity" not in warnings:
+                        warnings.append("cohort_promotion_ready_pending_maturity")
+                    score -= 0.10
+                else:
+                    if "cohort_promotion_ready_complete_failure" not in warnings:
+                        warnings.append("cohort_promotion_ready_complete_failure")
+                    if "cohort_promotion_ready_complete_failure" not in blockers:
+                        blockers.append("cohort_promotion_ready_complete_failure")
+                    if hard_block:
+                        critical_blockers.append("cohort_promotion_ready_complete_failure")
+                    score -= 0.40
             if budget_feedback_zero_signal_ratio >= 0.95:
                 if "cohort_zero_signal_pervasive" not in warnings:
                     warnings.append("cohort_zero_signal_pervasive")

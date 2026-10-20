@@ -595,6 +595,14 @@ def normalize_feedback_input_contract(
             summary_payload.get("promotion_review_count")
             or _sum_feedback_metric(feedback_root, metric_name="promotion_review_count")
         ),
+        "pending_maturity_not_ready_strategy_count": int(
+            summary_payload.get("pending_maturity_not_ready_strategy_count")
+            or 0
+        ),
+        "past_due_not_ready_strategy_count": int(
+            summary_payload.get("past_due_not_ready_strategy_count")
+            or 0
+        ),
         "target_pool_scope_count": target_pool_scope_count,
         "generator_mode_scope_count": generator_mode_scope_count,
         "holding_bucket_scope_count": holding_bucket_scope_count,

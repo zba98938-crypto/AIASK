@@ -653,6 +653,26 @@ def accumulate_feedback_bucket(
     ]
     promotion_ready = bool(overview.get("promotion_ready"))
     accumulator["signal_count_total"] = int(accumulator.get("signal_count_total") or 0) + total_signals
+    # Maturity-aware not-ready counters (P0-3 gate input):
+    # - past_due: not promotion_ready AND incubation metadata explicitly says
+    #   min_days_remaining <= 0 (mature cohort genuinely failing)
+    # - pending_maturity: not promotion_ready AND metadata says min_days_remaining > 0
+    #   (cohort not yet due; evidence is still accruing, not a health failure)
+    # No metadata (e.g. submitted strategies without incubation metrics) is
+    # deliberately counted into neither bucket.
+    min_days_remaining_raw = metrics.get("min_days_remaining")
+    min_days_remaining: int | None = (
+        int(min_days_remaining_raw) if min_days_remaining_raw is not None else None
+    )
+    if not promotion_ready and min_days_remaining is not None:
+        if min_days_remaining <= 0:
+            accumulator["past_due_not_ready_strategy_count"] = (
+                int(accumulator.get("past_due_not_ready_strategy_count") or 0) + 1
+            )
+        else:
+            accumulator["pending_maturity_not_ready_strategy_count"] = (
+                int(accumulator.get("pending_maturity_not_ready_strategy_count") or 0) + 1
+            )
     accumulator["expected_forward_window_count"] = int(
         accumulator.get("expected_forward_window_count") or 0
     ) + len(builder_cls.EVIDENCE_FORWARD_WINDOWS)
@@ -857,6 +877,12 @@ def finalize_feedback_bucket(builder_cls, accumulator: dict[str, Any]) -> dict[s
         "forward_window_coverage_ratio": forward_window_coverage_ratio,
         "promotion_ready_count": promotion_ready_count,
         "promotion_ready_ratio": promotion_ready_ratio,
+        "past_due_not_ready_strategy_count": int(
+            payload.get("past_due_not_ready_strategy_count") or 0
+        ),
+        "pending_maturity_not_ready_strategy_count": int(
+            payload.get("pending_maturity_not_ready_strategy_count") or 0
+        ),
         "promotion_review_coverage_ratio": promotion_review_coverage_ratio,
         "evidence_debt_strategy_count": evidence_debt_strategy_count,
         "evidence_debt_ratio": evidence_debt_ratio,

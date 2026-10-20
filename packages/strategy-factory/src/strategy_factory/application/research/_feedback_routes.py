@@ -602,6 +602,9 @@ async def load_budget_feedback(
                 open_risk_events,
                 open_runtime_alerts,
             ),
+            # Maturity-aware gate input: only set when the incubation metric
+            # metadata actually carries it (None = unknown, e.g. no metric row).
+            "min_days_remaining": metric_metadata.get("min_days_remaining"),
         }
         family_bucket = aggregate_root.setdefault(family, {})
         builder_cls._accumulate_feedback_bucket(
@@ -684,6 +687,19 @@ async def load_budget_feedback(
         for bucket in merged_root.values()
         if isinstance(bucket, dict)
     )
+    # Maturity-aware gate inputs (P0-3): count not-ready strategies split by
+    # whether their incubation metadata says they are past due or still
+    # pending. Summed across the finalized family buckets.
+    pending_maturity_not_ready_strategy_count = sum(
+        int(bucket.get("pending_maturity_not_ready_strategy_count") or 0)
+        for bucket in merged_root.values()
+        if isinstance(bucket, dict)
+    )
+    past_due_not_ready_strategy_count = sum(
+        int(bucket.get("past_due_not_ready_strategy_count") or 0)
+        for bucket in merged_root.values()
+        if isinstance(bucket, dict)
+    )
     return normalize_feedback_input_contract(
         {
             "available": bool(merged_root),
@@ -695,6 +711,12 @@ async def load_budget_feedback(
                 "strategy_count": len(strategy_rows),
                 "runtime_alert_count": runtime_alert_total,
                 "runtime_risk_event_count": runtime_risk_total,
+                "pending_maturity_not_ready_strategy_count": (
+                    pending_maturity_not_ready_strategy_count
+                ),
+                "past_due_not_ready_strategy_count": (
+                    past_due_not_ready_strategy_count
+                ),
                 "promotion_review_count": promotion_review_total,
                 "promotion_review_status_counts": promotion_review_status_counts,
                 "promotion_review_recommendation_counts": (

@@ -326,6 +326,15 @@ def build_factor_research_summary(
             budget_feedback_summary.get("promotion_ready_ratio"),
             1.0,
         ),
+        # Maturity-aware P0-3 gate inputs. NOTE: old artifacts that lack the
+        # keys normalize to 0; the readiness gate treats (0, 0) as
+        # "maturity unknown" and keeps the critical block (conservative).
+        "budget_feedback_pending_maturity_not_ready_strategy_count": int(
+            budget_feedback_summary.get("pending_maturity_not_ready_strategy_count") or 0
+        ),
+        "budget_feedback_past_due_not_ready_strategy_count": int(
+            budget_feedback_summary.get("past_due_not_ready_strategy_count") or 0
+        ),
         "budget_feedback_promotion_review_coverage_ratio": _safe_float(
             budget_feedback_summary.get("promotion_review_coverage_ratio"),
             1.0,
