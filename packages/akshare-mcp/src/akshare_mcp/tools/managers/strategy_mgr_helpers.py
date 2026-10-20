@@ -19,6 +19,7 @@ from strategy_factory.api import (
 )
 from strategy_factory.api.quality_reporting import (
     build_quality_report as _shared_build_quality_report,
+    maybe_grant_provisional_incubation as _shared_maybe_grant_provisional_incubation,
     normalize_quality_gate_result as _shared_normalize_quality_gate_result,
     quality_gate_reason_code as _shared_quality_gate_reason_code,
 )
@@ -1293,78 +1294,21 @@ def maybe_grant_provisional_incubation(
     risk_report: Optional[dict] = None,
     backtest_metrics: Optional[dict] = None,
 ) -> dict:
-    gate = normalize_quality_gate_result(quality_gate)
-    if gate.get("passed"):
-        return gate
-    if not is_factory_ai_prototype_strategy(strategy):
-        return gate
-    if not has_only_statistical_gate_failures(gate):
-        return gate
+    """Provisional incubation decision, single-sourced from strategy-factory.
 
-    # Fix #3: 风险报告为空时不能通过临时孵化（0.0 默认值会绕过阈值检查）
-    if not risk_report:
-        return gate
+    The factory implementation is fail-closed: missing required metrics are
+    denied and explicit zeros are preserved. The local 0.0-default copy was
+    removed - it treated "no backtest data" as "zero drawdown" and could let
+    unmeasured risk pass the ceilings.
+    """
+    return _shared_maybe_grant_provisional_incubation(
+        strategy,
+        quality_gate,
+        validation_report=validation_report,
+        risk_report=risk_report,
+        backtest_metrics=backtest_metrics,
+    )
 
-    # Fix #7: AI 原型不能完全绕过统计验证 — 至少通过 4 项中的 2 项
-    checks_passed, passed_names, failed_names = _count_statistical_checks_passed(gate)
-    if checks_passed < PROVISIONAL_MIN_STATISTICAL_CHECKS_PASSED:
-        logger.info(
-            "Provisional incubation denied: only %d/%d statistical checks passed (%s failed)",
-            checks_passed, checks_passed + len(failed_names), ", ".join(failed_names),
-        )
-        return gate
-
-    metrics = dict(backtest_metrics or {})
-    # Fix #1/#2: 使用独立的临时孵化阈值，比回测初筛更严格
-    sharpe_ratio = safe_metric_value(metrics, "sharpe_ratio")
-    max_drawdown = abs(safe_metric_value(metrics, "max_drawdown"))
-    trades_count = safe_metric_value(metrics, "trade_count", "trades_count")
-    if (
-        sharpe_ratio < PROVISIONAL_PASS_THRESHOLDS["sharpe_min"]
-        or max_drawdown > PROVISIONAL_PASS_THRESHOLDS["mdd_max"]
-        or trades_count < PROVISIONAL_PASS_THRESHOLDS["trades_min"]
-    ):
-        return gate
-
-    risk = dict(risk_report or {})
-    var_percent = safe_metric_value(risk, "var_percent")
-    cvar_percent = safe_metric_value(risk, "cvar_percent")
-    stress_loss_percent = safe_metric_value(risk, "stress_loss_percent")
-    if (
-        var_percent > RISK_REPORT_THRESHOLDS["var_percent_max"]
-        or cvar_percent > RISK_REPORT_THRESHOLDS["cvar_percent_max"]
-        or stress_loss_percent <= RISK_REPORT_THRESHOLDS["stress_loss_percent_min"]
-    ):
-        return gate
-
-    validation = dict(validation_report or {})
-    rating = dict(validation.get("rating") or {})
-    validation_grade = str(rating.get("grade") or "").strip().upper()
-
-    warnings = list(gate.get("reasons") or [])
-    if validation_grade == "D" and "validation_grade_d" not in warnings:
-        warnings.append("validation_grade_d")
-    # 将未通过的统计检查加入 warnings（而非彻底忽略）
-    for fname in failed_names:
-        tag = f"provisional_skip:{fname}"
-        if tag not in warnings:
-            warnings.append(tag)
-    warnings = list(dict.fromkeys(warnings))
-    return normalize_quality_gate_result({
-        **gate,
-        "passed": True,
-        "passed_strict": False,
-        "provisional_pass": True,
-        "review_mode": "incubation_only",
-        "reasons": [],
-        "reason": "",
-        "warnings": warnings,
-        "original_reasons": gate.get("reasons") or [],
-        "original_reason_codes": gate.get("reason_codes") or [],
-        "statistical_checks_passed": checks_passed,
-        "statistical_checks_passed_names": passed_names,
-        "statistical_checks_failed_names": failed_names,
-    })
 
 
 def build_quality_report(

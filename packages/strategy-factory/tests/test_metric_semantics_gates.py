@@ -110,10 +110,52 @@ def test_zero_profit_factor_fails_instead_of_skipping():
 
 
 def test_reporting_source_has_no_999_sentinel():
-    from pathlib import Path
+    """Unmeasured excellence must come back as None, not a sentinel.
 
-    src = (
-        Path(__file__).resolve().parents[1]
-        / "src/strategy_factory/application/backtest_filter.py"
-    ).read_text(encoding="utf-8")
-    assert "999.0" not in src
+    Behavior check (not source-text matching): with the quality gate
+    enabled but no backtest layers or gate-1 metrics available, every
+    derived sharp/stability figure is ``None`` — and no 999.x sentinel
+    can leak into the payload. When inputs are present, the numeric path
+    returns real values instead of a stand-in.
+    """
+    import json
+
+    from strategy_factory.application.backtest_filter import (
+        build_target_quality_gate_summary,
+    )
+
+    missing = build_target_quality_gate_summary(
+        {
+            "research_task": {
+                "task_source": "snapshot",
+                "target_symbols": ["600519", "000858"],
+            },
+            "target_codes": ["600519", "000858"],
+        },
+    )
+    assert missing["quality_gate_enabled"] is True
+    for field in (
+        "target_sharpe",
+        "representative_sharpe",
+        "combined_sharpe",
+        "target_layer_stability",
+        "target_layer_dispersion",
+    ):
+        assert missing[field] is None, f"{field} must be None when unmeasured"
+    assert "999" not in json.dumps(missing)
+
+    measured = build_target_quality_gate_summary(
+        {
+            "research_task": {
+                "task_source": "snapshot",
+                "target_symbols": ["600519", "000858"],
+            },
+            "target_codes": ["600519", "000858"],
+        },
+        gate_1_metrics={"sharpe_values": [0.1, 0.4, 0.2]},
+    )
+    # Measured path: real derived values, still no 999 sentinel.
+    assert measured["target_sharpe"] == 0.0  # avg not supplied, safe float
+    assert measured["target_layer_dispersion"] == 0.3
+    assert measured["target_layer_stability"] is not None
+    assert "999" not in json.dumps(measured)

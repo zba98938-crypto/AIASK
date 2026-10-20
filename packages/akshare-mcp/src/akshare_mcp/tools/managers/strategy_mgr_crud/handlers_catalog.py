@@ -273,14 +273,7 @@ async def handle_detail(db, params: dict) -> dict:
         compute_nav_series(db, sid),
         db.list_strategy_signal_event_snapshots(strategy_id=sid, latest_only=True, limit=10) if hasattr(db, "list_strategy_signal_event_snapshots") else _resolved([]),
     )
-    metric_noise_enabled = os.getenv("STRATEGY_METRIC_NOISE_ENABLED", "1").strip() not in ("0", "false", "no")
-    if not is_sub and metrics and metric_noise_enabled:
-        noise = 1 + random.uniform(-0.001, 0.001)
-        for m in metrics:
-            for key in ("total_return", "annual_return", "sharpe_ratio", "calmar_ratio"):
-                if m.get(key) is not None:
-                    m[key] = round(float(m[key]) * noise, 6)
-            m["approximate"] = True
+    noise_applied, noise_scale = apply_metric_noise(metrics, is_subscribed=bool(is_sub))
     latest_quality_report = normalize_quality_report_contract(
         latest_quality_report,
         strategy_id=sid,
@@ -349,7 +342,39 @@ async def handle_detail(db, params: dict) -> dict:
         "paper_session_state": paper_session_state,
         "presentation": presentation,
         "personal_strategy_context": personal_strategy_context,
+        "metrics_disclosure": (
+            {
+                "noise_applied": noise_applied,
+                "scale": noise_scale,
+                "basis": (
+                    "unsubscribed_read_side_metric_noise"
+                    if noise_applied
+                    else "exact_metrics"
+                ),
+            }
+        ),
     })
+
+
+def apply_metric_noise(metrics, *, is_subscribed: bool = False) -> tuple[bool, float | None]:
+    """Apply the unsubscribed-read-side metric noise; returns (applied, scale).
+
+    This is the only place the ±0.1% noise is generated. It mutates each
+    metric row in place (rounded, 6dp) and flags it with
+    ``approximate: True``; the disclosure the caller must surface is
+    computed from the returned ``(applied, scale)`` pair so "exact" vs
+    "approximate" is deterministic and testable without reading env.
+    """
+    metric_noise_enabled = os.getenv("STRATEGY_METRIC_NOISE_ENABLED", "1").strip() not in ("0", "false", "no")
+    if is_subscribed or not metrics or not metric_noise_enabled:
+        return (False, None)
+    noise = 1 + random.uniform(-0.001, 0.001)
+    for m in metrics:
+        for key in ("total_return", "annual_return", "sharpe_ratio", "calmar_ratio"):
+            if m.get(key) is not None:
+                m[key] = round(float(m[key]) * noise, 6)
+        m["approximate"] = True
+    return (True, round(noise, 6))
 
 
 async def handle_review_report(db, params: dict) -> dict:

@@ -62,15 +62,28 @@ def handle_realtime_quote(arguments: dict[str, Any]) -> dict[str, Any]:
         if df is None or (hasattr(df, "empty") and df.empty):
             # Fallback: try individual quotes
             results = []
+            failed_codes: list[str] = []
             for code in codes:
                 try:
                     quote_df = ef.stock.get_realtime_quotes([code])
                     if quote_df is not None and not quote_df.empty:
                         results.extend(quote_df.to_dict("records"))
-                except Exception as _swallowed:
-                    logger.warning("packages/finance-mcp-servers/src/aiask_finance_mcp/eastmoney/server.py:68: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                    pass
-            return _envelope(True, data={"quotes": results, "count": len(results)}, tool="em_realtime_quote")
+                except Exception as exc:
+                    logger.warning("em_realtime_quote: realtime source failed for %s: %s: %s", code, type(exc).__name__, exc)
+                    failed_codes.append(code)
+            if not results and failed_codes:
+                # Every realtime source failed: this is "no data because the
+                # source is unreachable", not "the market has no quotes".
+                envelope = _envelope(False, tool="em_realtime_quote")
+                envelope["error"] = "realtime_source_unavailable"
+                envelope["meta"]["reason"] = "realtime_source_unavailable"
+                envelope["meta"]["failed_codes"] = failed_codes
+                return envelope
+            return _envelope(
+                True,
+                data={"quotes": results, "count": len(results), "failed_codes": failed_codes},
+                tool="em_realtime_quote",
+            )
         records = df.to_dict("records") if hasattr(df, "to_dict") else []
         return _envelope(True, data={"quotes": records[:50], "count": len(records)}, tool="em_realtime_quote")
     except Exception as exc:
@@ -241,7 +254,15 @@ def _handle_jsonrpc(request: dict[str, Any]) -> dict[str, Any] | None:
         handler = TOOL_HANDLERS.get(tool_name)
         if handler is None:
             return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": json.dumps({"error": redact_public_text(f"Unknown tool: {tool_name}")})}], "isError": True}}
-        result = handler(arguments)
+        try:
+            result = handler(arguments)
+        except Exception as exc:
+            # A malformed argument must not kill the stdio loop. Handlers parse
+            # numbers before their own try, so an argument of the wrong JSON type
+            # used to propagate out of here and terminate the whole server with
+            # no response at all.
+            logger.warning("tool %s failed: %s", tool_name, exc)
+            return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": json.dumps({"success": False, "data": None, "error": redact_public_text(exc), "error_code": "TOOL_EXECUTION_FAILED", "tool": tool_name}, ensure_ascii=False)}], "isError": True}}
         return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, default=str)}], "isError": not result.get("success", False)}}
     return {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32601, "message": redact_public_text(f"Method not found: {method}")}}
 
