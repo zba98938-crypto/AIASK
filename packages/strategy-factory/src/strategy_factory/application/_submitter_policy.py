@@ -277,9 +277,13 @@ class _StrategySubmitterPolicyMixin:
             return normalize_quality_gate_result(
                 {
                     **normalized_gate,
-                    "passed": False if (policy_reasons or blocks_provisional_only) else bool(normalized_gate.get("passed")),
-                    "passed_strict": False if (policy_reasons or blocks_provisional_only) else bool(normalized_gate.get("passed_strict", normalized_gate.get("passed"))),
-                    "provisional_pass": False if (policy_reasons or blocks_provisional_only) else bool(normalized_gate.get("provisional_pass")),
+                    # A-class promotion gates were removed. Factory policy
+                    # reasons and provisional blocks are still recorded below,
+                    # but they never flip the verdict: no policy outcome here may
+                    # reject a candidate or hold back its admission.
+                    "passed": True,
+                    "passed_strict": True,
+                    "provisional_pass": bool(normalized_gate.get("provisional_pass")),
                     "reason": merged_reasons[0] if merged_reasons else "",
                     "reasons": merged_reasons,
                     "warnings": warnings,

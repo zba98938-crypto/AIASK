@@ -298,7 +298,9 @@ def test_trade_prediction_p4_toggles_enable_via_env(monkeypatch):
     monkeypatch.setenv("STRATEGY_TRADE_PREDICTION_PROMOTION_GATE_ENABLED", "1")
     monkeypatch.setenv("STRATEGY_TRADE_PREDICTION_BUDGET_FEEDBACK_ENABLED", "true")
     monkeypatch.setenv("STRATEGY_TRADE_PREDICTION_FACTOR_DECAY_ENABLED", "on")
-    assert toggles.strategy_trade_prediction_promotion_gate_enabled() is True
+    # The promotion gate was removed, so its env knob is deliberately ignored:
+    # the aggregate is still measured and reported, but it can no longer block.
+    assert toggles.strategy_trade_prediction_promotion_gate_enabled() is False
     assert toggles.strategy_trade_prediction_budget_feedback_enabled() is True
     assert toggles.strategy_trade_prediction_factor_decay_enabled() is True
 

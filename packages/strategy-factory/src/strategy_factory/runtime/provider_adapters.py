@@ -312,22 +312,27 @@ class LegacySignalTrackerProvider:
         payload.setdefault("computed_count", int(payload.get("computed") or 0))
         return payload
 
-    async def _incubation_result(self, db, strategies):
+    async def _incubation_result(self, db, strategies, *, as_of=None):
         service = get_strategy_incubation_service()
         if service is None:
             return {}
-        return await service.process_strategies(db, strategies, signal_date=date.today())
+        # ``as_of`` comes from the orchestrator's requested signal date. Using
+        # the wall clock here meant a historical replay generated signals for the
+        # requested date but wrote orders/NAV/metrics under today's date.
+        return await service.process_strategies(
+            db, strategies, signal_date=as_of or date.today()
+        )
 
-    async def sync_incubation_orders(self, db, strategies):
-        result = await self._incubation_result(db, strategies)
+    async def sync_incubation_orders(self, db, strategies, *, as_of=None):
+        result = await self._incubation_result(db, strategies, as_of=as_of)
         return {"orders_synced": result.get("orders_created", 0), "filled_count": result.get("orders_filled", 0)}
 
-    async def sync_incubation_nav_snapshots(self, db, strategies):
-        result = await self._incubation_result(db, strategies)
+    async def sync_incubation_nav_snapshots(self, db, strategies, *, as_of=None):
+        result = await self._incubation_result(db, strategies, as_of=as_of)
         return {"snapshots_created": result.get("nav_snapshots", 0)}
 
-    async def sync_incubation_metrics(self, db, strategies):
-        result = await self._incubation_result(db, strategies)
+    async def sync_incubation_metrics(self, db, strategies, *, as_of=None):
+        result = await self._incubation_result(db, strategies, as_of=as_of)
         return {"metrics_recorded": result.get("metrics_recorded", 0)}
 
     async def run_incubation_pipeline(self, db, strategies):

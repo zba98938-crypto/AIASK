@@ -42,7 +42,13 @@ def test_admission_authority_marks_provisional_pass() -> None:
     assert result["final_status"] == "submitted"
 
 
-def test_admission_authority_rejects_failed_gate() -> None:
+def test_admission_authority_does_not_reject_failed_gate() -> None:
+    """A-class promotion gates were removed: a reject verdict must not reject.
+
+    The verdict is still carried as the trigger and in ``gaps``, but the
+    candidate is routed to the zero-capital observe lane instead of being
+    terminated as ``rejected``.
+    """
     result = _resolve(
         {
             "passed": False,
@@ -51,9 +57,14 @@ def test_admission_authority_rejects_failed_gate() -> None:
         }
     )
 
-    assert result["admission_decision"] == "reject"
-    assert result["submission_lane"] == "rejected"
-    assert result["final_status"] == "rejected"
+    assert result["admission_decision"] != "reject"
+    assert result["submission_lane"] != "rejected"
+    assert result["final_status"] != "rejected"
+    assert result["submission_lane"] == "observe_incubation"
+    assert result["final_status"] == "submitted"
+    # the verdict is still recorded as evidence
+    assert result["submission_action_trigger"] == "gate_a_reject_observe_instead_of_reject"
+    assert "missing_research_protocol" in result["submission_action_gaps"]
 
 
 def test_admission_authority_defers_revision_gate() -> None:

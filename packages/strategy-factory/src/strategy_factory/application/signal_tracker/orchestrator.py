@@ -217,12 +217,18 @@ class SignalTrackerOrchestrator:
                 paper_runtime_strategies,
                 default_universe,
             )
+            # The runtime loaders are capped (200 submitted + 200 paper).  A
+            # strategy beyond that cap can still hold an open position; without
+            # this merge it would never receive an exit signal.
+            held_strategies = await self._load_open_position_strategies(db, limit=1000)
+            strategies = self._merge_unique_strategies(strategies, held_strategies)
 
             result.runtime_universe = {
                 "strategies": len(strategies),
                 "executable": len(executable_strategies),
                 "submitted_runtime": len(submitted_runtime_strategies),
                 "paper_runtime": len(paper_runtime_strategies),
+                "held_open_positions": len(held_strategies),
             }
             logger.info(
                 "SignalTracker [%s] Phase A: loaded %d strategies (executable=%d, submitted=%d, paper=%d)",
@@ -264,12 +270,23 @@ class SignalTrackerOrchestrator:
 
             except asyncio.TimeoutError:
                 logger.warning("SignalTracker [%s] Phase B: timeout for strategy %s", trace_id, strategy_id)
+                # A failed strategy must reach the outcome: finalisation derives
+                # the task-run status from result.errors, so omitting these let a
+                # cycle where every strategy failed be recorded as "completed".
+                result.errors.append(f"Phase B: timeout for strategy {strategy_id}")
+                result.phase_errors.append(f"phase_b_signal_generation: {strategy_id}: timeout")
             except Exception as exc:
                 logger.warning(
                     "SignalTracker [%s] Phase B: failed for strategy %s: %s",
                     trace_id,
                     strategy_id,
                     exc,
+                )
+                result.errors.append(
+                    f"Phase B: strategy {strategy_id}: {type(exc).__name__}: {exc}"
+                )
+                result.phase_errors.append(
+                    f"phase_b_signal_generation: {strategy_id}: {type(exc).__name__}"
                 )
 
         # Phase C: Backfill forward returns
@@ -294,20 +311,20 @@ class SignalTrackerOrchestrator:
         if incubation_strategies:
             orders_result = await _run_phase(
                 "phase_d_incubation_orders",
-                self._provider.sync_incubation_orders(db, incubation_strategies),
+                self._provider.sync_incubation_orders(db, incubation_strategies, as_of=today),
             ) or {}
             result.incubation_orders = int(orders_result.get("orders_synced") or 0)
             result.incubation_orders_filled = int(orders_result.get("filled_count") or 0)
 
             nav_result = await _run_phase(
                 "phase_d_incubation_nav",
-                self._provider.sync_incubation_nav_snapshots(db, incubation_strategies),
+                self._provider.sync_incubation_nav_snapshots(db, incubation_strategies, as_of=today),
             ) or {}
             result.incubation_nav_snapshots = int(nav_result.get("snapshots_created") or 0)
 
             metrics_result = await _run_phase(
                 "phase_d_incubation_metrics",
-                self._provider.sync_incubation_metrics(db, incubation_strategies),
+                self._provider.sync_incubation_metrics(db, incubation_strategies, as_of=today),
             ) or {}
             result.incubation_metrics = int(metrics_result.get("metrics_recorded") or 0)
 
@@ -388,6 +405,47 @@ class SignalTrackerOrchestrator:
         )
 
         return vars(result)
+
+    async def _load_open_position_strategies(self, db: Any, *, limit: int = 1000) -> list[dict]:
+        """Load strategies that still hold open paper positions.
+
+        These are merged into the cycle even when the normal loader caps are
+        exhausted, because an open position without a fresh signal can never
+        reach an exit decision.
+        """
+        list_positions = getattr(db, "list_strategy_trade_positions", None)
+        get_strategy = getattr(db, "get_strategy", None)
+        if not callable(list_positions) or not callable(get_strategy):
+            return []
+        try:
+            positions = await list_positions(status="open", limit=max(1, min(int(limit), 5000)))
+        except Exception:
+            logger.warning("SignalTracker: open-position strategy load failed", exc_info=True)
+            return []
+        strategy_ids = sorted({
+            str((row or {}).get("strategy_id") or "").strip()
+            for row in list(positions or [])
+            if str((row or {}).get("strategy_id") or "").strip()
+        })
+        strategies: list[dict] = []
+        excluded_statuses = {"rejected", "archived", "deprecated"}
+        for strategy_id in strategy_ids:
+            try:
+                strategy = await get_strategy(strategy_id)
+            except Exception:
+                logger.warning(
+                    "SignalTracker: strategy lookup failed for open position %s",
+                    strategy_id,
+                    exc_info=True,
+                )
+                continue
+            if not strategy:
+                continue
+            status = str((strategy or {}).get("status") or "").strip().lower()
+            if status in excluded_statuses:
+                continue
+            strategies.append(dict(strategy or {}))
+        return strategies
 
     @staticmethod
     def _merge_unique_strategies(*groups: list[dict]) -> list[dict]:

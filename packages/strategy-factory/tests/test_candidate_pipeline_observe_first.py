@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 
 from strategy_factory.application.services.candidate_pipeline import CandidatePipeline
 
@@ -167,7 +168,7 @@ class FakeDb:
         return []
 
 
-def test_observe_first_pipeline_screens_evidence_before_gate3_record(monkeypatch) -> None:
+def test_observe_first_pipeline_records_evidence_without_blocking_intake(monkeypatch) -> None:
     monkeypatch.setenv("STRATEGY_FACTORY_OBSERVE_FIRST_ENABLED", "1")
     scheduler = FakeScheduler()
     candidates = [
@@ -192,11 +193,13 @@ def test_observe_first_pipeline_screens_evidence_before_gate3_record(monkeypatch
     assert observe_first["legacy_funnel_executed"] is False
     assert observe_first["evidence_scoring_mode"] == "observe_first_backtest_evidence_screen"
     assert observe_first["gate_passed_count"] == 1
-    assert observe_first["observe_intake_count"] == 1
-    assert observe_first["deduped_observe_intake_count"] == 1
+    # The backtest screen is evidence only now: it records its verdict but no
+    # longer drops a candidate from intake.
+    assert observe_first["observe_intake_count"] == 2
+    assert observe_first["deduped_observe_intake_count"] == 2
     assert observe_first["pre_observe_hard_reject_count"] == 0
     assert observe_first["pre_observe_evidence_reject_count"] == 1
-    assert observe_first["gate3_pre_observe_block_count"] == 1
+    assert observe_first["gate3_pre_observe_block_count"] == 0
     assert result.quality_gate_report["legacy_gate_executed"] is False
     assert result.quality_gate_report["legacy_funnel_executed"] is False
     assert result.quality_gate_report["evidence_scoring_mode"] == "observe_first_backtest_evidence_screen"
@@ -210,7 +213,7 @@ def test_observe_first_pipeline_screens_evidence_before_gate3_record(monkeypatch
     assert {
         candidate["incubation_budget"]["track"] for candidate in scheduler.submitter.seen
     } == {"observe_incubation"}
-    assert [candidate["candidate_id"] for candidate in scheduler.submitter.seen] == ["c1"]
+    assert [candidate["candidate_id"] for candidate in scheduler.submitter.seen] == ["c1", "c2"]
 
 
 def test_stock_first_execution_mode_enables_observe_first_without_env(monkeypatch) -> None:
@@ -238,7 +241,7 @@ def test_stock_first_execution_mode_enables_observe_first_without_env(monkeypatc
     assert len(scheduler.submitter.seen) == 2
 
 
-def test_candidate_pipeline_attaches_snapshot_prediction_context_before_gate(monkeypatch) -> None:
+def test_candidate_pipeline_attaches_snapshot_prediction_context_before_evidence_scoring(monkeypatch) -> None:
     from strategy_factory.application.candidate_contract import apply_resolved_candidate_envelope
     from strategy_factory.application.trade_prediction_contract import TRADE_PREDICTION_CONTRACT_READY
 
@@ -278,11 +281,14 @@ def test_candidate_pipeline_attaches_snapshot_prediction_context_before_gate(mon
         )
     )
 
-    gated_candidate = pkg.gated_candidates[0]
-    assert gated_candidate["prediction_as_of"] == "2026-06-05"
-    assert gated_candidate["params"]["prediction_as_of"] == "2026-06-05"
+    # The promotion gate is never called now, so assert on the candidate that
+    # actually reached intake: the snapshot prediction context must already be
+    # attached by then.
+    submitted_candidate = scheduler.submitter.seen[0]
+    assert submitted_candidate["prediction_as_of"] == "2026-06-05"
+    assert submitted_candidate["params"]["prediction_as_of"] == "2026-06-05"
 
-    resolved = apply_resolved_candidate_envelope(gated_candidate)
+    resolved = apply_resolved_candidate_envelope(submitted_candidate)
     assert resolved["trade_prediction_contract_status"] == TRADE_PREDICTION_CONTRACT_READY
     assert resolved["trade_prediction_contract_hash"]
     assert resolved["trade_prediction_contract"]["target_trading_date"] == "2026-06-08"

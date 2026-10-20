@@ -279,16 +279,22 @@ def test_formal_budget_request_is_not_silently_washed_into_wide_observe() -> Non
 
     result = _resolve_with_real_resolver(gate, candidate, track="formal_incubation")
 
+    # The formal track is still what was *planned*: an explicit real-capital
+    # request is never silently rewritten into the zero-capital observe track.
     assert result["planned_submission_lane"] == "formal_incubation"
     assert result["planned_final_status"] == "incubating"
-    assert result["submission_lane"] == "rejected"
-    assert result["final_status"] == "rejected"
+    # A-class promotion gates were removed, so the quality verdict no longer
+    # rejects (final_status stays "submitted"), but the request is deferred
+    # rather than washed into wide observe, and the blockers are still recorded.
+    assert result["submission_lane"] == "deferred_submission"
+    assert result["submission_lane"] != "observe_incubation"
+    assert result["final_status"] == "submitted"
     assert result["formal_track_requested"] is True
     assert result["formal_track_eligible"] is False
     assert result["wide_intake_admitted"] is True
     assert "quality_gate_pass_required_for_formal_track" in result["formal_track_blockers"]
     assert "strict_incubation_pass_required_for_formal_track" in result["formal_track_blockers"]
-    assert result["admission_decision"] == "reject"
+    assert result["admission_decision"] == "observe_only"
 
 
 def test_explicit_invalid_trade_prediction_contract_still_blocks_observe_first() -> None:

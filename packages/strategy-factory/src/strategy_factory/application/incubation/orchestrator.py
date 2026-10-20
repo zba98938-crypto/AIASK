@@ -161,6 +161,25 @@ class IncubationOrchestrator:
                 or {}
             )
 
+            # Phase 1.6: Rejected/archived strategy position cleanup.
+            # These strategies are outside the execution universe, so a held
+            # position can never receive an exit signal from the runtime.
+            cleanup_rejected = getattr(self._support, "cleanup_rejected_positions", None)
+            rejected_cleanup_result: dict[str, Any] = {}
+            if callable(cleanup_rejected):
+                logger.info(
+                    "IncubationOrchestrator [%s] Phase 1.6: Rejected strategy position cleanup",
+                    run_id,
+                )
+                rejected_cleanup_result = (
+                    await _run_phase(
+                        "rejected_strategy_position_cleanup",
+                        lambda: cleanup_rejected(db),
+                        timeout=BATCH_TIMEOUT_SEC,
+                    )
+                    or {}
+                )
+
             # Phase 2: Load strategies
             logger.info("IncubationOrchestrator [%s] Phase 2: Load Strategies", run_id)
             incubating = await self._support.list_incubating_strategies(db)
@@ -263,6 +282,25 @@ class IncubationOrchestrator:
                         exc,
                     )
 
+            # Phase 3.5: Declared holding-period exit.  Only strategies that
+            # declare a max_holding_days are affected; undeclared strategies
+            # remain on the signal-driven exit path.
+            close_stale = getattr(self._support, "close_stale_paper_positions", None)
+            stale_cleanup_result: dict[str, Any] = {}
+            if callable(close_stale):
+                logger.info(
+                    "IncubationOrchestrator [%s] Phase 3.5: Declared holding-period exit",
+                    run_id,
+                )
+                stale_cleanup_result = (
+                    await _run_phase(
+                        "stale_paper_position_closure",
+                        lambda: close_stale(db, all_strategies),
+                        timeout=BATCH_TIMEOUT_SEC,
+                    )
+                    or {}
+                )
+
             # Phase 4: Trade prediction verification
             logger.info("IncubationOrchestrator [%s] Phase 4: Trade Prediction Verification", run_id)
             trade_pred_result = (
@@ -295,6 +333,25 @@ class IncubationOrchestrator:
                 )
                 or {}
             )
+
+            # Phase 7: Refresh execution audit verdicts.  Without this the
+            # daemon path would close paper positions but leave the hard gate
+            # reading stale/missing verdicts.
+            run_audit = getattr(self._support, "run_execution_audit_acceptance", None)
+            execution_audit_result: dict[str, Any] = {}
+            if callable(run_audit):
+                logger.info(
+                    "IncubationOrchestrator [%s] Phase 7: Execution audit acceptance",
+                    run_id,
+                )
+                execution_audit_result = (
+                    await _run_phase(
+                        "execution_audit_acceptance",
+                        lambda: run_audit(db, all_strategies),
+                        timeout=BATCH_TIMEOUT_SEC,
+                    )
+                    or {}
+                )
 
             # Determine overall status
             end_time = datetime.now(timezone.utc)

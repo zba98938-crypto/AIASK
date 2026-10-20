@@ -68,9 +68,14 @@ def test_toggle_defaults_to_off(monkeypatch) -> None:
 
 
 @pytest.mark.parametrize("value", ["1", "true", "TRUE", "yes", "on", " On "])
-def test_toggle_accepts_truthy_spellings(monkeypatch, value: str) -> None:
+def test_toggle_is_ignored_now_that_the_gate_is_removed(monkeypatch, value: str) -> None:
+    """The promotion gate no longer participates in any decision.
+
+    The DSR verdict is still computed and reported as evidence, but no env
+    setting may turn it back into a blocker.
+    """
     monkeypatch.setenv(PROMOTION_DSR_ENV, value)
-    assert promotion_gate_enabled() is True
+    assert promotion_gate_enabled() is False
 
 
 @pytest.mark.parametrize("value", ["0", "false", "no", "off", "", "maybe"])

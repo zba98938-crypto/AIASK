@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import logging
 import math
-import os
 from dataclasses import dataclass
 from typing import Any, Optional, Sequence
 
@@ -28,9 +27,6 @@ logger = logging.getLogger(__name__)
 #: Env toggle for folding DSR correction into promotion. Default OFF, so
 #: enabling the gate is an explicit operator decision.
 PROMOTION_DSR_ENV = "STRATEGY_FACTORY_PROMOTION_DSR_ENABLED"
-
-_TRUTHY = frozenset({"1", "true", "yes", "on"})
-
 
 def _finite_float(value: Any) -> Optional[float]:
     if value is None:
@@ -60,8 +56,15 @@ def _safe_int(value: Any, default: int = 0) -> int:
 
 
 def promotion_gate_enabled() -> bool:
-    """Whether DSR correction participates in the promotion decision."""
-    return str(os.getenv(PROMOTION_DSR_ENV) or "").strip().lower() in _TRUTHY
+    """Whether DSR correction participates in the promotion decision.
+
+    A-class promotion gates were removed, so this is now always ``False``: the
+    DSR verdict is still computed and recorded as evidence by
+    ``PromotionGate.evaluate``, but it can no longer block or downgrade a
+    promotion. ``PROMOTION_DSR_ENV`` is kept only so existing reports keep
+    naming the knob.
+    """
+    return False
 
 
 @dataclass(slots=True)

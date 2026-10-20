@@ -67,6 +67,13 @@ class SubmissionAdmissionAuthority:
             normalized_gate["research_candidate_ready"] = True
             normalized_gate["incubation_candidate_ready"] = True
         admission_block_reasons = list(normalized_gate.get("admission_block_reasons") or normalized_gate.get("reasons") or [])
+        # Structural rejections come from the runtime bootstrap resolver (semantic
+        # hard fail, invalid trade-prediction contract, unexecutable runtime), not
+        # from the A-class quality/admission verdict. They are kept separate so a
+        # removed promotion gate cannot also admit a candidate that cannot run.
+        pre_observe_hard_reject_reasons = list(
+            runtime_bootstrap.get("pre_observe_hard_reject_reasons") or []
+        )
         strict_formal_ready = bool(normalized_gate.get("strict_incubation_ready")) or (
             str(normalized_gate.get("incubation_pass_mode") or "").strip().lower() == "strict"
         )
@@ -165,18 +172,25 @@ class SubmissionAdmissionAuthority:
             next_step = "research"
             completed = True
         elif gate_a_decision == "reject" and not bool(normalized_gate.get("passed")):
-            action_type = "research_only"
-            submission_lane = "rejected"
-            final_status = "rejected"
-            trigger = "gate_a_reject"
-            gaps = admission_block_reasons
-            fallback_conditions = ["restore_required_research_protocol_fields_before_submission_replay"]
-            next_step = "research"
-            completed = True
+            # A-class promotion gates were removed: a reject verdict no longer
+            # rejects. The verdict is preserved as the trigger and in `gaps`,
+            # but the candidate is routed to the zero-capital observe lane.
+            action_type = "paper"
+            submission_lane = "observe_incubation"
+            final_status = "submitted"
+            trigger = "gate_a_reject_observe_instead_of_reject"
+            gaps = list(dict.fromkeys([*admission_block_reasons, "gate_a_reject"]))
+            fallback_conditions = [
+                "restore_required_research_protocol_fields_before_submission_replay",
+                "retire_if_forward_skill_lcb_negative_after_min_observation_window",
+            ]
+            next_step = "runtime_review"
+            completed = False
         elif deferred_budget_requested and not formal_track_auto_corrected:
             action_type = "research_only"
             submission_lane = "deferred_submission"
-            final_status = "submitted" if bool(normalized_gate.get("research_candidate_ready") or normalized_gate.get("passed")) else "rejected"
+            # No gate verdict may reject; deferred candidates stay submitted.
+            final_status = "submitted"
             trigger = "budget_deferred_research_only"
             gaps = list(dict.fromkeys([*admission_block_reasons, trigger]))
             fallback_conditions = [
@@ -208,14 +222,60 @@ class SubmissionAdmissionAuthority:
             next_step = "runtime_review"
             completed = False
         elif not bool(normalized_gate.get("passed")):
-            action_type = "research_only"
-            submission_lane = "rejected"
-            final_status = "rejected"
-            trigger = "quality_gate_failed"
-            gaps = admission_block_reasons
-            fallback_conditions = ["re_enter_after_quality_gaps_closed"]
-            next_step = "incubation"
-            completed = True
+            # Formerly the main `quality_gate_failed` → rejected path.
+            #
+            # A-class promotion gates were removed, so a quality verdict no
+            # longer rejects. Two things are still not the quality gate, and are
+            # deliberately kept apart from it:
+            #
+            #  * a structurally invalid candidate (semantic hard fail, invalid
+            #    trade-prediction contract) is not a promotion question — it
+            #    cannot execute, so it still terminates here. This takes
+            #    precedence over the formal-track deferral below, because an
+            #    unexecutable candidate cannot be admitted to any lane;
+            #  * an operator's explicit request for the formal (real-capital)
+            #    track must not be silently reinterpreted as a zero-capital
+            #    observe admission — it stays deferred, with its blockers
+            #    recorded.
+            if pre_observe_hard_reject_reasons:
+                action_type = "research_only"
+                submission_lane = "rejected"
+                final_status = "rejected"
+                trigger = "pre_observe_hard_reject"
+                gaps = list(
+                    dict.fromkeys(
+                        [*admission_block_reasons, *pre_observe_hard_reject_reasons]
+                    )
+                )
+                fallback_conditions = ["repair_structural_contract_and_replay_submission"]
+                next_step = "research"
+                completed = True
+            elif formal_track_requested:
+                action_type = "research_only"
+                submission_lane = "deferred_submission"
+                final_status = "submitted"
+                trigger = "formal_incubation_requires_bootstrap_or_strict_gate"
+                gaps = _canonical_formal_blockers(
+                    [*list(admission_block_reasons), *formal_track_blockers]
+                )
+                fallback_conditions = [
+                    "promote_after_runtime_contract_is_repaired_or_quality_improves",
+                    "observe_track_allowed_after_runtime_bootstrap_eligibility_is_restored",
+                ]
+                next_step = "research"
+                completed = True
+            else:
+                action_type = "paper"
+                submission_lane = "observe_incubation"
+                final_status = "submitted"
+                trigger = "quality_gate_not_required_for_observe_intake"
+                gaps = list(dict.fromkeys([*admission_block_reasons, "quality_gate_failed"]))
+                fallback_conditions = [
+                    "re_enter_after_quality_gaps_closed",
+                    "retire_if_forward_skill_lcb_negative_after_min_observation_window",
+                ]
+                next_step = "runtime_review"
+                completed = False
         elif bool(normalized_gate.get("live_candidate_ready")) and not bool(runtime_bootstrap.get("execution_semantic_gap")):
             formal_runtime_ready = (
                 bool(runtime_bootstrap.get("semantic_runtime_match"))
@@ -291,7 +351,8 @@ class SubmissionAdmissionAuthority:
         elif formal_track_requested:
             action_type = "research_only"
             submission_lane = "deferred_submission"
-            final_status = "submitted" if bool(normalized_gate.get("research_candidate_ready")) else "rejected"
+            # No gate verdict may reject; deferred candidates stay submitted.
+            final_status = "submitted"
             trigger = "formal_incubation_requires_bootstrap_or_strict_gate"
             gaps = _canonical_formal_blockers([*list(admission_block_reasons), *formal_track_blockers])
             fallback_conditions = [
@@ -303,7 +364,8 @@ class SubmissionAdmissionAuthority:
         elif str(incubation_budget_track or "").strip().lower() == "observe_incubation":
             action_type = "research_only"
             submission_lane = "deferred_submission"
-            final_status = "submitted" if bool(normalized_gate.get("research_candidate_ready")) else "rejected"
+            # No gate verdict may reject; deferred candidates stay submitted.
+            final_status = "submitted"
             trigger = str(runtime_bootstrap.get("runtime_bootstrap_reason") or "observe_track_runtime_contract_incomplete")
             gaps = list(dict.fromkeys([*admission_block_reasons, trigger]))
             fallback_conditions = ["repair_runtime_contract_and_replay_submission"]
@@ -409,7 +471,10 @@ class SubmissionAdmissionAuthority:
         # 不应被下面的 not passed → reject 误判。
         if submission_lane == "observe_incubation":
             return "observe_only"
-        if final_status == "rejected" or submission_lane == "rejected" or not bool(gate.get("passed")):
+        # A-class promotion gates were removed, so a quality verdict can no
+        # longer turn an admission into a rejection; only an explicit rejected
+        # lane (which resolve() no longer produces) can.
+        if final_status == "rejected" or submission_lane == "rejected":
             return "reject"
         if submission_lane in {"formal_incubation", "live_ready_review", "refresh_existing"}:
             return "accept"

@@ -50,7 +50,9 @@ class StrategyUpsertService:
         read_only: bool,
         source: str = "strategy_factory_submit",
     ) -> bool:
-        should_persist_strategy = not refresh_existing or bool(gate.get("passed"))
+        # A-class promotion gates were removed: the quality verdict no longer
+        # suppresses persistence of an existing strategy being refreshed.
+        should_persist_strategy = True
         if read_only or not should_persist_strategy:
             return should_persist_strategy
         initial_status = None

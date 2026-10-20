@@ -227,7 +227,11 @@ def diagnostic_observation_dedupe_enabled() -> bool:
 
 
 def strategy_trade_prediction_promotion_gate_enabled() -> bool:
-    return _env_bool("STRATEGY_TRADE_PREDICTION_PROMOTION_GATE_ENABLED", default=False)
+    # A-class promotion gates were removed. The trade-prediction aggregate is
+    # still computed and reported (see evaluate_trade_prediction_promotion_gate
+    # `diagnostic_passed` / `reasons`), but it can no longer hard-block a
+    # promotion. The env knob is deliberately ignored now.
+    return False
 
 
 def strategy_trade_prediction_budget_feedback_enabled() -> bool:

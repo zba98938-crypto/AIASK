@@ -10,7 +10,6 @@ key lookups.
 
 from __future__ import annotations
 
-import inspect
 import logging
 from typing import Any
 
@@ -77,12 +76,10 @@ class CandidatePipeline:
         claim_token = None
         if task_board is not None:
             try:
-                task_type = "evidence_scoring" if observe_first_mode else "quality_gate"
-                title = (
-                    "Candidate evidence scoring/dedup/observe intake"
-                    if observe_first_mode
-                    else "Candidate quality/backtest/dedup/submit pipeline"
-                )
+                # The promotion gate is gone, so this stage is always an
+                # evidence-scoring stage; it never gates.
+                task_type = "evidence_scoring"
+                title = "Candidate evidence scoring/dedup/observe intake"
                 board_task = task_board.create_task(
                     task_type=task_type,
                     title=title,
@@ -105,20 +102,11 @@ class CandidatePipeline:
                 logger.debug("candidate pipeline task board create/claim failed: %s", exc)
 
         try:
-            supports_unified_submission = bool(
-                candidates
-                and not read_only
-                and hasattr(pkg, "run_gated_submission_pipeline")
-                and hasattr(pkg, "run_gated_filter")
-                and inspect.iscoroutinefunction(getattr(db, "get_klines", None))
-            )
-            supports_unified_gate = bool(
-                candidates
-                and hasattr(pkg, "run_gated_filter")
-                and inspect.iscoroutinefunction(getattr(db, "get_klines", None))
-            )
-
-            if observe_first_mode and candidates:
+            # A-class strategy promotion gates were removed. This evidence
+            # scoring path is now the only path: `backtest_filter.filter()` still
+            # runs because it produces the backtest evidence recorded below, but
+            # its verdict no longer removes any candidate from the pipeline.
+            if candidates:
                 passed = await backtest_filter.filter(candidates, db)
                 backtest_report = self._extract_backtest_report(
                     {},
@@ -126,7 +114,8 @@ class CandidatePipeline:
                     candidates,
                     passed,
                 )
-                observe_candidates = self._mark_observe_first_candidates(passed)
+                screen_failed_count = max(len(candidates) - len(passed), 0)
+                observe_candidates = self._mark_observe_first_candidates(candidates)
                 unique = await deduplicator.deduplicate(observe_candidates, db)
                 submit_result = await submitter.submit(
                     unique,
@@ -141,6 +130,7 @@ class CandidatePipeline:
                     submit_result,
                     execution_mode=str(resolved_execution_mode or ""),
                     backtest_report=backtest_report,
+                    screen_failed_count=screen_failed_count,
                 )
                 quality_gate_report["observe_first"] = {
                     "enabled": True,
@@ -148,8 +138,8 @@ class CandidatePipeline:
                     "observe_intake_count": len(observe_candidates),
                     "deduped_observe_intake_count": len(unique),
                     "pre_observe_hard_reject_count": 0,
-                    "pre_observe_evidence_reject_count": max(len(candidates) - len(passed), 0),
-                    "gate3_pre_observe_block_count": max(len(candidates) - len(passed), 0),
+                    "pre_observe_evidence_reject_count": screen_failed_count,
+                    "gate3_pre_observe_block_count": 0,
                     "mode": "backtest_evidence_screen",
                     "pre_observe_gate_removed": True,
                     "legacy_gate_executed": False,
@@ -160,73 +150,45 @@ class CandidatePipeline:
                 }
                 quality_gate_report = compact_quality_gate_report(quality_gate_report)
                 backtest_report = compact_backtest_report(backtest_report)
-            elif supports_unified_submission:
-                pipeline_run = await pkg.run_gated_submission_pipeline(
-                    candidates,
-                    snapshot,
-                    db,
-                    backtest_filter=backtest_filter,
-                    deduplicator=deduplicator,
-                    submitter=submitter,
-                    gated_runner=pkg.run_gated_filter,
-                    kline_cache=getattr(backtest_filter, "_kline_cache", None),
-                )
-                passed = list(pipeline_run.get("passed") or [])
-                unique = list(pipeline_run.get("unique") or [])
-                quality_gate_report = dict(
-                    pipeline_run.get("gate_report") or pipeline_run.get("quality_gate") or {}
-                )
-                backtest_report = dict(pipeline_run.get("backtest_report") or {})
-                submit_result = dict(pipeline_run.get("submit_result") or {})
-                quality_gate_report = compact_quality_gate_report(quality_gate_report)
-                backtest_report = compact_backtest_report(backtest_report)
-            elif supports_unified_gate:
-                gate_run = await pkg.run_gated_filter(
-                    candidates,
-                    db,
-                    backtest_filter,
-                    kline_cache=getattr(backtest_filter, "_kline_cache", None),
-                )
-                passed = list(gate_run.get("passed") or [])
-                quality_gate_report = dict(
-                    gate_run.get("gate_report") or gate_run.get("quality_gate") or {}
-                )
-                backtest_report = self._extract_backtest_report(
-                    quality_gate_report, backtest_filter, candidates, passed
-                )
-                if not quality_gate_report:
-                    quality_gate_report = pkg.build_legacy_gate_report(
-                        candidates, passed, backtest_report
-                    )
-                unique = await deduplicator.deduplicate(passed, db)
-                submit_result = await submitter.submit(
-                    unique,
-                    snapshot,
-                    db,
-                    read_only=read_only,
-                )
-                quality_gate_report = pkg.finalize_gate_report(quality_gate_report, submit_result)
-                quality_gate_report = compact_quality_gate_report(quality_gate_report)
-                backtest_report = compact_backtest_report(backtest_report)
             else:
-                passed = await backtest_filter.filter(candidates, db)
-                quality_gate_report = {}
-                backtest_report = self._extract_backtest_report(
-                    {}, backtest_filter, candidates, passed
+                # Empty candidate list: nothing to score, dedup or submit. The
+                # report shape stays identical to the non-empty path so callers
+                # do not have to branch on emptiness.
+                passed = []
+                unique = []
+                quality_gate_report = self._build_observe_first_evidence_report(
+                    candidates,
+                    [],
+                    unique,
+                    {},
+                    execution_mode=str(resolved_execution_mode or ""),
+                    backtest_report=self._build_observe_first_backtest_report(candidates),
+                    screen_failed_count=0,
                 )
-                quality_gate_report = pkg.build_legacy_gate_report(
-                    candidates, passed, backtest_report
-                )
-                unique = await deduplicator.deduplicate(passed, db)
+                quality_gate_report["observe_first"] = {
+                    "enabled": True,
+                    "gate_passed_count": 0,
+                    "observe_intake_count": 0,
+                    "deduped_observe_intake_count": 0,
+                    "pre_observe_hard_reject_count": 0,
+                    "pre_observe_evidence_reject_count": 0,
+                    "gate3_pre_observe_block_count": 0,
+                    "mode": "backtest_evidence_screen",
+                    "pre_observe_gate_removed": True,
+                    "legacy_gate_executed": False,
+                    "legacy_funnel_executed": False,
+                    "legacy_gate_report_mode": "not_executed",
+                    "evidence_scoring_mode": "observe_first_backtest_evidence_screen",
+                    "execution_mode": str(resolved_execution_mode or ""),
+                }
                 submit_result = await submitter.submit(
                     unique,
                     snapshot,
                     db,
                     read_only=read_only,
                 )
-                quality_gate_report = pkg.finalize_gate_report(quality_gate_report, submit_result)
                 quality_gate_report = compact_quality_gate_report(quality_gate_report)
-                backtest_report = compact_backtest_report(backtest_report)
+                backtest_report = self._build_observe_first_backtest_report(candidates)
 
             report = self._build_report(
                 candidates, passed, unique, submit_result, quality_gate_report, backtest_report
@@ -354,10 +316,12 @@ class CandidatePipeline:
         *,
         execution_mode: str,
         backtest_report: dict[str, Any],
+        screen_failed_count: int = 0,
     ) -> dict[str, Any]:
         gate_3_input = int(submit_result.get("gate_3_input") or len(unique))
         gate_3_passed = int(submit_result.get("gate_3_passed") or 0)
         gate_3_failed = int(submit_result.get("gate_3_failed") or max(gate_3_input - gate_3_passed, 0))
+        resolved_screen_failed = max(int(screen_failed_count or 0), 0)
         return {
             "contract_version": "strategy_factory.observe_first_evidence_report.v1",
             "legacy_gate_executed": False,
@@ -370,11 +334,15 @@ class CandidatePipeline:
                 "input_count": len(candidates),
                 "scored_count": len(candidates),
                 "evidence_passed_count": len(observe_candidates),
-                "pre_observe_evidence_reject_count": max(len(candidates) - len(observe_candidates), 0),
+                "pre_observe_evidence_reject_count": resolved_screen_failed,
                 "observe_intake_count": len(observe_candidates),
                 "deduped_observe_intake_count": len(unique),
                 "pre_observe_hard_reject_count": 0,
-                "gate3_pre_observe_block_count": max(len(candidates) - len(observe_candidates), 0),
+                # Measurement only: the backtest screen no longer blocks intake,
+                # so the blocked count is zero while the screen verdict is still
+                # recorded above and in backtest_report.
+                "gate3_pre_observe_block_count": 0,
+                "pre_observe_backtest_screen_failed_count": resolved_screen_failed,
                 "legacy_gate_executed": False,
                 "legacy_funnel_executed": False,
                 "candidate_source_counts": cls._candidate_source_counts(candidates),
@@ -386,13 +354,14 @@ class CandidatePipeline:
                 "input_count": gate_3_input,
                 "passed_count": gate_3_passed,
                 "failed_count": gate_3_failed,
-                "pre_observe_blocking": max(len(candidates) - len(observe_candidates), 0) > 0,
+                "pre_observe_blocking": False,
+                "pre_observe_backtest_screen_failed_count": resolved_screen_failed,
             },
             "final_decision": {
                 "stage": "observe_intake",
                 "passed_count": len(unique),
                 "legacy_gate_executed": False,
-                "pre_observe_blocking": max(len(candidates) - len(observe_candidates), 0) > 0,
+                "pre_observe_blocking": False,
             },
         }
 

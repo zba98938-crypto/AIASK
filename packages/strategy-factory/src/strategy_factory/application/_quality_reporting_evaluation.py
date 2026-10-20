@@ -9,6 +9,7 @@ from ._quality_reporting_normalizers import (
     _normalize_committee_review,
     _normalized_string_list,
     normalize_quality_gate_result,
+    optional_metric_value,
     safe_metric_value,
 )
 from .market_evidence import summarize_market_fact_gate
@@ -150,13 +151,17 @@ def build_quality_report(
         or rating.get("grade")
     )
     raw_validation_grade = normalized_gate.get("raw_validation_grade") or rating.get("grade")
-    validation_total_score = safe_metric_value(rating, "total_score")
+    # ``optional_metric_value`` keeps "no score" as None. With
+    # ``safe_metric_value`` a missing score became 0.0, and downstream
+    # aggregators append every non-None value, so absent scores were averaged in
+    # as zeros and dragged raw_validation_total_score_mean down.
+    validation_total_score = optional_metric_value(rating, "total_score")
     raw_validation_total_score = (
-        safe_metric_value(rating, "total_score")
+        optional_metric_value(rating, "total_score")
         if trade_quality_adjustment.get("applied")
-        else safe_metric_value(rating, "base_total_score", "total_score")
+        else optional_metric_value(rating, "base_total_score", "total_score")
     )
-    raw_validation_baseline_total_score = safe_metric_value(
+    raw_validation_baseline_total_score = optional_metric_value(
         rating,
         "base_total_score",
         "total_score",

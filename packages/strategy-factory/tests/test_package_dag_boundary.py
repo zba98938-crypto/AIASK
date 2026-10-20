@@ -58,14 +58,7 @@ PRIVATE_SUBPACKAGES = ("application", "infrastructure", "domain", "contracts")
 #:
 #: ``default_bootstrap.py`` — the dynamic configurator hook, which now prefers a
 #: host provider set but falls back to the in-package one.
-#:
-#: ``schema_strategy.py`` — quant-core's compatibility shim. The factory-domain
-#: DDL physically moved to strategy-factory (Phase 2); this shim re-exports it so
-#: existing importers keep working for one major version. The reference is lazy
-#: (inside the function body), so importing quant-core does not pull in
-#: strategy-factory and no import cycle exists — verified by
-#: ``test_the_quant_core_shim_does_not_create_a_cycle``.
-_ALLOWED_REVERSE_DEPENDENCY_FILES = {"default_bootstrap.py", "schema_strategy.py"}
+_ALLOWED_REVERSE_DEPENDENCY_FILES = {"default_bootstrap.py"}
 
 
 def _source_files(distribution: str) -> list[Path]:
@@ -170,12 +163,11 @@ def test_package_never_imports_a_higher_layer(distribution: str) -> None:
     )
 
 
-def test_quant_core_is_a_leaf_apart_from_documented_shims() -> None:
+def test_quant_core_is_a_leaf() -> None:
     """The bottom layer must depend on nothing in the AIASK graph.
 
-    One exception is allowed and enumerated: the ``schema_strategy`` shim, left
-    behind when the factory-domain DDL moved up to its owner. Every other file
-    must stay leaf-clean.
+    The factory-domain DDL moved to its owner, and the shim now resolves it
+    through the schema registry, so quant-core has no reverse import left.
     """
     offenders: list[str] = []
     for path in _source_files("aiask-quant-core"):
@@ -187,13 +179,8 @@ def test_quant_core_is_a_leaf_apart_from_documented_shims() -> None:
     assert offenders == [], "aiask-quant-core must be a leaf:\n" + "\n".join(offenders[:20])
 
 
-def test_the_quant_core_shim_does_not_create_a_cycle() -> None:
-    """The shim's reference must be lazy, or the two packages deadlock on import.
-
-    quant-core is a dependency of strategy-factory. If the shim imported it at
-    module scope, importing either package would recurse. Assert the import sits
-    inside a function body.
-    """
+def test_the_quant_core_shim_does_not_import_strategy_factory() -> None:
+    """The shim must resolve the owner through the registry, not by import."""
     shim = PACKAGES_ROOT / "aiask-quant-core" / "src" / "aiask_quant_core"
     shim = shim / "storage" / "sqlite" / "schema_strategy.py"
     if not shim.is_file():
@@ -202,16 +189,15 @@ def test_the_quant_core_shim_does_not_create_a_cycle() -> None:
     tree = _parse(shim)
     assert tree is not None, "the shim must be parsable"
 
-    module_level: set[str] = set()
-    for node in tree.body:
+    imported_roots: set[str] = set()
+    for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            module_level.update(alias.name.split(".")[0] for alias in node.names)
+            imported_roots.update(alias.name.split(".")[0] for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module:
-            module_level.add(node.module.split(".")[0])
+            imported_roots.add(node.module.split(".")[0])
 
-    assert "strategy_factory" not in module_level, (
-        "the shim must import strategy_factory lazily, inside a function, or "
-        "quant-core and strategy-factory form an import cycle"
+    assert "strategy_factory" not in imported_roots, (
+        "the shim must not import strategy_factory; quant-core is a leaf"
     )
 
 
