@@ -319,7 +319,15 @@ def _handle_jsonrpc(request: dict[str, Any]) -> dict[str, Any] | None:
         handler = TOOL_HANDLERS.get(tool_name)
         if handler is None:
             return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": json.dumps({"error": redact_public_text(f"Unknown tool: {tool_name}")})}], "isError": True}}
-        result = handler(arguments)
+        try:
+            result = handler(arguments)
+        except Exception as exc:
+            # A malformed argument must not kill the stdio loop. Handlers parse
+            # numbers before their own try, so an argument of the wrong JSON type
+            # used to propagate out of here and terminate the whole server with
+            # no response at all.
+            logger.warning("tool %s failed: %s", tool_name, exc)
+            return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": json.dumps({"success": False, "data": None, "error": redact_public_text(exc), "error_code": "TOOL_EXECUTION_FAILED", "tool": tool_name}, ensure_ascii=False)}], "isError": True}}
         return {"jsonrpc": "2.0", "id": req_id, "result": {"content": [{"type": "text", "text": json.dumps(result, ensure_ascii=False, default=str)}], "isError": not result.get("success", False)}}
     return {"jsonrpc": "2.0", "id": req_id, "error": {"code": -32601, "message": redact_public_text(f"Method not found: {method}")}}
 

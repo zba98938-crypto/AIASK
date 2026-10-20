@@ -614,3 +614,60 @@ class TestQmtProtocol:
         assert content["error_code"] == "TRADE_RISK_TOKEN_REQUIRED"
         assert content["meta"]["side_effect"]["confirmation_required"] is True
         assert content["meta"]["side_effect"]["explicit_token_required"] is True
+
+
+class TestEmRealtimeQuoteHonesty:
+    """A realtime failure must not be reported as an empty success."""
+
+    def test_all_realtime_sources_failing_is_not_empty_success(self, monkeypatch):
+        from aiask_finance_mcp.eastmoney import server as em
+
+        def _failing_ef():
+            class _Stock:
+                @staticmethod
+                def get_quote_history(code, klt=None):
+                    import pandas
+                    return pandas.DataFrame()
+
+                @staticmethod
+                def get_realtime_quotes(codes):
+                    raise ConnectionError("push2 endpoint unreachable")
+
+            class _Ef:
+                stock = _Stock()
+            return _Ef()
+
+        monkeypatch.setattr(em, "_import_efinance", _failing_ef)
+        envelope = em.handle_realtime_quote({"codes": ["600519", "000001"]})
+
+        assert envelope["success"] is False
+        assert envelope["error"] == "realtime_source_unavailable"
+        assert envelope["meta"]["reason"] == "realtime_source_unavailable"
+        assert envelope["meta"]["failed_codes"] == ["600519", "000001"]
+
+    def test_partial_success_discloses_failed_codes(self, monkeypatch):
+        from aiask_finance_mcp.eastmoney import server as em
+        import pandas
+
+        good = pandas.DataFrame([{"code": "600519", "price": 1700.0}])
+
+        class _Stock:
+            @staticmethod
+            def get_quote_history(code, klt=None):
+                return pandas.DataFrame()
+
+            @staticmethod
+            def get_realtime_quotes(codes):
+                if codes[0] == "600519":
+                    return good
+                raise ConnectionError("unreachable")
+
+        class _Ef:
+            stock = _Stock()
+
+        monkeypatch.setattr(em, "_import_efinance", lambda: _Ef())
+        envelope = em.handle_realtime_quote({"codes": ["600519", "000001"]})
+
+        assert envelope["success"] is True
+        assert envelope["data"]["count"] == 1
+        assert envelope["data"]["failed_codes"] == ["000001"]
