@@ -456,15 +456,39 @@ async def run_stock_deep_analysis(
             risk_per_trade=0.02,
             style=investment_style,
         )
-        await _persist_artifact(
-            artifact_id=artifact_ids["trade_plan"],
-            artifact_type="trade_plan_bundle",
-            code=resolved_code,
-            run_id=resolved_run_id,
-            task=normalized_task,
-            payload=dict(trade_plan_payload or {}),
+        trade_plan_failure = dict(trade_plan_payload or {})
+        trade_plan_ok = bool(trade_plan_failure.get("success"))
+        # The stage used to be recorded as completed/success unconditionally, so a
+        # failed plan was reported as a completed stage and its failure envelope
+        # was persisted as if it were an artifact.
+        if trade_plan_ok:
+            await _persist_artifact(
+                artifact_id=artifact_ids["trade_plan"],
+                artifact_type="trade_plan_bundle",
+                code=resolved_code,
+                run_id=resolved_run_id,
+                task=normalized_task,
+                payload=dict(trade_plan_payload or {}),
+            )
+        stages.append(
+            _stage_result(
+                "trade_plan",
+                status="completed" if trade_plan_ok else "failed",
+                success=trade_plan_ok,
+                detail={
+                    "source": "generate_trade_plan",
+                    **(
+                        {}
+                        if trade_plan_ok
+                        else {
+                            "error": str(
+                                trade_plan_failure.get("error") or "trade plan unavailable"
+                            )
+                        }
+                    ),
+                },
+            )
         )
-        stages.append(_stage_result("trade_plan", status="completed", success=True, detail={"source": "generate_trade_plan"}))
 
     overall_status = "completed" if final_check.get("passed") and (report_bundle or not profile.get("include_report")) else "partial_failed"
     payload = _orchestrated_summary(

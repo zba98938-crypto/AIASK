@@ -1,9 +1,9 @@
-"""INVERT-DESIGN P3 改动B：PromotionGate 接入孵化流水线的接线测试。
+"""PromotionGate wiring in the incubation pipeline.
 
-聚焦新接线面 StrategyIncubationPipelineService._evaluate_promotion_gate：
-- toggle OFF（默认）→ enabled=False（零变化，不阻断晋升）。
-- toggle ON + 前向序列存在 → 跑 DSR，返回 enabled=True + passed/eligible。
-- toggle ON + 序列样本不足 → eligible=False（不阻断）。
+The A-class promotion gate was removed: the DSR verdict is still computed and
+returned as evidence, but it no longer participates in any decision, so
+``enabled`` is always False and the caller cannot downgrade on it. The env
+toggle is deliberately ignored.
 """
 
 from __future__ import annotations
@@ -39,10 +39,9 @@ def test_promotion_gate_disabled_by_default(monkeypatch):
     assert audit["enabled"] is False
 
 
-def test_promotion_gate_enabled_runs_dsr(monkeypatch):
+def test_promotion_gate_is_measured_but_never_participates(monkeypatch):
     monkeypatch.setenv("STRATEGY_FACTORY_PROMOTION_DSR_ENABLED", "1")
     svc = StrategyIncubationPipelineService()
-    # 强正偏置序列 → 大概率 DSR 较高；本测只验证接线产出结构，不强断言通过与否。
     import random
 
     random.seed(11)
@@ -51,20 +50,26 @@ def test_promotion_gate_enabled_runs_dsr(monkeypatch):
     audit = _run(
         svc._evaluate_promotion_gate(db, "s1", signal_quality={"primary_horizon": 5}, observed_days=40)
     )
-    assert audit["enabled"] is True
-    assert audit["eligible"] is True
+    # The measurement is still produced...
     assert audit["n_trials"] == 15
     assert audit["dsr"] is not None
     assert "passed" in audit
+    assert "eligible" in audit
+    # ...but it does not participate in the decision, whatever the env says.
+    assert audit["enabled"] is False
+    assert audit["diagnostic_only"] is True
 
 
-def test_promotion_gate_insufficient_samples_not_eligible(monkeypatch):
+def test_promotion_gate_insufficient_samples_still_cannot_block(monkeypatch):
     monkeypatch.setenv("STRATEGY_FACTORY_PROMOTION_DSR_ENABLED", "1")
     svc = StrategyIncubationPipelineService()
     db = _FakeDB([0.01] * 10, pool_size=5)
     audit = _run(
         svc._evaluate_promotion_gate(db, "s1", signal_quality={"primary_horizon": 5}, observed_days=8)
     )
-    assert audit["enabled"] is True
+    # A thin sample is still reported as not eligible, but it cannot hold a
+    # strategy back any more because the verdict no longer participates.
+    assert audit["enabled"] is False
+    assert audit["diagnostic_only"] is True
     assert audit["eligible"] is False
     assert audit["passed"] is False

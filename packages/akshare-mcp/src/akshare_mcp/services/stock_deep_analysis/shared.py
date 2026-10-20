@@ -6,6 +6,8 @@ from datetime import datetime, timezone
 from typing import Any
 import logging
 
+from ...tools.manager_protocol import LINEAGE_REFERENCE_KEYS
+
 logger = logging.getLogger(__name__)
 
 def _utcnow_iso() -> str:

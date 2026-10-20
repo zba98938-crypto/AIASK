@@ -109,6 +109,26 @@ class IncubationFactoryRunnerAdapter:
         """Run recompile remediation."""
         return await self._runner._run_recompile_remediation(db)
 
+    async def cleanup_rejected_positions(self, db: Any) -> dict[str, Any]:
+        """Close paper positions held by strategies outside the execution universe."""
+        return await self._runner._run_rejected_strategy_position_cleanup(db)
+
+    async def close_stale_paper_positions(
+        self, db: Any, strategies: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Honor declared holding horizons on the daemon path."""
+        return await self._runner._run_stale_paper_position_closure(
+            db, strategies=strategies
+        )
+
+    async def run_execution_audit_acceptance(
+        self, db: Any, strategies: list[dict[str, Any]]
+    ) -> dict[str, Any]:
+        """Refresh execution audit verdicts after paper closes."""
+        return await self._runner._run_execution_audit_acceptance(
+            db, strategies=strategies
+        )
+
     async def verify_trade_predictions(self, db: Any) -> dict[str, Any]:
         """Verify trade predictions."""
         if self._trade_prediction_verifier is None:
@@ -158,11 +178,22 @@ class IncubationFactoryRunnerAdapter:
         await self._runner._stop_paper_trading_daemons()
 
 
-def build_incubation_support() -> IncubationFactoryRunnerAdapter:
-    """Build incubation support by adapting the legacy runner."""
+def build_incubation_support(**kwargs: Any) -> IncubationFactoryRunnerAdapter:
+    """Build incubation support by adapting the legacy runner.
+
+    Runtime options (notably ``dry_run``) must reach the runner; otherwise a
+    dry-run runtime could still mutate paper positions through the adapter.
+    """
     from ..services.incubation_factory.runner import IncubationFactoryRunner
 
-    runner = IncubationFactoryRunner()
+    runner_kwargs: dict[str, Any] = {
+        "dry_run": bool(kwargs.get("dry_run", False)),
+        "auto_apply_review": bool(kwargs.get("auto_apply_review", True)),
+        "owns_paper_trading": kwargs.get("owns_paper_trading"),
+    }
+    if kwargs.get("run_time") is not None:
+        runner_kwargs["run_time"] = kwargs["run_time"]
+    runner = IncubationFactoryRunner(**runner_kwargs)
     return IncubationFactoryRunnerAdapter(runner)
 
 
