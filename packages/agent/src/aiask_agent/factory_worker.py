@@ -91,6 +91,11 @@ def _outcome(result: dict[str, Any], exit_code: int) -> tuple[str, str | None, l
     error = str(result.get("error") or "").strip() or None
     if exit_code != 0 or result.get("success") is False:
         return "failed", raw_status, quality_flags, error or f"runner exited with code {exit_code}"
+    # A runner that reports failure but exits 0 must not fall through to
+    # "succeeded" (see _failure_kind's "runner_reported_failure" case, which the
+    # original ordering could never reach).
+    if raw_status == "failed":
+        return "failed", raw_status, quality_flags, error or "runner reported failure"
     if raw_status in {"partial", "partial_infra", "partial_llm", "degraded"} or quality_flags:
         return "partial", raw_status, quality_flags, error
     if raw_status in {"blocked", "skipped"}:

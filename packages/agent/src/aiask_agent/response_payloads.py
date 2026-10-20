@@ -122,11 +122,16 @@ def chat_completion_payload(result: Any, *, model: str) -> dict[str, Any]:
 
 
 def responses_payload(result: Any, *, model: str) -> dict[str, Any]:
-    return {
+    # ``AgentRuntime.run`` can finish with status="failed" (see runtime.py, the
+    # `except Exception` handler). Reporting that as "completed" told an
+    # OpenAI-compatible client that the run succeeded when it had not.
+    run_status = str(getattr(result, "status", "") or "").strip().lower()
+    failed = run_status == "failed"
+    payload = {
         "id": result.response_id,
         "object": "response",
         "created_at": int(time.time()),
-        "status": "completed",
+        "status": "failed" if failed else "completed",
         "model": model,
         "output_text": result.content,
         "output": [
@@ -148,3 +153,9 @@ def responses_payload(result: Any, *, model: str) -> dict[str, Any]:
             "subruns": result.subruns,
         },
     }
+    if failed:
+        payload["error"] = {
+            "code": "agent_run_failed",
+            "message": str(result.content or "Agent run failed."),
+        }
+    return payload

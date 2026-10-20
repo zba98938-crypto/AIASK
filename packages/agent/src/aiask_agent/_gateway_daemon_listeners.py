@@ -532,7 +532,13 @@ class _GatewayDaemonListenersMixin:
                         hb_task.cancel()
                         try:
                             await hb_task
-                        except (asyncio.CancelledError, Exception) as _swallowed:
+                        except asyncio.CancelledError:
+                            # Only the cancellation we just requested on hb_task
+                            # is expected. A cancellation of this listener must
+                            # propagate, otherwise shutdown hangs.
+                            if not hb_task.cancelled():
+                                raise
+                        except Exception as _swallowed:
                             logger.warning("packages/agent/src/aiask_agent/_gateway_daemon_listeners.py:530: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                             pass
 

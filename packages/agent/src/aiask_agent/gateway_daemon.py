@@ -190,7 +190,13 @@ class GatewayDaemon(_GatewayDaemonListenersMixin):
             task.cancel()
             try:
                 await asyncio.wait_for(asyncio.shield(task), timeout=5.0)
-            except (asyncio.CancelledError, asyncio.TimeoutError, Exception) as _swallowed:
+            except asyncio.CancelledError:
+                # We cancelled this listener ourselves, so its CancelledError is
+                # expected. A cancellation of stop() itself must propagate or the
+                # daemon can never be stopped.
+                if not task.cancelled():
+                    raise
+            except (asyncio.TimeoutError, Exception) as _swallowed:
                 logger.warning("packages/agent/src/aiask_agent/gateway_daemon.py:191: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 pass
 
@@ -401,7 +407,10 @@ class GatewayDaemon(_GatewayDaemonListenersMixin):
         async with self._agent_semaphore:
             try:
                 result = await asyncio.wait_for(
-                    self.runtime.run(message=message, session_id=session_id),
+                    self.runtime.run(
+                        messages=[{"role": "user", "content": message}],
+                        session_id=session_id,
+                    ),
                     timeout=self._response_timeout,
                 )
                 return str(getattr(result, "content", "") or "")

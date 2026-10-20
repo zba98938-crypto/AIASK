@@ -222,6 +222,24 @@ class AgentRuntime(_RuntimeHandoffMixin, _RuntimeToolCallingMixin, _RuntimeCodeT
     async def __aexit__(self, exc_type: Any, exc: Any, tb: Any) -> None:
         await self.aclose()
 
+    def _run_cancel_requested(self, run_id: str) -> bool:
+        """Whether a cancel request has been recorded for this run.
+
+        The cancel route writes ``status="cancelled"`` to the run row; this reads
+        it back so the in-flight loop can stop and the finaliser can refuse to
+        overwrite it.
+        """
+        getter = getattr(self.session_store, "get_run", None)
+        if not callable(getter):
+            return False
+        try:
+            item = getter(run_id)
+        except Exception:
+            return False
+        if not isinstance(item, dict):
+            return False
+        return str(item.get("status") or "").strip().lower() == "cancelled"
+
     async def run(
         self,
         messages: list[dict[str, Any]],
@@ -473,6 +491,14 @@ class AgentRuntime(_RuntimeHandoffMixin, _RuntimeToolCallingMixin, _RuntimeCodeT
 
         try:
             for iteration in range(1, self.max_iterations + 1):
+                # Cooperative cancellation. `/v1/runs/{id}/cancel` used to only
+                # rewrite the stored status: the run kept executing and then
+                # overwrote "cancelled" with its own terminal status at the end.
+                if self._run_cancel_requested(run_id):
+                    status = "cancelled"
+                    final_content = final_content or "Agent run cancelled."
+                    emit("run.cancelled", {"reason": "cancel_requested"})
+                    break
                 model_started = time.perf_counter()
                 emit("model.started", {"iteration": iteration, "model": self.model})
 
@@ -966,5 +992,8 @@ class AgentRuntime(_RuntimeHandoffMixin, _RuntimeToolCallingMixin, _RuntimeCodeT
             result.events = persisted_events
             payload = final_payload()
         self.session_store.save_response(response_id, sid, payload)
+        # Do not clobber a cancellation recorded while the run was in flight.
+        if status != "cancelled" and self._run_cancel_requested(run_id):
+            status = "cancelled"
         self.session_store.update_run(run_id, status=status, payload=payload)
         return result

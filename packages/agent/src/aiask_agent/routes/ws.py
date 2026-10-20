@@ -34,7 +34,10 @@ def _ws_authorized(websocket: WebSocket, token: str | None) -> bool:
         return True
     expected = str(os.getenv("AIASK_AGENT_API_TOKEN", "")).strip()
     if not expected:
-        return True  # 未配置 token(loopback 模式),放行
+        # Loopback clients already returned above, so reaching this point means
+        # a remote caller with no token configured on the server. Fail closed,
+        # matching the HTTP policy in route_auth.api_authorized.
+        return False
     return token_matches(token, expected)
 
 
