@@ -633,14 +633,24 @@ async def _main_async(transport: str, mount_path: str | None) -> None:
         _bg_thread.start()
         logger.info("[Server] background services daemon thread started")
 
+    transport_failed = False
     try:
         await _run_mcp_transport_async(transport, mount_path)
-    except BaseException as exc:
-        if isinstance(exc, (KeyboardInterrupt, SystemExit)):
-            raise
-        logger.warning("[Server] transport closed unexpectedly: %s", exc, exc_info=True)
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except asyncio.CancelledError:
+        # Cooperative cancellation must propagate rather than be logged as a
+        # clean shutdown.
+        raise
+    except BaseException:
+        # This used to be logged and swallowed, so a crashed transport exited
+        # with status 0 and a host could not tell it apart from a clean stop.
+        logger.exception("[Server] transport closed unexpectedly")
+        transport_failed = True
     finally:
         await _shutdown_services_async()
+    if transport_failed:
+        raise SystemExit(1)
 
 
 def main() -> None:

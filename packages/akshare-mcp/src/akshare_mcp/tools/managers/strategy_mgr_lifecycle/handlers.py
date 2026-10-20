@@ -3,7 +3,7 @@
 import inspect
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
@@ -71,7 +71,9 @@ async def handle_review_report_recheck(db, params: dict) -> dict:
         risk_report=risk_report,
         backtest_metrics=backtest_metrics,
     )
-    recomputed_as_of = datetime.now(timezone.utc).date().isoformat()
+    # A-share trading date, fixed to UTC+8. Using the UTC date stamped a report
+    # generated between 00:00 and 08:00 local with yesterday's trading date.
+    recomputed_as_of = datetime.now(timezone(timedelta(hours=8))).date().isoformat()
     report_type = f"recheck:{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')}"
     report = build_quality_report(
         strategy_id=sid,

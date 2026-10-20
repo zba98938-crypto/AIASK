@@ -82,7 +82,11 @@ class StrategyIncubationPipelineService:
             return {'enabled': False, 'reason': 'import_failed'}
 
         if not _promotion_gate_enabled():
-            return {'enabled': False}
+            # The A-class promotion gate was removed, so the toggle no longer
+            # selects a code path — the DSR verdict is always computed below as
+            # evidence and never participates in the decision. This branch is
+            # kept only so the recorded audit says why it is inactive.
+            pass
 
         primary_horizon = int(signal_quality.get('primary_horizon') or 5)
         try:
@@ -104,7 +108,9 @@ class StrategyIncubationPipelineService:
 
         verdict = PromotionGate().evaluate(series, n_trials=n_trials)
         audit = verdict.to_dict()
-        audit['enabled'] = True
+        # Evidence only: the caller may not downgrade graduation_ready on this.
+        audit['enabled'] = False
+        audit['diagnostic_only'] = True
         audit['n_trials'] = n_trials
         audit['primary_horizon'] = primary_horizon
         return audit
@@ -230,14 +236,14 @@ class StrategyIncubationPipelineService:
                 db, sid, signal_quality=signal_quality, observed_days=observed_days
             )
             if promotion_gate_audit and promotion_gate_audit.get('enabled'):
-                if promotion_gate_audit.get('eligible') and not promotion_gate_audit.get('passed'):
-                    pipeline_stage = 'candidate'
-                    pipeline_status = 'candidate'
-                    next_action = 'accumulate_forward_evidence_for_dsr'
-                    for reason in promotion_gate_audit.get('reasons') or []:
-                        tag = f"promotion_dsr:{reason}"
-                        if tag not in gate_reasons_extra:
-                            gate_reasons_extra.append(tag)
+                # A-class promotion gate removed: the DSR verdict is recorded as
+                # evidence only. It no longer downgrades graduation_ready back to
+                # candidate, so a thin sample or an unavailable statistic cannot
+                # hold a strategy back.
+                for reason in promotion_gate_audit.get('reasons') or []:
+                    tag = f"promotion_dsr:{reason}"
+                    if tag not in gate_reasons_extra:
+                        gate_reasons_extra.append(tag)
 
         gate_status = pipeline_stage
         gate_reasons = []
