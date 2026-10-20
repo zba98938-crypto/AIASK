@@ -964,19 +964,21 @@ def _simulate_trades_from_masks(
         round_trip_positions.append(current_round_trip)
         current_round_trip = None
 
-    def _round_trip_metrics() -> tuple[float, float]:
+    def _round_trip_metrics() -> tuple[float | None, float | None]:
         closed_positions = [
             item for item in round_trip_positions if str(item.get("status") or "").lower() == "closed"
         ]
-        win_rate = (
+        # None, not 0.0: with no closed round trip there is no win rate to
+        # report, and 0.0 is indistinguishable from "measured, never won".
+        win_rate: float | None = (
             float(winning_round_trip_count / max(closed_round_trip_count, 1))
             if closed_round_trip_count > 0
-            else 0.0
+            else None
         )
         avg_hold_days = (
             float(np.mean([float(item.get("hold_days") or 0.0) for item in closed_positions]))
             if closed_positions
-            else 0.0
+            else None
         )
         return win_rate, avg_hold_days
 
@@ -1274,8 +1276,10 @@ def _simulate_trades_from_masks(
                 "max_drawdown": float(np.max((np.maximum.accumulate(equity) - equity) / np.maximum(np.maximum.accumulate(equity), 1e-9))),
                 "sharpe_ratio": 0.0,
                 "trades_count": int(trades),
-                "win_rate": float(win_rate),
-                "avg_holding_days": float(avg_holding_days),
+                # None when unmeasurable: a backtest with no closed round trip
+                # has no win rate, and 0.0 reads as "measured, never won".
+                "win_rate": float(win_rate) if win_rate is not None else None,
+                "avg_holding_days": float(avg_holding_days) if avg_holding_days is not None else None,
                 "turnover_proxy": float(total_traded_notional / initial_capital) if initial_capital > 0 else 0.0,
                 "equity": equity,
                 "round_trip_positions": round_trip_positions,
@@ -1428,8 +1432,9 @@ def _simulate_trades_from_masks(
         "max_drawdown": float(max_dd),
         "sharpe_ratio": float(sharpe),
         "trades_count": int(trades),
-        "win_rate": float(win_rate),
-        "avg_holding_days": float(avg_holding_days),
+        # None when unmeasurable, as above.
+        "win_rate": float(win_rate) if win_rate is not None else None,
+        "avg_holding_days": float(avg_holding_days) if avg_holding_days is not None else None,
         "turnover_proxy": float(turnover_proxy),
         "equity": equity,
         "round_trip_positions": round_trip_positions,

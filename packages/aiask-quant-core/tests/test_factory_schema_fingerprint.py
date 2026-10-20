@@ -306,10 +306,10 @@ class _TolerantConn(_Conn):
 
 def test_fingerprint_covers_the_real_strategy_schema() -> None:
     """The fingerprint must work on the actual DDL, not just a toy fixture."""
-    from aiask_quant_core.storage.sqlite.schema_strategy import init_strategy_tables
+    from strategy_factory.infrastructure.factory_schema import init_factory_schema
 
     conn = _TolerantConn(sqlite3.connect(":memory:"))
-    asyncio.run(init_strategy_tables(conn, False))
+    asyncio.run(init_factory_schema(conn, False))
 
     schema = collect(conn)
 
@@ -328,10 +328,10 @@ def test_vector_domain_tables_are_not_claimed_by_the_factory_domain() -> None:
     akshare-mcp uses all of them. The ``strategy_`` prefix would otherwise
     sweep them in.
     """
-    from aiask_quant_core.storage.sqlite.schema_strategy import init_strategy_tables
+    from strategy_factory.infrastructure.factory_schema import init_factory_schema
 
     conn = _TolerantConn(sqlite3.connect(":memory:"))
-    asyncio.run(init_strategy_tables(conn, False))
+    asyncio.run(init_factory_schema(conn, False))
     schema = collect(conn)
 
     for name in (

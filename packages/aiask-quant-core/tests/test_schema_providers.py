@@ -165,11 +165,14 @@ def test_the_connection_is_passed_through_unchanged() -> None:
 # --- integration with the real DDL ---------------------------------------------
 
 
-def test_the_bundled_strategy_ddl_still_works_through_the_registry() -> None:
-    """The fallback path must remain functional with no owner registered."""
+def test_the_strategy_owner_ddl_works_through_the_registry() -> None:
+    """The registered owner must provide the factory schema."""
     import sqlite3
 
-    from aiask_quant_core.storage.sqlite.schema_strategy import init_strategy_tables
+    from strategy_factory.infrastructure.factory_schema import (
+        FACTORY_SCHEMA_SOURCE,
+        init_factory_schema,
+    )
 
     class _Conn:
         def __init__(self, connection):
@@ -184,18 +187,26 @@ def test_the_bundled_strategy_ddl_still_works_through_the_registry() -> None:
                 except sqlite3.Error:
                     continue
 
+    register_schema_initializer(
+        "strategy_runtime",
+        init_factory_schema,
+        source_module=FACTORY_SCHEMA_SOURCE,
+    )
     connection = sqlite3.connect(":memory:")
     outcome = asyncio.run(
-        init_domain_schema(
-            "strategy_runtime",
-            _Conn(connection),
-            fallback=init_strategy_tables,
-            fallback_source="aiask_quant_core.storage.sqlite.schema_strategy",
-        )
+        init_domain_schema("strategy_runtime", _Conn(connection))
     )
 
     assert outcome["initialized"] is True
+    assert outcome["source_module"] == FACTORY_SCHEMA_SOURCE
     tables = connection.execute(
         "SELECT COUNT(*) FROM sqlite_master WHERE type='table'"
     ).fetchone()[0]
-    assert tables >= 45, f"the bundled DDL created only {tables} tables"
+    assert tables >= 45, f"the owner DDL created only {tables} tables"
+
+
+def test_strategy_schema_without_a_registered_owner_is_reported() -> None:
+    outcome = asyncio.run(init_domain_schema("strategy_runtime", object()))
+
+    assert outcome["initialized"] is False
+    assert outcome["reason"] == "no_initializer"

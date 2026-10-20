@@ -8,6 +8,7 @@ from ._base import (
     _safe_int,
     _safe_rules_dict,
     _string,
+    timezone,
 )
 
 
@@ -443,7 +444,11 @@ class _IncWritesMixin:
     async def _enrich_trade_position_price_path(self, position: Optional[dict]) -> dict:
         payload = dict(position or {})
         entry_ts = _coerce_ts(payload.get("entry_ts") or payload.get("opened_at"))
-        exit_ts = _coerce_ts(payload.get("exit_ts") or payload.get("closed_at") or payload.get("last_trade_time"))
+        # For an open position last_trade_time is the entry time, not an exit.
+        # Falling back to it here collapses the audit window to the entry day.
+        exit_ts = _coerce_ts(payload.get("exit_ts") or payload.get("closed_at"))
+        if exit_ts is None and str(payload.get("status") or "").strip().lower() == "closed":
+            exit_ts = _coerce_ts(payload.get("last_trade_time"))
         entry_avg_price = _safe_float(payload.get("entry_avg_price"))
         code = _string(payload.get("code"))
         direction = _string(payload.get("direction")).lower() or "long"
@@ -454,7 +459,7 @@ class _IncWritesMixin:
             payload["price_path_audit_status"] = "missing_kline_source"
             return payload
         start_date = entry_ts.date().isoformat() if isinstance(entry_ts, datetime) else str(entry_ts)
-        resolved_end_ts = exit_ts or datetime.utcnow()
+        resolved_end_ts = exit_ts or datetime.now(timezone.utc)
         end_date = (
             resolved_end_ts.date().isoformat()
             if isinstance(resolved_end_ts, datetime)

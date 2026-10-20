@@ -3,7 +3,7 @@
 
 import json
 import logging
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, List, Optional
 
 from aiask_quant_core.storage.trade_audit_writer import aggregate_trade_position

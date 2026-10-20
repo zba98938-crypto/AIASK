@@ -21,9 +21,8 @@ RAY_AVAILABLE = False
 try:
     import ray
     RAY_AVAILABLE = True
-except ImportError as _swallowed:
-    logger.warning("packages/aiask-quant-core/src/aiask_quant_core/backtest/parallel.py:22: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-    pass
+except ImportError:
+    logger.debug("Ray is not installed; parallel backtest disabled")
 
 
 def _parallel_backtest_task_optimized_impl(

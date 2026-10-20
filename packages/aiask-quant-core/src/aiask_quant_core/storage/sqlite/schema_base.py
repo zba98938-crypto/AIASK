@@ -668,24 +668,25 @@ class SchemaBase:
         )
         from .schema_market import init_market_tables
         from .schema_providers import init_domain_schema
-        from .schema_strategy import init_strategy_tables
         from .schema_vector import init_vector_tables
 
         async with self.acquire() as conn:
             await run_app_core_migrations(conn)
             await init_market_tables(conn)
 
-            # Factory-domain DDL is looked up through the registry so its owning
-            # package (Strategy Factory) can supply it. The bundled copy remains
-            # the fallback, which keeps this working with no host present and
-            # makes the ownership move incremental instead of a flag day.
+            # The factory-domain schema is owned by Strategy Factory.  Resolve
+            # it through the registry; a standalone quant-core process may
+            # legitimately run without factory tables.
             strategy_outcome = await init_domain_schema(
                 "strategy_runtime",
                 conn,
                 sqlite_python_enabled=False,
-                fallback=init_strategy_tables,
-                fallback_source="aiask_quant_core.storage.sqlite.schema_strategy",
             )
+            if not strategy_outcome.get("initialized"):
+                logger.warning(
+                    "Factory-domain schema provider is not registered; "
+                    "factory tables will not be created in this process"
+                )
 
             await init_vector_tables(conn, False)
             await record_schema_namespace_checkpoint(
@@ -700,8 +701,7 @@ class SchemaBase:
                 migration_key="sqlite_bootstrap_v1",
                 # Record who actually created the tables, not who used to.
                 source_module=str(
-                    strategy_outcome.get("source_module")
-                    or "aiask_quant_core.storage.sqlite.schema_strategy"
+                    strategy_outcome.get("source_module") or "unregistered"
                 ),
             )
             await record_schema_namespace_checkpoint(
