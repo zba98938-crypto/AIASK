@@ -1,0 +1,739 @@
+{
+  "route_count": 175,
+  "application_routes": [
+    {
+      "method": "GET",
+      "path": "/health"
+    },
+    {
+      "method": "GET",
+      "path": "/health/detailed"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/capabilities/parity"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/tools"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/capabilities"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/settings/status"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/data/status"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/data/sync-plan"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/data/stock-data-sources"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/data/stock-data-sources"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/data/stock-data-sources/test"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/users/local-profile"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/users/local-profile"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/users/local-profile"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/users/events"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/users/feedback"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/users/analytics/summary"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/users/retention/sweep"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/users/{user_id}/activity"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/users/{user_id}/export"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/users/{user_id}/delete"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/users/{user_id}/learning-dataset"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/users/{user_id}/recommendations"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/users/{user_id}/data-policy"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/users/{user_id}/data-policy"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/finance/quant/presets"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/finance/quant/research-runs"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/finance/quant/research-runs/{research_id}"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/finance/quant/research-runs/{research_id}/report"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/finance/manager/catalog"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/finance/manager/status"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/finance/manager/query"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/finance/manager/intent"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/finance/broker/readiness"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/finance/broker/sync"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/finance/broker/snapshot"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/finance/broker/accounts"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/finance/broker/positions"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/finance/broker/orders"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/finance/broker/deals"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/finance/broker/analytics/run"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/finance/broker/analytics/latest"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/research/factor-factory/status"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/research/trade-predictions/status"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/research/trade-predictions/outcomes"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/research/trade-predictions/matrix"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/research/stock-radar/status"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/research/stock-radar/candidates"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/research/stock-radar/digest"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/workbench/summary"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sessions/batch/archive"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/ai/status"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/ai/config"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/ai/config"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/ai/smoke"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/ai/models"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/responses"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/chat/completions"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/responses/{response_id}"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/responses/{response_id}"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/search"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/runs"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/runs/{run_id}/events"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/runs/{run_id}/events/stream"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/runs/{run_id}/artifacts"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/runs/{run_id}/sources"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/runs/{run_id}/trace-eval"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/runs/{run_id}/tool-invocations"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/runs/{run_id}"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sessions/{session_id}/artifacts"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sessions/{session_id}/sources"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sessions/{session_id}/messages"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/artifacts/{artifact_id}/content"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/artifacts/{artifact_id}"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/sources/{source_id}"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/tool-invocations/{invocation_id}"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/runs/{run_id}/cancel"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/runs/{run_id}/stop"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/runs/{run_id}/steer"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sessions/{session_id}/undo"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/sessions/{session_id}/archive"
+    },
+    {
+      "method": "GET",
+      "path": "/intents"
+    },
+    {
+      "method": "GET",
+      "path": "/intents/{intent_id}"
+    },
+    {
+      "method": "POST",
+      "path": "/intents"
+    },
+    {
+      "method": "POST",
+      "path": "/intents/{intent_id}/confirm"
+    },
+    {
+      "method": "POST",
+      "path": "/intents/{intent_id}/deny"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/approvals"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/approvals/{approval_id}/{decision}"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/jobs"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/jobs/{job_id}/runs"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/jobs"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/jobs/{job_id}"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/jobs/{job_id}"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/jobs/{job_id}/run"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/tools/{tool_name}"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hermes/admin/tools/{tool_name}"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hermes/status"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hermes/readiness"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/financial-system/readiness"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hermes/toolsets"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hermes/tools"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hermes/config"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hermes/sessions"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/hermes/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hermes/handoffs"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/hermes/sessions/{session_id}/resume-context"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/processes"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/terminal/backends"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/terminal/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/terminal/backends/{name}/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/browser/sessions"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/skills"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/skills"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/skills/{name}"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/skills/{name}"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/plugins"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/plugins"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/plugins/{name}"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/plugins/{name}/tools/{tool}/test"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/plugins/{name}/commands"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/plugins/{name}/commands/{command}/test"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/mcp/servers"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/mcp/servers"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/mcp/servers/{name}"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/mcp/servers/{name}"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/mcp/tools"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/mcp/resources"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/mcp/prompts"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/mcp/oauth_status"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/mcp/register-local"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/mcp/discover"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/mcp/oauth/start"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/mcp/oauth/callback"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/mcp/resources/read"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/mcp/prompts/get"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/learning/status"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/learning/review"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/learning/apply"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/rl/environments"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/rl/config"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/rl/config"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/rl/runs"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/rl/runs"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/rl/runs/{run_id}"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/rl/runs/{run_id}/stop"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/rl/runs/{run_id}/results"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/rl/runs/{run_id}/logs"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/gateway/status"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/gateway/platforms"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/gateway/pairing"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/gateway/pairing"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/gateway/messages"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/gateway/directory"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/gateway/directory/refresh"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/gateway/send"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/gateway/direct-deliver"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/gateway/messages/{message_id}/retry"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/gateway/platforms/{platform}/start"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/gateway/platforms/{platform}/stop"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/gateway/platforms/{platform}/health"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/gateway/webhooks/{platform}"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/gateway/daemon/status"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/connectors"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/connectors/summary"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/connectors/{connector_type}/{name}"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/connectors/{connector_type}/{name}/test"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/webhooks"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/webhooks"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/webhooks/{webhook_id}"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/webhooks/{webhook_id}/trigger"
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/desktop/{removed_path:path}"
+    },
+    {
+      "method": "GET",
+      "path": "/v1/desktop/{removed_path:path}"
+    },
+    {
+      "method": "PATCH",
+      "path": "/v1/desktop/{removed_path:path}"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/desktop/{removed_path:path}"
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/desktop/{removed_path:path}"
+    }
+  ],
+  "framework_routes": [
+    {
+      "method": "GET",
+      "path": "/openapi.json"
+    },
+    {
+      "method": "HEAD",
+      "path": "/openapi.json"
+    },
+    {
+      "method": "GET",
+      "path": "/docs"
+    },
+    {
+      "method": "HEAD",
+      "path": "/docs"
+    },
+    {
+      "method": "GET",
+      "path": "/docs/oauth2-redirect"
+    },
+    {
+      "method": "HEAD",
+      "path": "/docs/oauth2-redirect"
+    },
+    {
+      "method": "GET",
+      "path": "/redoc"
+    },
+    {
+      "method": "HEAD",
+      "path": "/redoc"
+    }
+  ]
+}

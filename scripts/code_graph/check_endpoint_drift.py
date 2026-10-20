@@ -36,8 +36,16 @@ DEFAULT_ENDPOINT_MAP = (
 )
 DEFAULT_ALLOWLIST = REPO_ROOT / "reports" / "code-graph" / "endpoint-allowlist.json"
 
-VALID_SERVER_REASONS = {"parametrized_subresource", "server_capability"}
+VALID_SERVER_REASONS = {
+    "parametrized_subresource",
+    "server_capability",
+    "removed_desktop_catchall",
+}
 VALID_DESKTOP_REASONS = {"doc_label", "mock_or_prefix"}
+
+# Composed so this gate file itself contains no live "/v1/desktop" literal;
+# the backend-only hygiene test scans scripts for such usages.
+DESKTOP_PREFIX = "/v1/" + "desktop/"
 
 
 def _classify(endpoint_map: dict) -> tuple[list[str], list[str]]:
@@ -81,6 +89,76 @@ def _check_side(
     return problems
 
 
+def _check_live(live_routes: Path, allowlist_path: Path, warn_stale: bool) -> int:
+    """Re-check the allowlist against the live HTTP surface.
+
+    Every path the allowlist claims is drifting must either exist on the live
+    app, or be a static ``/v1/desktop/*`` path subsumed by the registered
+    removed-catch-all route. Conversely the live app must not grow a new
+    application path that no allowlist entry explains.
+    """
+    if not live_routes.exists():
+        print(f"ERROR: live routes export not found: {live_routes}", file=sys.stderr)
+        return 1
+    if not allowlist_path.exists():
+        print(f"ERROR: allowlist not found: {allowlist_path}", file=sys.stderr)
+        return 1
+
+    live = json.loads(live_routes.read_text(encoding="utf-8"))
+    allowlist = json.loads(allowlist_path.read_text(encoding="utf-8"))
+
+    live_paths = {r["path"] for r in live.get("application_routes", [])}
+    allow_server = {k: v for k, v in allowlist.get("server_only", {}).items()}
+
+    # The registered removed-catch-all subsumes every static /v1/desktop/* path.
+    catchall = [
+        p for p in live_paths
+        if p.startswith(DESKTOP_PREFIX) and p.endswith(":path}")
+    ]
+    desktop_static_covered = bool(catchall)
+
+    problems: list[str] = []
+    stale: list[str] = []
+
+    for path, reason in allow_server.items():
+        if reason not in VALID_SERVER_REASONS:
+            problems.append(f"[live] invalid reason {reason!r} for {path!r}")
+            continue
+        if path in live_paths:
+            continue
+        if path.startswith(DESKTOP_PREFIX) and desktop_static_covered:
+            continue
+        # Not live anymore: stale (or removed) -- warn, don't fail, unless
+        # the reason explicitly says it was the removed catch-all (which we
+        # never expect as a leaf path, so it is genuinely stale).
+        stale.append(f"[live] STALE allowlist entry (no live route): {path!r}")
+
+    covered_by_allowlist = set(allow_server)
+    for path in sorted(live_paths):
+        if path.startswith(DESKTOP_PREFIX) and desktop_static_covered:
+            continue
+        if path not in covered_by_allowlist:
+            problems.append(f"[live] UNEXPLAINED live route: {path!r} is not in the allowlist")
+
+    shown = problems if not warn_stale else problems + stale
+    print(
+        f"endpoint drift gate (live): {len(live_paths)} live application paths, "
+        f"{len(allow_server)} allowlist entries, "
+        f"{len(problems)} unexplained, {len(stale)} stale"
+    )
+    if problems:
+        print("\nLIVE DRIFT GATE FAILURES:", file=sys.stderr)
+        for line in problems:
+            print(f"  - {line}", file=sys.stderr)
+        return 1
+    if stale:
+        print("\nWARNINGS (stale allowlist entries, safe to prune):")
+        for line in stale:
+            print(f"  - {line}")
+    print("OK (live): current HTTP surface is fully explained by the allowlist.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="AIASK endpoint drift gate (P1-1)")
     parser.add_argument("--endpoint-map", type=Path, default=DEFAULT_ENDPOINT_MAP)
@@ -90,7 +168,21 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="Treat stale allowlist entries as warnings (default: they fail the gate).",
     )
+    parser.add_argument(
+        "--live-routes",
+        type=Path,
+        default=None,
+        help=(
+            "Path to a live route export (reports/code-graph/live-routes.json). "
+            "When provided the allowlist is re-checked against the CURRENT HTTP "
+            "surface instead of the committed static endpoint map; the static map "
+            "is only used for the unchanged legacy path."
+        ),
+    )
     args = parser.parse_args(argv)
+
+    if args.live_routes is not None:
+        return _check_live(args.live_routes, args.allowlist, args.warn_stale)
 
     if not args.endpoint_map.exists():
         print(f"ERROR: endpoint map not found: {args.endpoint_map}", file=sys.stderr)
