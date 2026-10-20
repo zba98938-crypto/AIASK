@@ -6,6 +6,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import math
+import os
 import logging
 import time
 from copy import deepcopy
@@ -24,6 +26,8 @@ from ..domain.constants import (
     FACTORY_SUBMISSION_MIN_BACKTEST_TRADES,
     BACKTEST_TYPE_THRESHOLDS,
     REPRESENTATIVE_STOCKS,
+    PARAM_PERTURB_VARIANT_CAP,
+    PARAM_PERTURB_BUDGET_SEC,
 )
 from ..domain.targets import _build_target_alignment_contract
 from ..domain.targets import _extract_target_codes_from_payload
@@ -37,6 +41,7 @@ from .candidate_contract import (
     build_portfolio_candidate_contract,
     build_tested_object_hash,
 )
+from .param_perturbation_study import run_parameter_perturbation_study
 from .runtime import get_strategy_factory_package as _runtime_get_strategy_factory_package
 
 
@@ -1354,6 +1359,56 @@ class BacktestFilter:
         payload.setdefault("component_codes", list(market_data.keys()))
         return payload
 
+    async def _run_parameter_perturbation_study(
+        self,
+        candidate: dict,
+        engine,
+        *,
+        primary_code: str,
+        strategy_type: str,
+        assumptions_kwargs: dict,
+        baseline_metrics: Optional[dict],
+    ) -> Optional[dict[str, Any]]:
+        """Run the bounded parameter-perturbation study for one primary code.
+
+        Returns the three statistic fields plus a ``parameter_perturbation_study``
+        provenance dict to merge into the candidate metrics, or None when the
+        candidate went through the portfolio engine (no per-code baseline).
+        Fail-closed: missing klines / no numeric params / all variant runs
+        failed produce None-valued stats with a stable reason, never 0.
+        """
+        klines = list(self._kline_cache.get(primary_code) or [])
+        params = dict(candidate.get("params") or {})
+        params.update(assumptions_kwargs)
+        baseline_result = {
+            "success": True,
+            "data": dict(baseline_metrics or {}),
+        }
+        study = await run_parameter_perturbation_study(
+            engine=engine,
+            code=primary_code,
+            klines=klines,
+            strategy_type=strategy_type,
+            base_params=params,
+            assumptions_kwargs={},
+            baseline_result=baseline_result,
+            variant_cap=PARAM_PERTURB_VARIANT_CAP,
+            budget_sec=PARAM_PERTURB_BUDGET_SEC,
+            code_timeout_sec=BACKTEST_CODE_TIMEOUT_SEC,
+        )
+        return {
+            "parameter_perturbation_trade_stability": study.get(
+                "parameter_perturbation_trade_stability"
+            ),
+            "parameter_perturbation_trade_count_correlation": study.get(
+                "parameter_perturbation_trade_count_correlation"
+            ),
+            "parameter_perturbation_direction_agreement": study.get(
+                "parameter_perturbation_direction_agreement"
+            ),
+            "parameter_perturbation_study": study.get("parameter_perturbation_study"),
+        }
+
     @staticmethod
     def _coerce_equity_curve(metric: dict) -> Optional[np.ndarray]:
         raw_curve = metric.get("equity_curve")
@@ -2444,6 +2499,19 @@ class BacktestFilter:
             )
         else:
             parameter_stability = None
+        # 扰动研究的另外两个统计量（提交侧真实证据）：
+        # 交易数对扰动幅度的 Pearson 相关；扰动前后方向一致率。
+        # 只在研究真实产出时透传，缺失保持 None，不用 0 补位。
+        parameter_trade_count_correlation = (
+            round(float(metrics.get("parameter_perturbation_trade_count_correlation")), 4)
+            if metrics.get("parameter_perturbation_trade_count_correlation") is not None
+            else None
+        )
+        parameter_direction_agreement = (
+            round(float(metrics.get("parameter_perturbation_direction_agreement")), 4)
+            if metrics.get("parameter_perturbation_direction_agreement") is not None
+            else None
+        )
         event_metrics_fabricated = bool(
             event_window_hit_ratio is None
             and post_event_decay is None
@@ -2498,6 +2566,8 @@ class BacktestFilter:
             "parameter_perturbation_trade_stability": (
                 None if parameter_stability is None else round(parameter_stability, 4)
             ),
+            "parameter_perturbation_trade_count_correlation": parameter_trade_count_correlation,
+            "parameter_perturbation_direction_agreement": parameter_direction_agreement,
             "event_metrics_fabricated": False,
             "event_study_mode": str(event_window_metrics.get("event_study_mode") or "").strip().lower() or None,
             "event_sample_count": int(event_window_metrics.get("event_sample_count") or 0),
@@ -3087,6 +3157,27 @@ class BacktestFilter:
                 target_weight_map=assumptions.target_weight_map,
             )
         )
+
+        # Parameter-perturbation study (submission-side evidence). Bounded: one
+        # primary code x up to 4 numeric params x 4 factors = 16 backtests,
+        # capped at 8 variants. Fail-closed: unavailable klines / no numeric
+        # params / all runs failed -> stability=None with a reason, never 0.
+        per_code_results: dict[str, dict] = {}
+        for _r in primary_results:
+            _rc = _r.get("code")
+            if _rc and isinstance(_r, dict):
+                per_code_results.setdefault(_rc, dict(_r.get("data") or {}))
+        if avg and primary_successful_codes:
+            study = await self._run_parameter_perturbation_study(
+                candidate,
+                engine,
+                primary_code=primary_successful_codes[0],
+                strategy_type=strategy_type,
+                assumptions_kwargs=assumptions.to_backtest_kwargs(),
+                baseline_metrics=per_code_results.get(primary_successful_codes[0]),
+            )
+            if study:
+                avg.update(study)
 
         # ══════════════════════════════════════════════════════════════════
         # Gate-2 自适应评估

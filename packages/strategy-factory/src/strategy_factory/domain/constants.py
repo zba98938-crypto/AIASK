@@ -802,6 +802,10 @@ BACKTEST_CODE_CONCURRENCY = _env_int("STRATEGY_FACTORY_BACKTEST_CODE_CONCURRENCY
 # 单只股票回测的 wall-clock 上限（秒）。异常股票常因数据脏值在回测引擎内陷入长时间循环；
 # 命中 timeout 后该 code 计入 failed，不占用并发槽。
 BACKTEST_CODE_TIMEOUT_SEC = _env_float("STRATEGY_FACTORY_BACKTEST_CODE_TIMEOUT_SEC", 30.0, minimum=1.0, maximum=600.0)
+# 参数扰动研究的预算：每个候选最多重跑的变体回测数，与单候选总 wall-clock 上限（秒）。
+# 扰动统计无法在预算内完成时 fail-closed 返回 None + reason，不写 0 补位。
+PARAM_PERTURB_VARIANT_CAP = _env_int("STRATEGY_FACTORY_PERTURB_VARIANT_CAP", 8, minimum=3, maximum=32)
+PARAM_PERTURB_BUDGET_SEC = _env_float("STRATEGY_FACTORY_PERTURB_BUDGET_SEC", 30.0, minimum=5.0, maximum=600.0)
 # 提交并发度（同时执行的候选提交上限）
 SUBMIT_CONCURRENCY = _env_int("STRATEGY_FACTORY_SUBMIT_CONCURRENCY", 3, minimum=1, maximum=8)
 # 去重并发度

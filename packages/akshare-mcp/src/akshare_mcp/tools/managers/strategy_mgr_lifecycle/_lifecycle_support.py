@@ -84,6 +84,8 @@ _TRADE_AUDIT_BACKTEST_KEYS = (
     "post_event_decay",
     "trade_density",
     "parameter_perturbation_trade_stability",
+    "parameter_perturbation_trade_count_correlation",
+    "parameter_perturbation_direction_agreement",
     "primary_validation_layer",
 )
 

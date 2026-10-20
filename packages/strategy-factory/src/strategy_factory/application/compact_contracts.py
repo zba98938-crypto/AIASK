@@ -94,6 +94,8 @@ SCALAR_METRIC_KEYS = (
     "trade_density",
     "avg_holding_days",
     "parameter_perturbation_trade_stability",
+    "parameter_perturbation_trade_count_correlation",
+    "parameter_perturbation_direction_agreement",
     "backtest_metrics_contract_status",
     "primary_validation_layer",
     "validation_focus",
