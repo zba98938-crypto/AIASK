@@ -756,3 +756,110 @@ class SchemaBase:
         if self._connection_wrapper is None:
             raise RuntimeError("SQLite connection is not initialized")
         yield self._connection_wrapper
+
+    # -- async convenience proxies -----------------------------------------
+    # The adapter instance is handed across package boundaries (strategy
+    # factory scheduler, execution universe contract) where callers use the
+    # short ``fetch``/``execute`` surface. The real implementations live on
+    # the ``SQLiteConnection`` wrapper returned by ``acquire()``; without
+    # these proxies the adapter reports ``AttributeError: no attribute
+    # 'fetch'`` and callers silently degrade to empty results.
+
+    def _require_wrapper(self) -> "SQLiteConnection":
+        if self._connection_wrapper is None:
+            raise RuntimeError("SQLite connection is not initialized")
+        return self._connection_wrapper
+
+    async def _ensure_initialized(self) -> None:
+        if not self._initialized:
+            await self.initialize()
+        self._require_wrapper()
+
+    @staticmethod
+    def _normalize_bind_args(args: tuple[Any, ...]) -> tuple[Any, ...]:
+        """Accept both positional binds and a single pre-built tuple.
+
+        The paper-trading scheduler binds positionally (``db.execute(sql, a,
+        b)``) while the execution-universe contract passes one tuple
+        (``db.execute(sql, (params,))``); normalise to a flat sequence.
+        """
+        if len(args) == 1 and isinstance(args[0], (tuple, list)):
+            return tuple(args[0])
+        return args
+
+    @staticmethod
+    def _uses_native_placeholders(sql: str) -> bool:
+        stripped = re.sub(r"'(?:[^']|'')*'", "''", sql)
+        return "?" in stripped and not re.search(r"\$\d+", stripped)
+
+    def _run_fetch_native(self, sql: str, args: tuple[Any, ...]) -> list[dict[str, Any]]:
+        wrapper = self._require_wrapper()
+        with wrapper._lock:
+            cursor = wrapper._conn.execute(sql, args)
+            rows = [dict(row) for row in cursor.fetchall()]
+            wrapper._maybe_commit()
+            return rows
+
+    async def fetch(self, sql: str, *args: Any) -> list[dict[str, Any]]:
+        await self._ensure_initialized()
+        args = self._normalize_bind_args(args)
+        if self._uses_native_placeholders(sql):
+            return self._run_fetch_native(sql, args)
+        async with self.acquire() as conn:
+            return await conn.fetch(sql, *args)
+
+    async def fetchrow(self, sql: str, *args: Any) -> Optional[dict[str, Any]]:
+        rows = await self.fetch(sql, *args)
+        return rows[0] if rows else None
+
+    async def fetchval(self, sql: str, *args: Any) -> Any:
+        rows = await self.fetch(sql, *args)
+        if not rows:
+            return None
+        return next(iter(rows[0].values()))
+
+    async def execute(self, sql: str, *args: Any) -> "SQLiteCursorHandle":
+        """Run a statement and return a cursor-shaped handle.
+
+        The statement executes immediately (callers such as the paper-trading
+        scheduler ``await db.execute(...)`` and discard the handle, so a lazy
+        handle would never commit); the returned handle exposes
+        ``await cursor.fetchall()`` / ``fetchone()`` with **tuple** rows, the
+        shape raw-sqlite3-cursor callers index with ``row[0]``. Native ``?``
+        placeholder SQL is bound directly; ``$n`` SQL goes through the shared
+        ``_prepare_statement`` path so mixing rules and special cases apply.
+        """
+        await self._ensure_initialized()
+        wrapper = self._require_wrapper()
+        with self._lock:
+            args = self._normalize_bind_args(args)
+            if self._uses_native_placeholders(sql):
+                prepared_sql, ordered_args = sql, args
+            else:
+                prepared_sql, ordered_args = _prepare_statement(sql, args)
+            cursor = wrapper._conn.execute(prepared_sql, ordered_args)
+            is_select = prepared_sql.lstrip().upper().startswith("SELECT")
+            rows = [tuple(row) for row in cursor.fetchall()] if is_select else []
+            wrapper._maybe_commit()
+        return SQLiteCursorHandle(rows)
+
+
+class SQLiteCursorHandle:
+    """Cursor-shaped result of ``SchemaBase.execute``.
+
+    The statement has already run when the handle is created; these
+    methods only serve the stored **tuple** rows (the shape
+    ``execution_universe`` adapters index with ``row[0]``). ``fetchall`` /
+    ``fetchone`` are async because factory code awaits them, matching the
+    connection-wrapper contract.
+    """
+
+    def __init__(self, rows: list[tuple[Any, ...]]):
+        self._rows = rows
+
+    async def fetchall(self) -> list[tuple[Any, ...]]:
+        return list(self._rows)
+
+    async def fetchone(self) -> Optional[tuple[Any, ...]]:
+        return self._rows[0] if self._rows else None
+
