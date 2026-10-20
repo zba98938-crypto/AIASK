@@ -485,3 +485,27 @@ work from a sync run; nothing here pretends they are current.
 snapshot from akshare sector-fund-flow that has no members in `block_stocks`, and
 43 of whose names duplicate a live board. They are labelled rather than deleted,
 so `block_type='industry'` returns exactly the 128 boards that have members.
+
+## 10. Runtime databases: which file is authoritative
+
+Two SQLite files both live under `~/.aiask` and only one of them is real:
+
+| Path | Status | Notes |
+|---|---|---|
+| `~/.aiask/data/db/akshare_mcp.sqlite3` | **authoritative** | 4.2 GB, 152 tables, all market/factor/factory data. Overridable by `AIASK_SQLITE_PATH` / `AKSHARE_MCP_SQLITE_PATH`. |
+| `~/.aiask/akshare_mcp.sqlite3` | legacy shell (0 rows) | Historical leftover at the old location. Do not route reads through it; `factory_cli evidence --legacy-db` is the only intentional accessor and its envelope says so. |
+| `~/.aiask/data/db/strategy_factory_task_board.sqlite3` | authoritative | Task board (762 tasks). Resolved by `STRATEGY_FACTORY_TASK_BOARD_PATH` or `resolve_task_board_path()`. |
+
+The resolver is `aiask_quant_core.runtime_paths.resolve_sqlite_path()`:
+`AIASK_SQLITE_PATH` > `AKSHARE_MCP_SQLITE_PATH` > `<AIASK_RUNTIME_HOME or ~/.aiask>/data/db/akshare_mcp.sqlite3`.
+
+`factory_cli evidence` now defaults to the resolver (previously it pointed at
+the legacy 0-row shell, which made every evidence count read back as 0).
+
+## 11. TDX: marked unavailable (2026-10)
+
+`pytdx` is installed and the `heartbeat=False` exit-hang bug is fixed (section
+5), but the two live pool servers answer only administrative queries and serve
+no market data — 12 servers probed, 12/12 supply zero bars. **Treat TDX as
+unavailable and do not route a data need through it.** The ten dead pool
+entries and dead-first ordering remain as-is.

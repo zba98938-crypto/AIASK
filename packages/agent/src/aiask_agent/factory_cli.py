@@ -277,12 +277,35 @@ def cmd_evidence(args: argparse.Namespace) -> RunEnvelope:
     """Summarize evidence rows from the local sqlite ledger, read-only."""
     import sqlite3
 
+    def _resolve_default_sqlite_path(explicit: str) -> tuple[Path, str]:
+        if getattr(args, "legacy_db", False) and not explicit:
+            # Explicit opt-in to the historical legacy shell location. It holds
+            # no data; the authoritative runtime DB comes from runtime_paths.
+            return Path.home() / ".aiask" / "akshare_mcp.sqlite3", "legacy_db_flag"
+        if explicit:
+            return Path(explicit).expanduser(), "cli_arg"
+        aiask_env = os.getenv("AIASK_SQLITE_PATH")
+        if aiask_env:
+            return Path(aiask_env).expanduser(), "AIASK_SQLITE_PATH"
+        akshare_env = os.getenv("AKSHARE_MCP_SQLITE_PATH")
+        if akshare_env:
+            return Path(akshare_env).expanduser(), "AKSHARE_MCP_SQLITE_PATH"
+        # Authoritative runtime database: ~/.aiask/data/db/akshare_mcp.sqlite3
+        # (via AIASK_RUNTIME_HOME). NOT the legacy 0-row shell at
+        # ~/.aiask/akshare_mcp.sqlite3 — use --legacy-db only if you must.
+        try:
+            from aiask_quant_core.runtime_paths import resolve_sqlite_path_with_source
+            path, source = resolve_sqlite_path_with_source("akshare_mcp.sqlite3")
+            return path, f"runtime_paths({source})"
+        except Exception:
+            # Fallback: the same canonical directory via the agent's own resolver
+            from aiask_agent.adapters._runtime_paths import configured_sqlite_path
+            path, _ = configured_sqlite_path("akshare_mcp.sqlite3")
+            return path, "agent_runtime_paths_fallback"
+
     envelope = RunEnvelope.start("factory_evidence")
-    db_path = args.sqlite_path or os.getenv("AIASK_SQLITE_PATH") or ""
-    if not db_path:
-        default = Path.home() / ".aiask" / "akshare_mcp.sqlite3"
-        db_path = str(default)
-    path = Path(db_path).expanduser()
+    path, path_source = _resolve_default_sqlite_path(args.sqlite_path)
+    envelope.data["sqlite_path_source"] = path_source
     envelope.data["sqlite_path"] = str(path)
 
     if not path.is_file():
@@ -613,6 +636,11 @@ def build_factory_parser(sub: Any) -> None:
     evidence = actions.add_parser("evidence", help="Summarize the evidence ledger (read-only).")
     _json_flag(evidence)
     evidence.add_argument("--sqlite-path", default="")
+    evidence.add_argument(
+        "--legacy-db",
+        action="store_true",
+        help="read the legacy ~/.aiask/akshare_mcp.sqlite3 shell instead of the runtime DB",
+    )
     evidence.set_defaults(func=cmd_evidence)
 
     template = actions.add_parser(
