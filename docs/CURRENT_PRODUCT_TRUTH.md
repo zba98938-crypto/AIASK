@@ -22,6 +22,7 @@ conflict with the tree.
 > | Factory task board (active) | 762 `factory_tasks` (746 completed, 16 blocked — all `stale factory task reclaimed`), 762 attempts; last activity 2026-10-20 |
 > | Incubation accounts | 1,768 active (1,701 paper / 67 warmup); 2,884 metric rows through 2026-10-20; decision split: 2,795 observe / 77 halt / **12 promote** |
 > | Quality gate failures | 8,248 of 8,432 quality reports failed; dominant reasons: `missing_parameter_perturbation_trade_stability` (3,693/4,000 sampled), `insufficient_statistical_evidence` (3,286), `missing_statistical_metrics_param_sensitivity` (3,282) |
+> | Unreachable dependencies (documented, not silent) | QMT `xtquant` and 易盛 `easytrader` SDKs are vendor-proprietary and **not installed** in this environment: the finance sub-servers fail per tool with an explicit `RuntimeError`, the server itself stays up, and the live-trading tools are additionally gated behind env flags. `baostock` was installed 2026-10-21 to match its declared version; `tushare` is installed (1.4.29) but has no token and stays dormant behind the off-by-default legacy fallback toggle |
 >
 > **Interpretation.** Incubation is **not idle-spinning**: 12 real
 > promotions occurred (3 distinct strategies, last on 2026-10-19). It is

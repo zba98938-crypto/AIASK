@@ -421,7 +421,9 @@ def _source_status(source: dict[str, Any]) -> dict[str, Any]:
     enabled = bool(source.get("enabled", True))
     status = "ready" if configured and enabled else "disabled" if not enabled else "unconfigured"
     if provider in {"akshare", "baostock", "qmt"}:
-        package = "akshare" if provider == "akshare" else "baostock" if provider == "baostock" else "xtquant"
+        # "akshare" is the project's own MCP server package; the upstream
+        # akshare pip package is not a dependency of this code path.
+        package = "akshare_mcp" if provider == "akshare" else "baostock" if provider == "baostock" else "xtquant"
         installed = importlib.util.find_spec(package) is not None
         if provider != "qmt":
             configured = configured or installed

@@ -44,12 +44,21 @@ direct first and fall back to the proxy, recording which transport answered.
 
 | Library | Declared | Installed | Referenced in | Consequence |
 |---|---|---|---|---|
-| `tushare` | core dependency | yes, 1.4.29 | 2 files | no token -> every call fails |
+| `tushare` | core dependency | yes, 1.4.29 | 4 files | installed but no `TUSHARE_TOKEN` configured; the legacy fallback chain is off by default (`DATA_SOURCE_KEEP_LEGACY_FALLBACK=0`), so it stays dormant |
 | `efinance` | `legacy` extra | yes, 0.5.8 | 2 files | `get_realtime_quotes` fails with JSONDecodeError (it uses `push2`) |
 | `pytdx` | not declared | yes, 1.72 | 0 files directly | used through `tdx_local`; see section 5 |
 | `akshare` | **not declared** | **no** | **was 26 files — now 0** | every reference was removed; see below |
-| `baostock` | `legacy` extra | no | 8 files | same |
+| `baostock` | `legacy` extra | yes, 0.8.9 | 8 files | installed 2026-10-21 so the declared dependency matches the environment; `baostock_client` is live (still gated behind the same legacy fallback toggle) |
 | `mootdx`, `tqcenter` | not declared | no | 1 file each | `tdx_tqcenter` returns `[]` for everything |
+
+### Broker SDKs: documented as out of reach, not installed
+
+The finance MCP sub-servers for **QMT** (`xtquant`) and **易盛/THS** (`easytrader`)
+lazy-import their vendor SDKs and raise a descriptive `RuntimeError` when a tool is
+called without the SDK — a tool-level error, never a server crash. Those SDKs are
+vendor-proprietary and out of reach for this environment, so they are **not
+installed**; live trading tools remain gated behind their env flags and are not
+enabled. This is a documented unreachable dependency, not a silent one.
 
 ### akshare: removed, not installed
 
