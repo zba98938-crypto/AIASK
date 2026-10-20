@@ -217,6 +217,11 @@ class IncubationFactoryRunner:
         start_time = datetime.now(timezone.utc)
         logger.info("IncubationFactory: starting run %s", run_id)
         phase_failures: list[dict[str, Any]] = []
+        # The date this cycle operates on. It was previously referenced at the
+        # exit-signal phase without ever being bound, so that lambda raised
+        # NameError on every run, _run_phase swallowed it, and the phase was
+        # silently never executed.
+        as_of: Optional[date] = datetime.now(timezone.utc).date()
 
         async def _run_phase(name: str, coro_factory, *, timeout: float = STRATEGY_TIMEOUT_SEC):
             """Run a single phase with a timeout + error capture.
@@ -425,6 +430,16 @@ class IncubationFactoryRunner:
                 timeout=BATCH_TIMEOUT_SEC,
             ) or {}
 
+            logger.info("IncubationFactory [%s] Phase 3d2: Rejected strategy position cleanup", run_id)
+            rejected_cleanup_result = await _run_phase(
+                "rejected_strategy_position_cleanup",
+                lambda: self._run_rejected_strategy_position_cleanup(
+                    db,
+                    as_of=as_of,
+                ),
+                timeout=BATCH_TIMEOUT_SEC,
+            ) or {}
+
             logger.info("IncubationFactory [%s] Phase 3e: Native execution evidence backfill", run_id)
             native_evidence_backfill_result = await _run_phase(
                 "native_execution_evidence_backfill",
@@ -564,6 +579,7 @@ class IncubationFactoryRunner:
                 "paper_execution_backlog": paper_execution_backlog_result,
                 "exit_signal_paper_execution": exit_signal_execution_result,
                 "stale_paper_position_closure": stale_position_closure_result,
+                "rejected_strategy_position_cleanup": rejected_cleanup_result,
                 "native_execution_evidence_backfill": native_evidence_backfill_result,
                 "execution_audit_acceptance": execution_audit_acceptance_result,
                 "execution_audit_remediation": execution_audit_remediation_result,
@@ -759,18 +775,23 @@ class IncubationFactoryRunner:
             payload.get("rule_template_contract") or params.get("rule_template_contract")
         )
         default_risk = cls._decode_mapping(rule_contract.get("default_risk_constraints"))
+        mapping_search = cls._decode_mapping(params.get("mapping_search"))
         candidates = (
             exit_policy.get("time_stop_days"),
             exit_policy.get("max_holding_days"),
             holding_window.get("max_days"),
+            payload.get("hold_days"),
+            params.get("hold_days"),
+            mapping_search.get("hold"),
             risk_rules.get("max_holding_days"),
             default_risk.get("max_holding_days"),
         )
         for value in candidates:
+            if value is None or str(value).strip() == "":
+                continue
             try:
                 days = int(float(value))
-            except Exception as _swallowed:
-                logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation_factory/runner.py:773: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
+            except (TypeError, ValueError):
                 continue
             if days > 0:
                 return min(days, 365)
@@ -1552,6 +1573,8 @@ class IncubationFactoryRunner:
         orders_filled_count = 0
         rejected_order_count = 0
         metrics_recorded = 0
+        orphaned_positions = 0
+        acquire = getattr(db, "acquire", None)
 
         def _count(reason: str) -> None:
             skip_reasons[reason] = skip_reasons.get(reason, 0) + 1
@@ -1670,6 +1693,46 @@ class IncubationFactoryRunner:
                         metric_recorded = metric is not None
                         if metric_recorded:
                             metrics_recorded += 1
+
+            # A stale row can outlive its paper position (legacy backfills).
+            # No sell order can be created for it; mark it orphaned so it does
+            # not remain open forever.
+            orphaned_for_strategy = 0
+            if callable(acquire):
+                try:
+                    remaining = await list_positions(
+                        strategy_id=sid, status="open", limit=200
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    errors.append({
+                        "strategy_id": sid,
+                        "phase": "remaining_positions",
+                        "error_type": type(exc).__name__,
+                        "error": str(exc),
+                    })
+                    remaining = []
+                stale_set = set(stale_codes)
+                for row in list(remaining or []):
+                    item = dict(row or {})
+                    position_id = str(item.get("position_id") or "").strip()
+                    code = str(item.get("code") or "").strip()
+                    if not position_id or code not in stale_set:
+                        continue
+                    async with acquire() as conn:
+                        await conn.execute(
+                            """
+                            UPDATE strategy_trade_positions
+                               SET status='orphaned_exit',
+                                   closed_at=CURRENT_TIMESTAMP,
+                                   exit_reason='stale_paper_position_cleanup_no_paper_position',
+                                   updated_at=CURRENT_TIMESTAMP
+                             WHERE position_id=$1 AND status='open'
+                            """,
+                            position_id,
+                        )
+                    orphaned_for_strategy += 1
+                    orphaned_positions += 1
+
             items.append({
                 "strategy_id": sid,
                 "max_holding_days": max_holding_days,
@@ -1680,6 +1743,7 @@ class IncubationFactoryRunner:
                 "skipped_count": close_skipped,
                 "filled_count": int(settlement.get("filled_count") or 0),
                 "rejected_count": int(settlement.get("rejected_count") or 0),
+                "orphaned_positions": orphaned_for_strategy,
                 "metric_recorded": metric_recorded,
             })
 
@@ -1703,6 +1767,7 @@ class IncubationFactoryRunner:
             "orders_filled": orders_filled_count,
             "rejected_orders": rejected_order_count,
             "metrics_recorded": metrics_recorded,
+            "orphaned_positions": orphaned_positions,
             "closed_round_trip_candidates": orders_filled_count,
             "skip_reasons": skip_reasons,
             "items": items[:50],
@@ -1715,6 +1780,233 @@ class IncubationFactoryRunner:
             len(items),
             stale_position_count,
             created_count,
+            len(errors),
+        )
+        return result
+
+    async def _run_rejected_strategy_position_cleanup(
+        self,
+        db: Any,
+        *,
+        as_of: Optional[date] = None,
+    ) -> dict[str, Any]:
+        """Close paper positions held by strategies outside the execution universe.
+
+        ``ExecutionUniverseContract`` excludes rejected/archived/deprecated
+        strategies, so a position they still hold can never receive an exit
+        signal.  This phase is lifecycle hygiene: the position must not outlive
+        the strategy's admission status.
+        """
+        if self.dry_run:
+            return {"status": "skipped", "reason": "dry_run", "evaluated": 0}
+        try:
+            from akshare_mcp.config._strategy_factory_toggles import (
+                rejected_strategy_position_cleanup_batch_limit,
+                rejected_strategy_position_cleanup_enabled,
+            )
+        except Exception:
+            return {"status": "skipped", "reason": "toggle_import_failed", "evaluated": 0}
+        if not rejected_strategy_position_cleanup_enabled():
+            return {"status": "skipped", "reason": "disabled", "evaluated": 0}
+
+        list_positions = _resolve_db_async_method(db, "list_strategy_trade_positions")
+        if list_positions is None:
+            return {"status": "skipped", "reason": "db_method_missing", "evaluated": 0}
+        try:
+            positions = await list_positions(status="open", limit=5000)
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "status": "error",
+                "reason": "position_query_failed",
+                "error": f"{type(exc).__name__}:{exc}",
+                "evaluated": 0,
+            }
+
+        codes_by_strategy: dict[str, list[str]] = {}
+        for row in list(positions or []):
+            position = dict(row or {})
+            sid = str(position.get("strategy_id") or "").strip()
+            code = str(position.get("code") or "").strip()
+            if not sid or not code:
+                continue
+            codes_by_strategy.setdefault(sid, []).append(code)
+        if not codes_by_strategy:
+            return {
+                "status": "skipped",
+                "reason": "no_open_positions",
+                "candidate_strategy_count": 0,
+                "evaluated": 0,
+            }
+
+        get_strategy = getattr(db, "get_strategy", None)
+        if not callable(get_strategy):
+            return {
+                "status": "skipped",
+                "reason": "get_strategy_missing",
+                "candidate_strategy_count": len(codes_by_strategy),
+                "evaluated": 0,
+            }
+
+        try:
+            from ..incubation import get_strategy_incubation_service
+            incubation_service = get_strategy_incubation_service()
+        except Exception as exc:  # noqa: BLE001
+            return {
+                "status": "skipped",
+                "reason": "incubation_service_unavailable",
+                "error": f"{type(exc).__name__}:{exc}",
+                "evaluated": 0,
+            }
+
+        limit = rejected_strategy_position_cleanup_batch_limit()
+        as_of_date = as_of or datetime.now().date()
+        cleanup_statuses = {"rejected", "archived", "deprecated"}
+        candidates: list[dict[str, Any]] = []
+        for sid in sorted(codes_by_strategy):
+            try:
+                strategy = await get_strategy(sid)
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "IncubationFactory rejected-position cleanup: strategy lookup failed for %s: %s",
+                    sid,
+                    exc,
+                )
+                continue
+            if not strategy:
+                continue
+            if str((strategy or {}).get("status") or "").strip().lower() not in cleanup_statuses:
+                continue
+            candidates.append(dict(strategy or {}))
+
+        selected = candidates[:limit]
+        items: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+        orders_created = 0
+        orders_filled = 0
+        orders_rejected = 0
+        orphaned_positions = 0
+        acquire = getattr(db, "acquire", None)
+        for strategy in selected:
+            sid = str(strategy.get("id") or "").strip()
+            codes = sorted(dict.fromkeys(codes_by_strategy.get(sid) or []))
+            if not codes:
+                continue
+            try:
+                close_result = await incubation_service.force_close_open_positions(
+                    db,
+                    strategy,
+                    as_of_date,
+                    reason="strategy_rejected_cleanup",
+                    source="incubation_factory_rejected_cleanup",
+                    codes=codes,
+                )
+            except Exception as exc:  # noqa: BLE001
+                errors.append({
+                    "strategy_id": sid,
+                    "error_type": type(exc).__name__,
+                    "error": str(exc),
+                })
+                continue
+
+            close_result = dict(close_result or {})
+            created = int(
+                close_result.get("created_count")
+                or close_result.get("orders_created")
+                or 0
+            )
+            skipped = int(close_result.get("skipped_count") or 0)
+            orders_created += created
+            settlement: dict[str, Any] = {}
+            settle_orders = getattr(incubation_service, "settle_orders", None)
+            if created > 0 and callable(settle_orders):
+                try:
+                    settlement = dict(await settle_orders(db, strategy, as_of_date) or {})
+                except Exception as exc:  # noqa: BLE001
+                    errors.append({
+                        "strategy_id": sid,
+                        "phase": "settle_orders",
+                        "error_type": type(exc).__name__,
+                        "error": str(exc),
+                    })
+                else:
+                    orders_filled += int(settlement.get("filled_count") or 0)
+                    orders_rejected += int(settlement.get("rejected_count") or 0)
+
+            # A strategy can carry duplicate open rows whose paper position was
+            # already gone (legacy backfills).  They cannot receive a sell order,
+            # so they must not stay in the open set after rejection.
+            orphaned_for_strategy = 0
+            if callable(acquire):
+                try:
+                    remaining = await list_positions(
+                        strategy_id=sid, status="open", limit=200
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    errors.append({
+                        "strategy_id": sid,
+                        "phase": "remaining_positions",
+                        "error_type": type(exc).__name__,
+                        "error": str(exc),
+                    })
+                    remaining = []
+                code_set = set(codes)
+                for row in list(remaining or []):
+                    item = dict(row or {})
+                    position_id = str(item.get("position_id") or "").strip()
+                    code = str(item.get("code") or "").strip()
+                    if not position_id or code not in code_set:
+                        continue
+                    async with acquire() as conn:
+                        await conn.execute(
+                            """
+                            UPDATE strategy_trade_positions
+                               SET status='orphaned_exit',
+                                   closed_at=CURRENT_TIMESTAMP,
+                                   exit_reason='strategy_rejected_cleanup_no_paper_position',
+                                   updated_at=CURRENT_TIMESTAMP
+                             WHERE position_id=$1 AND status='open'
+                            """,
+                            position_id,
+                        )
+                    orphaned_for_strategy += 1
+                    orphaned_positions += 1
+
+            items.append({
+                "strategy_id": sid,
+                "codes": codes[:20],
+                "created_count": created,
+                "skipped_count": skipped,
+                "filled_count": int(settlement.get("filled_count") or 0),
+                "rejected_count": int(settlement.get("rejected_count") or 0),
+                "orphaned_positions": orphaned_for_strategy,
+            })
+
+        result_status = "ok" if not errors else "partial"
+        if not items and errors:
+            result_status = "error"
+        result = {
+            "status": result_status,
+            "as_of": str(as_of_date),
+            "open_position_strategy_count": len(codes_by_strategy),
+            "candidate_strategy_count": len(candidates),
+            "selected_count": len(selected),
+            "evaluated": len(items),
+            "limit": limit,
+            "orders_created": orders_created,
+            "orders_filled": orders_filled,
+            "rejected_orders": orders_rejected,
+            "orphaned_positions": orphaned_positions,
+            "errors": len(errors),
+            "items": items[:50],
+            "error_items": errors[:20],
+        }
+        logger.info(
+            "IncubationFactory rejected-strategy position cleanup: status=%s "
+            "candidates=%d evaluated=%d created_orders=%d errors=%d",
+            result_status,
+            len(candidates),
+            len(items),
+            orders_created,
             len(errors),
         )
         return result

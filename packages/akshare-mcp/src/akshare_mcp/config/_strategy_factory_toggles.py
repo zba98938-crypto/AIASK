@@ -179,6 +179,22 @@ def stale_paper_position_closure_grace_days() -> int:
     return max(0, min(value, 30))
 
 
+def rejected_strategy_position_cleanup_enabled() -> bool:
+    # Rejected/archived strategies are excluded from the execution universe, so
+    # any paper position they still hold can never receive an exit signal.  The
+    # cleanup is therefore lifecycle hygiene, not a trading exit policy.
+    return _env_bool("INCUBATION_FACTORY_REJECTED_POSITION_CLEANUP_ENABLED", default=True)
+
+
+def rejected_strategy_position_cleanup_batch_limit() -> int:
+    raw = os.getenv("INCUBATION_FACTORY_REJECTED_POSITION_CLEANUP_BATCH_LIMIT", "100")
+    try:
+        value = int(str(raw).strip())
+    except Exception:
+        value = 100
+    return max(1, min(value, 500))
+
+
 def gate3_record_only_intake_enabled() -> bool:
     return _env_bool("INCUBATION_FACTORY_GATE3_RECORD_ONLY_INTAKE_ENABLED", default=False)
 
@@ -217,6 +233,8 @@ __all__ = [
     "stale_paper_position_closure_enabled",
     "stale_paper_position_closure_batch_limit",
     "stale_paper_position_closure_grace_days",
+    "rejected_strategy_position_cleanup_enabled",
+    "rejected_strategy_position_cleanup_batch_limit",
     "gate3_record_only_intake_enabled",
     "gate3_record_only_intake_batch_limit",
     "gate3_record_only_intake_min_grade",
