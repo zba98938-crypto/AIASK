@@ -1,0 +1,114 @@
+digraph dependency_map {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    fontname="PingFang SC",
+    fontsize=19,
+    labelloc="t",
+    label="AIASK 包依赖图谱（当前态）\n静态 import 计数 + 动态装配边；对照 docs/architecture/runtime-boundary.json\n实线 = 静态 import · 虚线 = 动态装配 · 点线 = 例外/冲突",
+    nodesep=0.35,
+    ranksep=0.55,
+    pad=0.25,
+    compound=true
+  ];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="PingFang SC",
+    fontsize=10,
+    margin="0.13,0.08",
+    color="#94a3b8",
+    fillcolor="#f8fafc",
+    penwidth=1.1
+  ];
+  edge [
+    fontname="PingFang SC",
+    fontsize=8.5,
+    color="#64748b",
+    arrowsize=0.65
+  ];
+
+  subgraph cluster_base {
+    label="基础层";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#fdba74";
+    quant_core [label="aiask-quant-core\n回测 · 因子 · 验证 · 风险模型 · SQLite schema\n120 py · 39,355 LOC", fillcolor="#ffedd5", color="#c2410c"];
+  }
+
+  subgraph cluster_domain {
+    label="领域编排层";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#fcd34d";
+    strategy_factory [label="strategy-factory\n四工厂编排 · 门禁 · 契约 · runtime api\n183 py · 95,035 LOC", fillcolor="#fef3c7", color="#b45309"];
+  }
+
+  subgraph cluster_host {
+    label="宿主与数据面";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#86efac";
+    akshare_mcp [label="akshare-mcp\nMCP host · 数据源 · managers · services · SQLite 实现\n507 py · 200,372 LOC", fillcolor="#dcfce7", color="#15803d"];
+    data_mcp [label="aiask-data-mcp\n中性数据入口（薄 facade）\n动态转发到 akshare_mcp", fillcolor="#f0fdf4", color="#15803d"];
+  }
+
+  subgraph cluster_edge {
+    label="边缘层";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#c4b5fd";
+    agent [label="aiask-agent\nFastAPI · AgentRuntime · agent_* 工具 · gateway\n155 py · 48,131 LOC", fillcolor="#ede9fe", color="#6d28d9"];
+    reference_host [label="aiask-reference-host\n最小 HostAdapter 实现", fillcolor="#f5f3ff", color="#6d28d9"];
+  }
+
+  subgraph cluster_independent {
+    label="独立包";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#cbd5e1";
+    finance_mcp [label="aiask-finance-mcp-servers\nTDX / THS / Eastmoney / QMT\n12 py · 1,892 LOC", fillcolor="#e2e8f0", color="#334155"];
+    skills [label="aiask-skills\n打包 Skills（20 个 bundle）", fillcolor="#e2e8f0", color="#334155"];
+  }
+
+  subgraph cluster_external {
+    label="主要第三方依赖（上下文）";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#e2e8f0";
+    ext_mcp [label="mcp / FastMCP", fillcolor="#f1f5f9", color="#64748b", style="rounded,dashed"];
+    ext_web [label="FastAPI / Starlette / uvicorn / openai", fillcolor="#f1f5f9", color="#64748b", style="rounded,dashed"];
+    ext_quant [label="numpy / pandas / scipy / scikit-learn / numba", fillcolor="#f1f5f9", color="#64748b", style="rounded,dashed"];
+    ext_finance [label="pytdx / efinance / easytrader / tushare", fillcolor="#f1f5f9", color="#64748b", style="rounded,dashed"];
+  }
+
+  strategy_factory -> quant_core [label="19 static imports"];
+  akshare_mcp -> quant_core [label="36 static imports"];
+  akshare_mcp -> strategy_factory [label="128 static imports\n仅 api / runtime 公共面"];
+  agent -> akshare_mcp [label="15 static + 动态 import"];
+  agent -> strategy_factory [label="19 static imports"];
+  agent -> quant_core [label="3 static imports"];
+  data_mcp -> akshare_mcp [label="动态 re-export\nstatic = 0", style=dashed];
+  strategy_factory -> akshare_mcp [label="1 dynamic configurator\n（文档化例外）", style=dotted, color="#b45309", fontcolor="#b45309"];
+  quant_core -> strategy_factory [label="1 compatibility re-export\n与边界规则冲突", style=dotted, color="#b91c1c", fontcolor="#b91c1c"];
+  reference_host -> strategy_factory [label="HostAdapter 契约"];
+  reference_host -> skills [label="发现 skill bundle\n（允许边，无 import）", style=dashed];
+
+  agent -> ext_web [label="运行时"];
+  agent -> ext_mcp [label="运行时"];
+  agent -> ext_quant [label="间接"];
+  akshare_mcp -> ext_mcp [label="运行时"];
+  akshare_mcp -> ext_quant [label="运行时"];
+  akshare_mcp -> ext_finance [label="provider"];
+  strategy_factory -> ext_mcp [label="MCP 控制面"];
+  quant_core -> ext_quant [label="运行时"];
+  finance_mcp -> ext_mcp [label="运行时"];
+  finance_mcp -> ext_finance [label="运行时"];
+
+}

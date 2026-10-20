@@ -1,0 +1,132 @@
+digraph deployment_topology {
+  graph [
+    rankdir=TB,
+    newrank=true,
+    bgcolor="white",
+    fontname="PingFang SC",
+    fontsize=19,
+    labelloc="t",
+    label="AIASK 部署与运行时拓扑（当前态）\n单机 macOS · 单用户 · backend-only；进程与端口为 2026-10-20 10:52 实测",
+    nodesep=0.28,
+    ranksep=0.55,
+    pad=0.25
+  ];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="PingFang SC",
+    fontsize=10,
+    margin="0.12,0.07",
+    color="#94a3b8",
+    fillcolor="#f8fafc",
+    penwidth=1.1
+  ];
+  edge [
+    fontname="PingFang SC",
+    fontsize=8.5,
+    color="#64748b",
+    arrowsize=0.65
+  ];
+
+  subgraph cluster_clients {
+    label="客户端";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#bae6fd";
+    operator [label="本地研究员 / 运维\nCLI / scripts", fillcolor="#e0f2fe", color="#0369a1"];
+    http_client [label="HTTP 客户端\n/v1/responses · /v1/finance", fillcolor="#e0f2fe", color="#0369a1"];
+    mcp_client [label="MCP 客户端\nCursor / Claude / Hermes", fillcolor="#e0f2fe", color="#0369a1"];
+  }
+
+  subgraph cluster_running {
+    label="当前运行中的进程（四运行时 + sidecar + Agent）";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#bbf7d0";
+    supervisor [label="四运行时 supervisor\nPID 16571 · 2026-10-18 16:02 启动", fillcolor="#dcfce7", color="#15803d"];
+    sidecar_supervisor [label="Sidecar supervisor\nPID 53997 · 自动重启", fillcolor="#dcfce7", color="#15803d"];
+    sf_runner [label="Run Strategy Factory\nPID 16573 · 每 300s 一轮", fillcolor="#dcfce7", color="#15803d"];
+    fm_runner [label="Factor Mining Factory\nPID 16574 · 18:30 + 06:00 维护", fillcolor="#dcfce7", color="#15803d"];
+    inc_runner [label="Incubation Factory\nPID 24852 · 18:30 daily", fillcolor="#dcfce7", color="#15803d"];
+    mei_runner [label="Market Event Ingest\nPID 16576 · 每 3600s 一轮", fillcolor="#dcfce7", color="#15803d"];
+    st_sidecar [label="SignalTracker sidecar\nPID 54000 · 18:30 · status ok", fillcolor="#dcfce7", color="#15803d"];
+    factor_scheduler [label="FactorScheduler sidecar\nPID 53999 · 18:00 daily", fillcolor="#dcfce7", color="#15803d"];
+    agent_http [label="Agent HTTP\nPID 54001 · 8765 /health ok", fillcolor="#dcfce7", color="#15803d"];
+  }
+
+  subgraph cluster_stopped {
+    label="按需启动 / 默认关闭";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#e2e8f0";
+    mcp_host [label="MCP servers（stdio）\nAKShare 179 tools / 工厂 5 tools\n按需启动，无常驻端口", fillcolor="#f1f5f9", color="#64748b", style="rounded,dashed"];
+    finance_mcp [label="Finance MCP servers\nTDX / THS / Eastmoney / QMT\n默认 disabled", fillcolor="#f1f5f9", color="#64748b", style="rounded,dashed"];
+  }
+
+  subgraph cluster_storage {
+    label="本地持久化";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#cbd5e1";
+    sqlite [shape=cylinder, label="akshare_mcp.sqlite3\n4.0 GB + 230 MB WAL\n~/.aiask/data/db", fillcolor="#e2e8f0", color="#334155"];
+    task_board [shape=cylinder, label="strategy_factory_task_board.sqlite3\n8.6 MB", fillcolor="#e2e8f0", color="#334155"];
+    logs [shape=folder, label="~/.aiask/logs/four_runtime_supervisor\n四运行时日志", fillcolor="#f8fafc", color="#64748b"];
+    runtime_meta [shape=note, label="~/.aiask/run/agent.meta.json\n已指向当前 tree / conda python", fillcolor="#f8fafc", color="#64748b", fontcolor="#334155"];
+  }
+
+  subgraph cluster_external {
+    label="外部系统";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#e2e8f0";
+    providers [label="行情 / 财务数据源\nEastmoney · Sina · Tencent · SSE\nTDX / TQCenter · Tushare(no token)", fillcolor="#f1f5f9", color="#64748b", style="rounded,dashed"];
+    llm [label="LLM Provider\nOpenAI / Anthropic / DeepSeek", fillcolor="#f1f5f9", color="#64748b", style="rounded,dashed"];
+    broker [label="券商交易端\n同花顺 / QMT", fillcolor="#f1f5f9", color="#64748b", style="rounded,dashed"];
+  }
+
+  operator -> supervisor [label="启动 / 停止 / 诊断"];
+  operator -> sf_runner [label="手动 once / cycle", style=dashed];
+  supervisor -> sf_runner [label="spawn / restart"];
+  supervisor -> fm_runner [label="spawn / restart"];
+  supervisor -> inc_runner [label="spawn / restart"];
+  supervisor -> mei_runner [label="spawn / restart"];
+
+  sf_runner -> sqlite [label="运行与证据"];
+  fm_runner -> sqlite [label="因子池"];
+  inc_runner -> sqlite [label="paper / metrics"];
+  mei_runner -> sqlite [label="事件 / 信号"];
+  sf_runner -> task_board [label="任务板"];
+  supervisor -> logs [label="stdout / stderr"];
+
+  st_sidecar -> sqlite [label="信号 / 证据"];
+  factor_scheduler -> sqlite [label="因子 values / IC"];
+  agent_http -> sqlite [label="session / audit"];
+  mcp_host -> sqlite [label="数据 / 工厂视图", style=dashed];
+  runtime_meta -> agent_http [label="runtime metadata", style=dashed];
+
+  operator -> sidecar_supervisor [label="启动 / 停止", style=dotted];
+  sidecar_supervisor -> factor_scheduler [label="spawn / restart"];
+  sidecar_supervisor -> st_sidecar [label="spawn / restart"];
+  sidecar_supervisor -> agent_http [label="spawn / restart"];
+  http_client -> agent_http [label="HTTP :8765", constraint=false];
+  mcp_client -> mcp_host [label="MCP stdio", style=dashed, constraint=false];
+  mcp_client -> finance_mcp [label="MCP stdio（默认关闭）", style=dashed, constraint=false];
+  sf_runner -> providers [label="HTTPS", constraint=false];
+  fm_runner -> providers [label="HTTPS", constraint=false];
+  mei_runner -> providers [label="HTTPS", constraint=false];
+  agent_http -> llm [label="HTTPS", style=dashed, constraint=false];
+  finance_mcp -> broker [label="下单路径（需 token + 确认）", style=dashed, color="#b91c1c", constraint=false];
+
+  note [shape=note, fillcolor="#fffbeb", color="#d97706", fontcolor="#92400e", label="部署事实\n• 无前端、无桌面壳\n• 对外只有 Agent HTTP 与 MCP\n• MCP 默认 stdio，不占常驻端口\n• 实盘默认关闭\n• 所有进程共用一个 4 GB SQLite（WAL）"];
+
+  { rank=same; sf_runner; fm_runner; inc_runner; mei_runner; }
+  { rank=same; st_sidecar; factor_scheduler; agent_http; }
+  { rank=same; mcp_host; finance_mcp; }
+  { rank=same; sqlite; task_board; logs; runtime_meta; }
+  { rank=same; note; supervisor; sidecar_supervisor; }
+}

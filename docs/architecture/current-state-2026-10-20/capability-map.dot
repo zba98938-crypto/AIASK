@@ -1,0 +1,162 @@
+digraph aiask_capability_map {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    fontname="PingFang SC",
+    fontsize=20,
+    labelloc="t",
+    label="AIASK L0 业务能力地图（当前态）\n证据：packages/*/src、scripts/factories、运行时 SQLite（2026-10-20）\n实线 = 已证实 · 虚线 = 条件/推断 · 红色 = 缺口",
+    nodesep=0.30,
+    ranksep=0.55,
+    pad=0.25,
+    compound=true
+  ];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="PingFang SC",
+    fontsize=10,
+    margin="0.12,0.07",
+    color="#94a3b8",
+    fillcolor="#f8fafc",
+    penwidth=1.1
+  ];
+  edge [
+    fontname="PingFang SC",
+    fontsize=8.5,
+    color="#64748b",
+    arrowsize=0.65,
+    penwidth=1.0
+  ];
+
+  subgraph cluster_data {
+    label="1. 市场数据与数据治理";
+    labeljust="l";
+    fontsize=13;
+    fontcolor="#0f766e";
+    style="rounded,dashed";
+    color="#99f6e4";
+    data_market [label="行情与 K 线\n5,582 标的 · 1,738,883 根日线\n最新 2026-10-19", fillcolor="#ccfbf1", color="#0f766e"];
+    data_fin [label="财务与估值\n119,837 行 · 最新报告期 2026-09-30", fillcolor="#ccfbf1", color="#0f766e"];
+    data_flow [label="资金流 / 龙虎榜 / 融资融券", fillcolor="#ccfbf1", color="#0f766e"];
+    data_text [label="公告 / 新闻 / 研报\n933 条归一化市场事件", fillcolor="#ccfbf1", color="#0f766e"];
+    data_quality [label="同步 / 完整性 / 新鲜度\ndata_quality_issues = 0", fillcolor="#f0fdfa", color="#0f766e"];
+    data_taxonomy [label="行业 / 板块 / 主题图谱\n东财 EM2016 一级 + 二级", fillcolor="#ccfbf1", color="#0f766e"];
+  }
+
+  subgraph cluster_research {
+    label="2. 因子与研究";
+    labeljust="l";
+    fontsize=13;
+    fontcolor="#9a3412";
+    style="rounded,dashed";
+    color="#fdba74";
+    factor_calc [label="因子计算\n44 个因子 · 5,561 标的 · 2026-10-16", fillcolor="#ffedd5", color="#c2410c"];
+    factor_mining [label="因子挖掘\nLLM / GP / MCTS / RL / 规则 五引擎", fillcolor="#ffedd5", color="#c2410c"];
+    factor_validation [label="因子验证\nwalk-forward · purged K-fold · bootstrap", fillcolor="#ffedd5", color="#c2410c"];
+    factor_pool [label="因子池 / 衰减 / QC\n29 个 active", fillcolor="#ffedd5", color="#c2410c"];
+  }
+
+  subgraph cluster_strategy {
+    label="3. 策略生产";
+    labeljust="l";
+    fontsize=13;
+    fontcolor="#92400e";
+    style="rounded,dashed";
+    color="#fcd34d";
+    event_ingest [label="市场事件摄取\n每小时一轮 · 1,033 条 event signals", fillcolor="#fef9c3", color="#a16207"];
+    strategy_gen [label="策略生成\nLLM / 规则 / 矩阵 / 事件候选", fillcolor="#fef3c7", color="#b45309"];
+    quality_gate [label="质量门禁 Gate 1–3\n最新 15 进 / 0 通过", fillcolor="#fee2e2", color="#b91c1c"];
+    backtest [label="回测 / 参数敏感性\n回测结果表当前 0 行", fillcolor="#fef3c7", color="#b45309"];
+    dedupe_submit [label="去重 / 提交 / 淘汰\n8,233 条策略账本", fillcolor="#fef3c7", color="#b45309"];
+    observe_first [label="观察优先（零资金）\n492 次 observe-only 运行", fillcolor="#fef3c7", color="#b45309"];
+  }
+
+  subgraph cluster_incubation {
+    label="4. 模拟交易与孵化";
+    labeljust="l";
+    fontsize=13;
+    fontcolor="#1d4ed8";
+    style="rounded,dashed";
+    color="#93c5fd";
+    intake [label="孵化 intake\n1,659 个账户", fillcolor="#dbeafe", color="#1d4ed8"];
+    paper [label="Paper 账户 / 订单 / 撮合\n119 orders · 155 trades", fillcolor="#dbeafe", color="#1d4ed8"];
+    position [label="持仓 / NAV / 风控\n118 open · 1 closed · 36 orphaned_exit", fillcolor="#dbeafe", color="#1d4ed8"];
+    forward [label="前向收益 / 孵化指标\n27,690 条 forward returns", fillcolor="#dbeafe", color="#1d4ed8"];
+    audit [label="执行审计\n7,707 份 audit snapshots", fillcolor="#dbeafe", color="#1d4ed8"];
+    promotion [label="晋级评审 / hard gate\n0 reviews · 0 listed", fillcolor="#fee2e2", color="#b91c1c"];
+  }
+
+  subgraph cluster_agent {
+    label="5. Agent 与交互";
+    labeljust="l";
+    fontsize=13;
+    fontcolor="#5b21b6";
+    style="rounded,dashed";
+    color="#c4b5fd";
+    agent_http [label="Agent HTTP / CLI\nAIASK Agent 运行中\n8765 /health ok", fillcolor="#ede9fe", color="#6d28d9"];
+    agent_tools [label="agent_* 工具门面\n137 条 catalog 目录项", fillcolor="#ede9fe", color="#6d28d9"];
+    mcp [label="MCP 交付面\nAKShare 179 tools + 工厂 5 tools", fillcolor="#ede9fe", color="#6d28d9"];
+    skills [label="Skills 包\n仓库 19 + 打包 20", fillcolor="#ede9fe", color="#6d28d9"];
+    gateway [label="IM Gateway（可选）\nDiscord / Slack / Telegram / Matrix", fillcolor="#f5f3ff", color="#6d28d9"];
+    approvals [label="ActionIntent / 审批\n状态型操作二次确认", fillcolor="#ede9fe", color="#6d28d9"];
+  }
+
+  subgraph cluster_ops {
+    label="6. 运维与控制面";
+    labeljust="l";
+    fontsize=13;
+    fontcolor="#334155";
+    style="rounded,dashed";
+    color="#cbd5e1";
+    supervisor [label="四运行时 supervisor\n2026-10-18 16:02 启动", fillcolor="#e2e8f0", color="#334155"];
+    control_plane [label="只读工厂控制面\nfactory_run_ledger = 0 行", fillcolor="#fee2e2", color="#b91c1c"];
+    readiness [label="readiness / 诊断脚本\ncheck_*.py · diagnose_factory_health.py", fillcolor="#e2e8f0", color="#334155"];
+    monitoring [label="Prometheus / OTel 配置\nmonitoring/*.yml", fillcolor="#e2e8f0", color="#334155"];
+  }
+
+  data_market -> factor_calc [label="供给"];
+  data_fin -> factor_calc [label="供给"];
+  data_flow -> factor_calc [label="供给"];
+  data_quality -> data_market [label="校验 / 门禁", style=dashed];
+  data_text -> event_ingest [label="公告 / 事件"];
+  data_taxonomy -> event_ingest [label="主题 / 行业语境"];
+
+  factor_calc -> factor_mining [label="候选特征"];
+  factor_mining -> factor_validation [label="候选"];
+  factor_validation -> factor_pool [label="admit / quarantine"];
+  factor_pool -> strategy_gen [label="因子输入"];
+  event_ingest -> strategy_gen [label="事件注入"];
+
+  strategy_gen -> quality_gate [label="候选"];
+  quality_gate -> backtest [label="通过才回测"];
+  backtest -> dedupe_submit [label="指标 / 报告"];
+  dedupe_submit -> observe_first [label="零资金观察"];
+  dedupe_submit -> intake [label="submitted / paper"];
+  observe_first -> intake [label="观察账户"];
+
+  intake -> paper [label="warmup → paper"];
+  paper -> position [label="成交 / 持仓"];
+  position -> forward [label="收益归因"];
+  position -> audit [label="round-trip 证据"];
+  forward -> promotion [label="hard gate"];
+  audit -> promotion [label="审计门禁"];
+  promotion -> dedupe_submit [label="listed（尚未发生）", style=dashed, color="#b91c1c", fontcolor="#b91c1c"];
+
+  agent_http -> agent_tools [label="模型选择"];
+  agent_http -> approvals [label="状态型操作"];
+  agent_tools -> mcp [label="进程内 / stdio"];
+  mcp -> factor_calc [label="数据读取", style=dashed];
+  mcp -> strategy_gen [label="只读工厂视图", style=dashed];
+  gateway -> agent_http [label="消息投递", style=dashed];
+  skills -> agent_tools [label="能力说明", style=dashed];
+
+  supervisor -> event_ingest [label="spawn", color="#334155"];
+  supervisor -> factor_mining [label="spawn", color="#334155"];
+  supervisor -> strategy_gen [label="spawn", color="#334155"];
+  supervisor -> intake [label="spawn", color="#334155"];
+  control_plane -> supervisor [label="本应读取运行态", style=dashed, color="#b91c1c", fontcolor="#b91c1c"];
+  readiness -> supervisor [label="诊断", style=dashed];
+  monitoring -> supervisor [label="观测", style=dashed];
+
+}

@@ -1,22 +1,19 @@
-# 测试脚本
+# 测试 / 运维诊断脚本
 
-本目录包含项目的各类测试脚本。
+本目录包含可独立运行的运维诊断脚本。**诊断脚本一律命名为 `check_*.py`**，
+不要用 `test_*.py`（会被 pytest 误收集）。
 
 ## 🧪 脚本列表
 
 ### 孵化工厂测试
 
-1. **incubation_factory_50_rounds_test.py**
+1. **check_incubation_factory_50_rounds.py**
    - 50 轮孵化工厂压力测试
    - Dry-run 模式，不写数据库
    - 生成详细 JSON 报告
-   - 使用: `python scripts/testing/incubation_factory_50_rounds_test.py`
-
-2. **monitor_50_rounds_test.py**
-   - 监控 50 轮测试进度
-   - 实时显示完成状态
-   - 计算 ETA
-   - 使用: `python scripts/testing/monitor_50_rounds_test.py`
+   - 使用: `python scripts/testing/check_incubation_factory_50_rounds.py`
+   - 2026-10 起更名：原名 `incubation_factory_50_rounds_test.py`，
+     `test_*` 命名会被 pytest 收集，改为 `check_*` 约定
 
 ### 策略分析
 
@@ -32,9 +29,10 @@
    - 工厂功能验证脚本
    - 检查各阶段运行状态
 
-5. **test_exit_fix.py**
-   - 持仓退出率修复验证
-   - Phase 3c2/3d 测试
+已删除（2026-10 清理，均为失效脚本）：
+
+- `monitor_50_rounds_test.py` — 读取 50 轮脚本从不写入的 `LOG_PATH`，死契约
+- `test_exit_fix.py` — import 不存在的 `strategy_factory.db.connection.get_connection`
 
 ## 📝 使用说明
 
@@ -64,4 +62,4 @@ ensure_factory_runtime(
 
 ---
 
-**最后更新**: 2026-06-24
+**最后更新**: 2026-10-20（清理失效脚本；50 轮压测脚本更名为 `check_*`）

@@ -1,0 +1,125 @@
+digraph flow_agent_tool_call {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    fontname="PingFang SC",
+    fontsize=19,
+    labelloc="t",
+    label="AIASK 关键流程 1：Agent 请求与工具调用\n代码路径已证实；Agent HTTP 运行中（8765 /health ok）\n实线 = 调用 · 虚线 = 条件/按需 · 红色 = 当前缺口",
+    nodesep=0.32,
+    ranksep=0.48,
+    pad=0.25,
+    compound=true
+  ];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="PingFang SC",
+    fontsize=10,
+    margin="0.12,0.07",
+    color="#94a3b8",
+    fillcolor="#f8fafc",
+    penwidth=1.1
+  ];
+  edge [
+    fontname="PingFang SC",
+    fontsize=8.5,
+    color="#64748b",
+    arrowsize=0.65
+  ];
+
+  subgraph cluster_client {
+    label="客户端";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#bae6fd";
+    client_http [label="HTTP 客户端\n/v1/responses · /v1/chat/completions\n/v1/finance · /v1/research", fillcolor="#e0f2fe", color="#0369a1"];
+    client_cli [label="AIASK CLI\nrun / events / artifacts", fillcolor="#e0f2fe", color="#0369a1"];
+    client_mcp [label="MCP 客户端\nstdio（Cursor / Claude / Hermes）", fillcolor="#e0f2fe", color="#0369a1"];
+  }
+
+  subgraph cluster_agent {
+    label="Agent 运行时（packages/agent）";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#c4b5fd";
+    agent_routes [label="FastAPI 路由层\n27 个 route 模块", fillcolor="#ede9fe", color="#6d28d9"];
+    auth [label="认证 / 控制令牌\nloopback + token 边界", fillcolor="#ede9fe", color="#6d28d9"];
+    runtime [label="AgentRuntime.run\n最多 8 轮 · 模型/工具超时 · 取消", fillcolor="#ede9fe", color="#6d28d9"];
+    context [label="ContextManager / Planner\n压缩 · 引用 · 记忆 · handoff", fillcolor="#ede9fe", color="#6d28d9"];
+    model [label="ModelClient\nOpenAI 兼容协议", fillcolor="#ede9fe", color="#6d28d9"];
+    policy [label="ToolPolicyEngine\nfinance_safe / general_full", fillcolor="#ede9fe", color="#6d28d9"];
+    registry [label="AgentToolRegistry + ToolLoopGuardrails\nagent_* 命名 · 副作用元数据", fillcolor="#ede9fe", color="#6d28d9"];
+    adapters [label="Agent adapters\nakshare / quant / strategy_factory", fillcolor="#ede9fe", color="#6d28d9"];
+    intents [label="ActionIntent / Approval\n状态型操作二次确认", fillcolor="#f5f3ff", color="#6d28d9"];
+    mcp_agg [label="MCPAggregator\n外部 MCP 服务器接入", fillcolor="#f5f3ff", color="#6d28d9"];
+  }
+
+  subgraph cluster_data {
+    label="数据与服务层";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#fdba74";
+    ak_tools [label="akshare_mcp.tools.*\n179 tools（full）· 144（tool-only）", fillcolor="#ffedd5", color="#c2410c"];
+    sf_api [label="strategy_factory.api / runtime\n只读工厂视图与契约", fillcolor="#fef3c7", color="#b45309"];
+    quant_lib [label="aiask_quant_core\n回测 · 因子 · 验证 · 风险模型", fillcolor="#ffedd5", color="#c2410c"];
+    db [shape=cylinder, label="SQLite 运行时库\nmarket / factory / session\n4.0 GB + WAL", fillcolor="#e2e8f0", color="#334155"];
+  }
+
+  subgraph cluster_evidence {
+    label="会话与证据";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#cbd5e1";
+    audit [label="session_store\nrun events · tool invocations\napprovals · artifacts", fillcolor="#e2e8f0", color="#334155"];
+    evidence [label="Evidence extraction\nsources / citations / artifacts", fillcolor="#e2e8f0", color="#334155"];
+  }
+
+  subgraph cluster_external {
+    label="外部系统";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#e2e8f0";
+    llm [label="LLM Provider\nOpenAI / Anthropic / DeepSeek …", fillcolor="#f1f5f9", color="#64748b", style="rounded,dashed"];
+    external_mcp [label="外部 MCP Servers\n配置于 ~/.aiask/mcp_servers.json", fillcolor="#f1f5f9", color="#64748b", style="rounded,dashed"];
+    factory_control [label="strategy_factory.mcp_server\n只读控制面 5 tools", fillcolor="#f1f5f9", color="#64748b", style="rounded,dashed"];
+    factory_ledger [shape=cylinder, label="factory_run_ledger\n当前 0 行", fillcolor="#fee2e2", color="#b91c1c"];
+  }
+
+  client_http -> agent_routes [label="HTTP / SSE"];
+  client_cli -> agent_routes [label="HTTP"];
+  agent_routes -> auth [label="鉴权"];
+  auth -> runtime [label="启动 run"];
+  runtime -> context [label="上下文准备"];
+  runtime -> model [label="complete(messages, tools)"];
+  model -> llm [label="HTTPS"];
+  model -> runtime [label="content / tool_calls", style=dashed];
+  runtime -> policy [label="工具白名单"];
+  policy -> registry [label="category 过滤"];
+  runtime -> registry [label="call_tool"];
+  registry -> adapters [label="agent_* facade"];
+  adapters -> ak_tools [label="进程内 import + call"];
+  adapters -> sf_api [label="API / 只读查询"];
+  adapters -> quant_lib [label="回测 / 因子 / 风险"];
+  ak_tools -> db [label="SQL"];
+  sf_api -> db [label="SQL"];
+  quant_lib -> db [label="SQL"];
+  registry -> intents [label="stateful 工具"];
+  intents -> adapters [label="confirm 后重放", style=dashed];
+  runtime -> mcp_agg [label="general_full 外部工具", style=dashed];
+  mcp_agg -> external_mcp [label="stdio / HTTP"];
+  runtime -> audit [label="事件 / 审计"];
+  registry -> audit [label="tool invocation"];
+  adapters -> evidence [label="sources / artifacts"];
+  evidence -> audit [label="证据落库"];
+  audit -> db [label="SQL"];
+  client_mcp -> ak_tools [label="MCP stdio", style=dashed];
+  client_mcp -> factory_control [label="MCP stdio", style=dashed];
+  factory_control -> factory_ledger [label="读取", color="#b91c1c"];
+
+}

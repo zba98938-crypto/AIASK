@@ -1,0 +1,103 @@
+digraph flow_strategy_factory_cycle {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    fontname="PingFang SC",
+    fontsize=19,
+    labelloc="t",
+    label="AIASK 关键流程 2：策略工厂单轮生产链路\n阶段顺序来自 cycle_pipeline · 数字来自 2026-10-20 08:41\n最新一轮：候选 29 · Gate3 15 进 0 过 · 提交 3（audit-only 12）",
+    nodesep=0.30,
+    ranksep=0.42,
+    pad=0.25,
+    compound=true
+  ];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="PingFang SC",
+    fontsize=10,
+    margin="0.12,0.07",
+    color="#94a3b8",
+    fillcolor="#f8fafc",
+    penwidth=1.1
+  ];
+  edge [
+    fontname="PingFang SC",
+    fontsize=8.5,
+    color="#64748b",
+    arrowsize=0.65
+  ];
+
+  subgraph cluster_control {
+    label="控制面";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#cbd5e1";
+    supervisor [label="四运行时 supervisor\n2026-10-18 16:02 启动", fillcolor="#e2e8f0", color="#334155"];
+    runner [label="run_strategy_factory.py\n--dispatch-run · 默认 300s", fillcolor="#e2e8f0", color="#334155"];
+    boundary [label="Runtime Boundary 校验\nrepository + runtime adapters", fillcolor="#e2e8f0", color="#334155"];
+  }
+
+  subgraph cluster_pipeline {
+    label="FactoryCyclePipeline（单轮）";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#fcd34d";
+    warmup [label="1. warmup\n数据预热 / 运行准备", fillcolor="#fef3c7", color="#b45309"];
+    collect [label="2. collect\n市场快照 / 每日上下文", fillcolor="#fef3c7", color="#b45309"];
+    factor_research [label="3. factor_research\n因子研究 / 研究平面", fillcolor="#fef3c7", color="#b45309"];
+    readiness [label="4. readiness\n数据与运行边界门禁", fillcolor="#fef3c7", color="#b45309"];
+    spawn [label="5. spawn\n候选策略生成", fillcolor="#fef3c7", color="#b45309"];
+    autonomy [label="6. autonomy\n自主任务 / 路由 / 画像", fillcolor="#fef3c7", color="#b45309"];
+    gate [label="7. quality_gate\nGate 1–3 · 统计显著性 · 参数敏感性", fillcolor="#fee2e2", color="#b91c1c"];
+    backtest [label="8. backtest\n回测 / 组合 / 成本", fillcolor="#fef3c7", color="#b45309"];
+    dedupe [label="9. deduplicate\n同质策略去重", fillcolor="#fef3c7", color="#b45309"];
+    submit [label="10. submit\n提交 / 观察账户", fillcolor="#fef3c7", color="#b45309"];
+    elimination [label="11. elimination\n淘汰 / 记录原因", fillcolor="#fef3c7", color="#b45309"];
+  }
+
+  subgraph cluster_outputs {
+    label="运行结果与证据";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#bae6fd";
+    observe_only [label="success_observe_only\n零资金观察通道", fillcolor="#fef9c3", color="#a16207"];
+    submitted [label="submitted / paper\n进入孵化", fillcolor="#dbeafe", color="#1d4ed8"];
+    rejected [label="rejected / audit-only\n拒绝或仅审计", fillcolor="#fee2e2", color="#b91c1c"];
+    run_db [shape=cylinder, label="strategy_factory_runs\n513 轮 · 492 success_observe_only", fillcolor="#e2e8f0", color="#334155"];
+    artifacts [shape=cylinder, label="strategy_factory_run_artifacts\n3,072 条", fillcolor="#e2e8f0", color="#334155"];
+    dispatch_db [shape=cylinder, label="strategy_factory_dispatches\n492 success", fillcolor="#e2e8f0", color="#334155"];
+  }
+
+  gate_fail [label="Gate3 失败\n策略不进入 backtest/submit\n高频原因见 evidence-index", fillcolor="#fee2e2", color="#b91c1c"];
+  ledger_gap [shape=cylinder, label="factory_run_ledger\n0 行（未接入本轮运行）", fillcolor="#fee2e2", color="#b91c1c"];
+
+  supervisor -> runner [label="spawn"];
+  runner -> boundary [label="每轮前置"];
+  boundary -> warmup [label="ok"];
+  boundary -> rejected [label="失败：runtime_boundary_failed", style=dashed, color="#b91c1c"];
+  warmup -> collect -> factor_research -> readiness;
+  readiness -> spawn [label="can_proceed"];
+  readiness -> rejected [label="critical blocker", style=dashed, color="#b91c1c"];
+  spawn -> autonomy -> gate;
+  gate -> backtest [label="通过"];
+  gate -> gate_fail [label="失败", color="#b91c1c"];
+  gate_fail -> rejected [label="记录原因"];
+  backtest -> dedupe -> submit;
+  submit -> observe_only [label="零资金观察"];
+  submit -> submitted [label="正式提交"];
+  dedupe -> elimination [label="淘汰"];
+  elimination -> rejected;
+  observe_only -> run_db;
+  submitted -> run_db;
+  rejected -> run_db;
+  run_db -> artifacts;
+  runner -> dispatch_db [label="dispatch 记录", style=dashed];
+  run_db -> ledger_gap [label="未同步", style=dashed, color="#b91c1c"];
+
+  { rank=same; observe_only; submitted; rejected; }
+  { rank=same; gate_fail; rejected; }
+}

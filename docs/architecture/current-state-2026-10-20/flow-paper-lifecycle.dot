@@ -1,0 +1,83 @@
+digraph flow_paper_lifecycle {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    fontname="PingFang SC",
+    fontsize=19,
+    labelloc="t",
+    label="AIASK 关键流程 3：策略孵化与 paper 交易生命周期\n业务动作 + 证据表 · 数字来自运行时 SQLite（2026-10-20）\n当前：1,642 paper 账户 · 155 成交 · 1 平仓 · 0 晋级",
+    nodesep=0.42,
+    ranksep=0.42,
+    pad=0.25
+  ];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="PingFang SC",
+    fontsize=10,
+    margin="0.13,0.08",
+    color="#94a3b8",
+    fillcolor="#f8fafc",
+    penwidth=1.1
+  ];
+  edge [
+    fontname="PingFang SC",
+    fontsize=8.5,
+    color="#64748b",
+    arrowsize=0.65
+  ];
+
+  submitted [label="已提交策略\nstrategies = 1,644 submitted", fillcolor="#fef3c7", color="#b45309"];
+  intake [label="Incubation intake\nscan_and_accept_strategies", fillcolor="#dbeafe", color="#1d4ed8"];
+  warmup [label="warmup 账户\n17 active", fillcolor="#dbeafe", color="#1d4ed8"];
+  paper [label="paper 账户\n1,642 active\npaper_accounts 1,661 active", fillcolor="#dbeafe", color="#1d4ed8"];
+  signals [label="策略信号\n7,288 signals · 122 个交易日\n最新 2026-10-18", fillcolor="#ffedd5", color="#c2410c"];
+  orders [label="Paper 订单\n119 orders", fillcolor="#ffedd5", color="#c2410c"];
+  matching [label="MatchingEngine\n扫描 / 撮合 / 滑点 / 涨跌停", fillcolor="#ffedd5", color="#c2410c"];
+  trades [label="成交\n155 trades", fillcolor="#ffedd5", color="#c2410c"];
+  positions [label="持仓\n155 positions\n118 open / 1 closed / 36 orphaned_exit", fillcolor="#ffedd5", color="#c2410c"];
+  exit_rule [label="退出规则\n止损 / 信号反转 / stale close", fillcolor="#fef3c7", color="#b45309"];
+  nav [label="NAV 快照\n1,397 paper_nav", fillcolor="#ffedd5", color="#c2410c"];
+  metrics [label="孵化指标\n1,383 incubation_metrics", fillcolor="#e2e8f0", color="#334155"];
+  forward [label="前向收益\n27,690 signal_forward_returns", fillcolor="#e2e8f0", color="#334155"];
+  audit [label="执行审计\n7,707 execution audit snapshots\n7,738 closure snapshots", fillcolor="#e2e8f0", color="#334155"];
+  promotion [label="晋级 hard gate\n0 promotion_reviews · 0 listed", fillcolor="#fee2e2", color="#b91c1c"];
+  listed [label="candidate / listed\n当前 0", fillcolor="#fee2e2", color="#b91c1c"];
+
+  audit_only [label="仅审计 / 观察候选\ncreated_audit_only = 12（最新一轮）", fillcolor="#fef9c3", color="#a16207"];
+  signal_tracker [label="SignalTracker sidecar\n运行中 · 18:30 · status ok", fillcolor="#dcfce7", color="#15803d"];
+  risk [label="Runtime risk scan\n3 risk events · 0 runtime controls", fillcolor="#fef9c3", color="#a16207"];
+  signal_evidence [label="信号证据\n仅 2 行 strategy_signal_evidence", fillcolor="#fee2e2", color="#b91c1c"];
+
+  submitted -> intake [label="intake"];
+  audit_only -> intake [label="观察账户", style=dashed];
+  intake -> warmup [label="账户建立"];
+  warmup -> paper [label="warmup 完成"];
+  paper -> signals [label="生成信号"];
+  signals -> orders [label="下单意图"];
+  orders -> matching [label="撮合"];
+  matching -> trades [label="成交"];
+  trades -> positions [label="建仓 / 加仓"];
+  positions -> exit_rule [label="持仓管理"];
+  exit_rule -> positions [label="平仓 / 减少", style=dashed];
+  positions -> nav [label="估值"];
+  nav -> metrics [label="收益 / 回撤 / 命中率"];
+  positions -> forward [label="forward returns"];
+  positions -> audit [label="round-trip 证据"];
+  metrics -> promotion [label="晋级候选"];
+  forward -> promotion [label="hard gate"];
+  audit -> promotion [label="审计门禁"];
+  promotion -> listed [label="通过则晋级", style=dashed, color="#b91c1c"];
+  signal_tracker -> signals [label="本应生成 / 补全", style=dashed, color="#b91c1c", constraint=false];
+  signal_tracker -> forward [label="本应回填", style=dashed, color="#b91c1c", constraint=false];
+  signal_tracker -> signal_evidence [label="证据闭环", style=dashed, color="#b91c1c", constraint=false];
+  signal_tracker -> risk [label="风控扫描", style=dashed, constraint=false];
+  risk -> positions [label="风险动作", style=dashed, constraint=false];
+  signal_evidence -> promotion [label="证据不足", style=dashed, color="#b91c1c"];
+
+  { rank=same; submitted; audit_only; }
+  { rank=same; paper; signal_tracker; }
+  { rank=same; exit_rule; nav; }
+  { rank=same; metrics; forward; audit; }
+  { rank=same; promotion; listed; signal_evidence; risk; }
+}

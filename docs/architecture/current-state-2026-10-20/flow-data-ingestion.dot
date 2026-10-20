@@ -1,0 +1,112 @@
+digraph flow_data_ingestion {
+  graph [
+    rankdir=TB,
+    bgcolor="white",
+    fontname="PingFang SC",
+    fontsize=19,
+    labelloc="t",
+    label="AIASK 关键流程 4：数据摄取与血缘（当前态）\n数据源 → data_source → 同步/校验 → SQLite → 消费者\n实线 = 写入/读取 · 虚线 = 门禁/条件 · 红色 = 不可用",
+    nodesep=0.30,
+    ranksep=0.52,
+    pad=0.25,
+    compound=true
+  ];
+  node [
+    shape=box,
+    style="rounded,filled",
+    fontname="PingFang SC",
+    fontsize=10,
+    margin="0.12,0.07",
+    color="#94a3b8",
+    fillcolor="#f8fafc",
+    penwidth=1.1
+  ];
+  edge [
+    fontname="PingFang SC",
+    fontsize=8.5,
+    color="#64748b",
+    arrowsize=0.65
+  ];
+
+  subgraph cluster_providers {
+    label="外部数据源（本机可达性已记录）";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#bae6fd";
+    em_dc [label="Eastmoney datacenter\n财务 / 资金流 / 融资融券", fillcolor="#e0f2fe", color="#0369a1"];
+    em_hist [label="push2his.eastmoney\nK 线历史", fillcolor="#e0f2fe", color="#0369a1"];
+    sina [label="Sina\n行情 / 财务诊断源", fillcolor="#e0f2fe", color="#0369a1"];
+    tencent [label="Tencent\n行情备用通道", fillcolor="#e0f2fe", color="#0369a1"];
+    sse [label="上交所 / 深交所\n融资融券 / 日历", fillcolor="#e0f2fe", color="#0369a1"];
+    tdx [label="TDX / TQCenter\n本地行情", fillcolor="#e0f2fe", color="#0369a1"];
+    tushare [label="Tushare\n已声明，无 token", fillcolor="#fee2e2", color="#b91c1c"];
+  }
+
+  subgraph cluster_ingest {
+    label="摄取与同步";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#fdba74";
+    data_source [label="data_source/*\nprovider 客户端 + 单位/复权口径", fillcolor="#ffedd5", color="#c2410c"];
+    sync_services [label="services/data_sync*\ntdx_sync_* · market_data_access", fillcolor="#ffedd5", color="#c2410c"];
+    sync_scripts [label="scripts/\nsync_market_universe · sync_market_fundamentals\nfree_data_daily_sync · db_sync", fillcolor="#ffedd5", color="#c2410c"];
+    quality [label="完整性 / 新鲜度 / 质量\ndata_quality_issues = 0", fillcolor="#fef3c7", color="#b45309"];
+  }
+
+  subgraph cluster_store {
+    label="SQLite 运行时库";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#cbd5e1";
+    t_market [shape=cylinder, label="stocks · kline_1d · stock_quotes\n5,582 标的 · 1,738,883 日线", fillcolor="#e2e8f0", color="#334155"];
+    t_fin_flow [shape=cylinder, label="financials · 估值 · margin_*\nfund_flow · dragon_tiger\n119,837 行财务", fillcolor="#e2e8f0", color="#334155"];
+    t_docs [shape=cylinder, label="market_documents / chunks\nmarket_events_normalized\n933 条归一化事件", fillcolor="#e2e8f0", color="#334155"];
+    t_factor [shape=cylinder, label="factor_values · factor_ic_history\n386,706 行 · 44 因子", fillcolor="#e2e8f0", color="#334155"];
+  }
+
+  subgraph cluster_consumers {
+    label="消费者";
+    labeljust="l";
+    fontsize=12;
+    style="rounded,dashed";
+    color="#c4b5fd";
+    factor_calc [label="因子计算 / 验证\nquant-core factor_calculator", fillcolor="#ede9fe", color="#6d28d9"];
+    strategy [label="策略工厂\ncollect / factor_research / backtest", fillcolor="#fef3c7", color="#b45309"];
+    agent_tools [label="Agent / MCP tools\n行情、财务、事件查询", fillcolor="#ede9fe", color="#6d28d9"];
+    paper [label="Paper / 孵化\n信号与估值", fillcolor="#dbeafe", color="#1d4ed8"];
+  }
+
+  em_dc -> data_source [label="HTTPS"];
+  em_hist -> data_source [label="HTTPS"];
+  sina -> data_source [label="HTTPS"];
+  tencent -> data_source [label="HTTPS"];
+  sse -> data_source [label="HTTPS"];
+  tdx -> data_source [label="TCP / local"];
+  tushare -> data_source [label="无 token，失败", style=dashed, color="#b91c1c"];
+
+  data_source -> sync_services [label="归一化"];
+  sync_scripts -> sync_services [label="调度 / 回填"];
+  sync_services -> quality [label="校验"];
+  quality -> sync_services [label="门禁 / 失败页", style=dashed];
+
+  sync_services -> t_market [label="upsert"];
+  sync_services -> t_fin_flow [label="upsert / 单位换算"];
+  sync_services -> t_docs [label="文档 / 事件"];
+
+  t_market -> factor_calc [label="读取行情"];
+  factor_calc -> t_factor [label="写入因子"];
+  t_market -> strategy [label="快照 / 回测"];
+  t_factor -> strategy [label="因子池"];
+  t_docs -> strategy [label="事件注入"];
+  t_market -> agent_tools [label="只读查询"];
+  t_fin_flow -> agent_tools [label="只读查询"];
+  t_market -> paper [label="撮合/估值"];
+  t_factor -> paper [label="信号"];
+
+  { rank=same; t_market; t_fin_flow; t_docs; }
+  { rank=same; factor_calc; strategy; }
+  { rank=same; agent_tools; paper; }
+}
