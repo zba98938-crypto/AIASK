@@ -341,9 +341,8 @@ async def list_feedback_source_strategies(
                 db,
                 "list_strategies",
                 status,
-                None,
-                status_limit,
-                0,
+                limit=status_limit,
+                offset=0,
                 default=[],
             )
         except TypeError:

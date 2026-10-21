@@ -73,6 +73,12 @@ class StrategyFactoryRepositoryAdapter:
     async def list_strategies(self, status: str, limit: int = 500):
         return await self._call("list_strategies", status, limit=limit)
 
+    async def list_strategy_quality_reports(self, strategy_id: str, limit: int = 10):
+        return await self._call("list_strategy_quality_reports", strategy_id, limit=limit)
+
+    async def get_latest_strategy_quality_report(self, strategy_id: str):
+        return await self._call("get_latest_strategy_quality_report", strategy_id)
+
     async def get_strategy(self, strategy_id: str):
         return await self._call("get_strategy", strategy_id)
 
@@ -192,6 +198,68 @@ class StrategyFactoryRepositoryAdapter:
 
     async def get_strategy_incubation_account(self, strategy_id: str):
         return await self._call("get_strategy_incubation_account", strategy_id)
+
+    # --- Incubation / runtime evidence reads (feedback path) ---
+
+    async def list_strategy_incubation_metrics(
+        self,
+        strategy_id: str,
+        limit: int = 30,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+    ):
+        # Forwarded because _feedback_metrics reads these via _call_optional_async;
+        # missing here would silently drop min_days_remaining and flip the
+        # readiness cohort gate into a permanent hard block.
+        kwargs: dict[str, Any] = {}
+        if start_date is not None:
+            kwargs["start_date"] = start_date
+        if end_date is not None:
+            kwargs["end_date"] = end_date
+        return await self._call(
+            "list_strategy_incubation_metrics", strategy_id, limit=limit, **kwargs
+        )
+
+    async def list_strategy_runtime_risk_events(
+        self,
+        strategy_id: Optional[str] = None,
+        account_id: Optional[str] = None,
+        status: Optional[str] = None,
+        severity: Optional[str] = None,
+        limit: int = 50,
+    ):
+        return await self._call(
+            "list_strategy_runtime_risk_events",
+            strategy_id=strategy_id,
+            account_id=account_id,
+            status=status,
+            severity=severity,
+            limit=limit,
+        )
+
+    async def list_strategy_runtime_alerts(
+        self,
+        strategy_id: Optional[str] = None,
+        account_id: Optional[str] = None,
+        category: Optional[str] = None,
+        severity: Optional[str] = None,
+        status: Optional[str] = None,
+        alert_key: Optional[str] = None,
+        limit: int = 50,
+    ):
+        return await self._call(
+            "list_strategy_runtime_alerts",
+            strategy_id=strategy_id,
+            account_id=account_id,
+            category=category,
+            severity=severity,
+            status=status,
+            alert_key=alert_key,
+            limit=limit,
+        )
+
+    async def get_latest_strategy_promotion_review(self, strategy_id: str):
+        return await self._call("get_latest_strategy_promotion_review", strategy_id)
 
     # --- Event-driven theme graph methods (PR-A) ---
 
