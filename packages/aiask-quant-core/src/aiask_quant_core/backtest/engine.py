@@ -1341,6 +1341,8 @@ class BacktestEngine:
                         else None
                     ),
                 )
+                _avg_holding_days = _sim.get('avg_holding_days')
+                _turnover_proxy = _sim.get('turnover_proxy')
                 _payload = {
                     'code': code, 'strategy': strategy,
                     'initial_capital': initial_capital,
@@ -1349,9 +1351,12 @@ class BacktestEngine:
                     'max_drawdown': float(_sim['max_drawdown']),
                     'sharpe_ratio': float(_sim['sharpe_ratio']),
                     'trades_count': int(_sim['trades_count']),
-                    'win_rate': float(_sim['win_rate']),
-                    'avg_holding_days': float(_sim.get('avg_holding_days') or 0.0),
-                    'turnover_proxy': float(_sim.get('turnover_proxy') or 0.0),
+                    # None when unmeasurable: a backtest with no closed round trip
+                    # has no win rate; fabricating 0.0 would read as "measured,
+                    # never won" and poison downstream medians.
+                    'win_rate': None if _sim['win_rate'] is None else float(_sim['win_rate']),
+                    'avg_holding_days': None if _avg_holding_days is None else float(_avg_holding_days),
+                    'turnover_proxy': None if _turnover_proxy is None else float(_turnover_proxy),
                     'params': params,
                 }
                 if return_trades:

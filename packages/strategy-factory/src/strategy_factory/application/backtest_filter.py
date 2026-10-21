@@ -1247,6 +1247,11 @@ class BacktestFilter:
     def _build_median_summary(results: List[dict]) -> dict:
         if not results:
             return {}
+        win_rates = [
+            float(metric["win_rate"])
+            for metric in results
+            if metric.get("win_rate") is not None
+        ]
         avg_holding_days = [
             float(metric["avg_holding_days"])
             for metric in results
@@ -1266,7 +1271,9 @@ class BacktestFilter:
             "sharpe_ratio": float(median([metric["sharpe_ratio"] for metric in results])),
             "total_return": float(median([metric["total_return"] for metric in results])),
             "max_drawdown": float(median([metric["max_drawdown"] for metric in results])),
-            "win_rate": float(median([metric.get("win_rate", 0) for metric in results])),
+            # None = unmeasurable (no closed round trip) and must not mix into
+            # the median as 0.0; fall back to unmeasurable when nothing is set.
+            "win_rate": float(median(win_rates)) if win_rates else None,
             "trades_count": float(median([metric["trades_count"] for metric in results])),
             "avg_holding_days": float(median(avg_holding_days)) if avg_holding_days else 0.0,
             "turnover_proxy": float(median(turnover_values)) if turnover_values else 0.0,
@@ -1633,9 +1640,13 @@ class BacktestFilter:
             for metric in curve_metrics
         ]
         win_rates = [
-            float(metric.get("win_rate") or 0.0)
+            float(metric["win_rate"])
             for metric in curve_metrics
+            if metric.get("win_rate") is not None
         ]
+        if not win_rates:
+            # all components unmeasurable: keep None, do not fabricate 0.0
+            win_rates = None
         turnover_values = [
             float(metric.get("turnover_proxy") or 0.0)
             for metric in curve_metrics
@@ -1645,7 +1656,7 @@ class BacktestFilter:
             "sharpe_ratio": float(portfolio_metrics["sharpe_ratio"]),
             "total_return": float(portfolio_metrics["total_return"]),
             "max_drawdown": float(portfolio_metrics["max_drawdown"]),
-            "win_rate": cls._weighted_average(win_rates, trade_weights),
+            "win_rate": cls._weighted_average(win_rates, trade_weights) if win_rates is not None else None,
             "trades_count": float(sum(component_trade_counts)),
             "avg_holding_days": cls._weighted_average(avg_holding_days, trade_weights or list(payload.get("weights") or [])),
             "turnover_proxy": cls._weighted_average(turnover_values, list(payload.get("weights") or [])),
