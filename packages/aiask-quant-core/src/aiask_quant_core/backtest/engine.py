@@ -911,9 +911,10 @@ class BacktestEngine:
                 'max_drawdown': float(_sim['max_drawdown']),
                 'sharpe_ratio': float(_sim['sharpe_ratio']),
                 'trades_count': int(_sim['trades_count']),
-                'win_rate': float(_sim['win_rate']),
-                'avg_holding_days': float(_sim.get('avg_holding_days') or 0.0),
-                'turnover_proxy': float(_sim.get('turnover_proxy') or 0.0),
+                # None when unmeasurable (no closed round trip); do not fabricate 0.0
+                'win_rate': None if _sim['win_rate'] is None else float(_sim['win_rate']),
+                'avg_holding_days': None if _sim.get('avg_holding_days') is None else float(_sim['avg_holding_days']),
+                'turnover_proxy': None if _sim.get('turnover_proxy') is None else float(_sim['turnover_proxy']),
                 'params': params,
             }
             if return_trades:
@@ -957,9 +958,10 @@ class BacktestEngine:
                     'max_drawdown': float(sim['max_drawdown']),
                     'sharpe_ratio': float(sim['sharpe_ratio']),
                     'trades_count': int(sim['trades_count']),
-                    'win_rate': float(sim['win_rate']),
-                    'avg_holding_days': float(sim.get('avg_holding_days') or 0.0),
-                    'turnover_proxy': float(sim.get('turnover_proxy') or 0.0),
+                    # None when unmeasurable (no closed round trip); do not fabricate 0.0
+                    'win_rate': None if sim['win_rate'] is None else float(sim['win_rate']),
+                    'avg_holding_days': None if sim.get('avg_holding_days') is None else float(sim['avg_holding_days']),
+                    'turnover_proxy': None if sim.get('turnover_proxy') is None else float(sim['turnover_proxy']),
                     'params': params,
                 }
                 if return_trades:
@@ -1123,9 +1125,10 @@ class BacktestEngine:
                     'max_drawdown': float(sim['max_drawdown']),
                     'sharpe_ratio': float(sim['sharpe_ratio']),
                     'trades_count': int(sim['trades_count']),
-                    'win_rate': float(sim['win_rate']),
-                    'avg_holding_days': float(sim.get('avg_holding_days') or 0.0),
-                    'turnover_proxy': float(sim.get('turnover_proxy') or 0.0),
+                    # None when unmeasurable (no closed round trip); do not fabricate 0.0
+                    'win_rate': None if sim['win_rate'] is None else float(sim['win_rate']),
+                    'avg_holding_days': None if sim.get('avg_holding_days') is None else float(sim['avg_holding_days']),
+                    'turnover_proxy': None if sim.get('turnover_proxy') is None else float(sim['turnover_proxy']),
                     'params': params,
                 }
                 if return_trades:
@@ -1246,9 +1249,10 @@ class BacktestEngine:
                     'max_drawdown': float(sim['max_drawdown']),
                     'sharpe_ratio': float(sim['sharpe_ratio']),
                     'trades_count': int(sim['trades_count']),
-                    'win_rate': float(sim['win_rate']),
-                    'avg_holding_days': float(sim.get('avg_holding_days') or 0.0),
-                    'turnover_proxy': float(sim.get('turnover_proxy') or 0.0),
+                    # None when unmeasurable (no closed round trip); do not fabricate 0.0
+                    'win_rate': None if sim['win_rate'] is None else float(sim['win_rate']),
+                    'avg_holding_days': None if sim.get('avg_holding_days') is None else float(sim['avg_holding_days']),
+                    'turnover_proxy': None if sim.get('turnover_proxy') is None else float(sim['turnover_proxy']),
                     'params': params,
                 }
                 if return_trades:

@@ -1636,9 +1636,13 @@ class BacktestFilter:
         component_trade_counts = [max(float(metric.get("trades_count") or 0.0), 0.0) for metric in curve_metrics]
         trade_weights = component_trade_counts if sum(component_trade_counts) > 0 else None
         avg_holding_days = [
-            float(metric.get("avg_holding_days") or 0.0)
+            float(metric["avg_holding_days"])
             for metric in curve_metrics
+            if metric.get("avg_holding_days") is not None
         ]
+        if not avg_holding_days:
+            # all components unmeasurable: keep None, do not fabricate 0.0
+            avg_holding_days = None
         win_rates = [
             float(metric["win_rate"])
             for metric in curve_metrics
@@ -1658,7 +1662,11 @@ class BacktestFilter:
             "max_drawdown": float(portfolio_metrics["max_drawdown"]),
             "win_rate": cls._weighted_average(win_rates, trade_weights) if win_rates is not None else None,
             "trades_count": float(sum(component_trade_counts)),
-            "avg_holding_days": cls._weighted_average(avg_holding_days, trade_weights or list(payload.get("weights") or [])),
+            "avg_holding_days": (
+                cls._weighted_average(avg_holding_days, trade_weights or list(payload.get("weights") or []))
+                if avg_holding_days is not None
+                else None
+            ),
             "turnover_proxy": cls._weighted_average(turnover_values, list(payload.get("weights") or [])),
             "aggregation_mode": str(payload.get("aggregation_mode") or "portfolio_equal_weight"),
             "allocation_mode": str(payload.get("allocation_mode") or "equal_weight"),
