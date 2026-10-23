@@ -281,7 +281,56 @@ async def init_strategy_tables(conn, sqlite_python_enabled: bool = False) -> Non
             ON strategy_trade_prediction_outcomes(strategy_id, actual_trading_date DESC);
         CREATE INDEX IF NOT EXISTS idx_strategy_trade_prediction_outcomes_score
             ON strategy_trade_prediction_outcomes(score_status, trade_prediction_score DESC);
-    """)
+
+        ALTER TABLE strategy_trade_prediction_outcomes ADD COLUMN IF NOT EXISTS horizon_score_version TEXT;
+        ALTER TABLE strategy_trade_prediction_outcomes ADD COLUMN IF NOT EXISTS retry_attempts INTEGER DEFAULT 0;
+        ALTER TABLE strategy_trade_prediction_outcomes ADD COLUMN IF NOT EXISTS last_retry_at TEXT;
+        CREATE INDEX IF NOT EXISTS idx_strategy_trade_prediction_outcomes_retry
+            ON strategy_trade_prediction_outcomes(score_version, score_status, retry_attempts);
+
+        CREATE TABLE IF NOT EXISTS prediction_executions (
+            id TEXT PRIMARY KEY,
+            prediction_id TEXT NOT NULL,
+            strategy_id TEXT NOT NULL,
+            stock_code TEXT NOT NULL,
+            prediction_as_of TEXT,
+            target_trading_date TEXT,
+            action TEXT NOT NULL CHECK (action IN ('ordered', 'abstained')),
+            reason TEXT,
+            calibrated_confidence REAL,
+            calibration_model_hash TEXT,
+            raw_confidence REAL,
+            paper_order_id INTEGER,
+            signal_id TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_prediction_executions_prediction
+            ON prediction_executions(prediction_id, action);
+        CREATE INDEX IF NOT EXISTS idx_prediction_executions_target
+            ON prediction_executions(target_trading_date, action);
+
+        ALTER TABLE prediction_executions ADD COLUMN IF NOT EXISTS execution_result TEXT;
+
+        CREATE TABLE IF NOT EXISTS calibration_models (
+            model_hash TEXT PRIMARY KEY,
+            strategy_family TEXT NOT NULL,
+            method TEXT NOT NULL,
+            feature_version TEXT NOT NULL,
+            fit_start TEXT NOT NULL,
+            fit_end TEXT NOT NULL,
+            n_train INTEGER NOT NULL,
+            n_holdout INTEGER NOT NULL,
+            base_rate_train REAL NOT NULL,
+            brier_holdout REAL,
+            brier_baseline REAL NOT NULL,
+            ece_holdout REAL,
+            status TEXT NOT NULL,
+            reason_code TEXT,
+            params_json TEXT DEFAULT '{}',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE INDEX IF NOT EXISTS idx_calibration_models_status
+            ON calibration_models(status, strategy_family);    """)
 
     # 29.1 向后兼容：published -> listed 迁移
     await conn.execute("""

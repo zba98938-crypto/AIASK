@@ -8,12 +8,26 @@ import numpy as np
 
 try:
     import pandas as pd
-    import pandas_ta as ta
-    PANDAS_TA_AVAILABLE = True
-except ImportError:
-    PANDAS_TA_AVAILABLE = False
+except Exception:
     pd = None
-    ta = None
+
+PANDAS_TA_AVAILABLE = False
+ta = None
+if pd is not None:
+    try:
+        # pandas_ta can fail at import for reasons other than "not installed":
+        # its numba-@cache=True decorators raise RuntimeError when the numba
+        # cache directory isn't writable (common in sandboxes). An
+        # ``except ImportError`` here let that crash escape and take down every
+        # module (and its tests) that imports this one — the registry crash of
+        # 2026-10-22. Swallowing the broad exception means ta is simply
+        # unavailable; downstream code already checks PANDAS_TA_AVAILABLE.
+        import pandas_ta as _pandas_ta
+
+        PANDAS_TA_AVAILABLE = True
+        ta = _pandas_ta
+    except Exception:
+        PANDAS_TA_AVAILABLE = False
 
 try:
     import talib

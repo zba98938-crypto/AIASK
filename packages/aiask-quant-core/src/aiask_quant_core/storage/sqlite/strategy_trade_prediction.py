@@ -647,3 +647,60 @@ class StrategyTradePredictionMixin:
             "rows": rows,
             "row_count": len(rows),
         }
+
+    # ── calibration models (WP-B) ────────────────────────────────────────────
+    async def save_calibration_model(self, payload: dict) -> dict:
+        """Upsert one calibration model row.
+
+        ``status`` is written verbatim: 'active' only when the caller already
+        passed the B1/B2/B3 start gates. This method does not decide status.
+        """
+        model_hash = _string(payload.get("model_hash"))
+        strategy_family = _string(payload.get("strategy_family")) or "default"
+        method = _string(payload.get("method"))
+        feature_version = _string(payload.get("feature_version"))
+        if not model_hash:
+            raise ValueError("model_hash is required")
+        if not method:
+            raise ValueError("method is required")
+        if not feature_version:
+            raise ValueError("feature_version is required")
+        status = _string(payload.get("status")) or "research_only"
+        async with self.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO calibration_models (
+                    model_hash, strategy_family, method, feature_version,
+                    fit_start, fit_end, n_train, n_holdout, base_rate_train,
+                    brier_holdout, brier_baseline, ece_holdout, status,
+                    reason_code, params_json, created_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+                ON CONFLICT (model_hash) DO UPDATE SET
+                    status = EXCLUDED.status,
+                    reason_code = EXCLUDED.reason_code,
+                    brier_holdout = EXCLUDED.brier_holdout,
+                    brier_baseline = EXCLUDED.brier_baseline,
+                    ece_holdout = EXCLUDED.ece_holdout
+                """,
+                model_hash,
+                strategy_family,
+                method,
+                feature_version,
+                _string(payload.get("fit_start")) or None,
+                _string(payload.get("fit_end")) or None,
+                _safe_int(payload.get("n_train")),
+                _safe_int(payload.get("n_holdout")),
+                _safe_float(payload.get("base_rate_train")),
+                _coerce_float(payload.get("brier_holdout")),
+                _coerce_float(payload.get("brier_baseline")),
+                _coerce_float(payload.get("ece_holdout")),
+                status,
+                _string(payload.get("reason_code")) or None,
+                _string(payload.get("params_json")) or "{}",
+                datetime.now(timezone.utc),
+            )
+            row = await conn.fetchrow(
+                "SELECT * FROM calibration_models WHERE model_hash = $1", model_hash
+            )
+        return dict(row) if row else {}

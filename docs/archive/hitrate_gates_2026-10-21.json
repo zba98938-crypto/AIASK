@@ -1,0 +1,2403 @@
+{
+  "generated_at": "2026-10-21T14:14:27.667030+00:00",
+  "db": "/Users/mac/.aiask/data/db/akshare_mcp.sqlite3",
+  "latest_bar": "2026-10-16",
+  "sections": [
+    {
+      "section": "data",
+      "status": "ok",
+      "detail": "kline_1d 1736379 rows / 5577 codes / 1400 days, latest 2026-10-16; kline_1d.turnover is 100% NULL (turnover factor unavailable from this table)",
+      "evidence": {
+        "per_year": [
+          {
+            "year": 2021,
+            "codes": 2,
+            "days": 236,
+            "rows": 308
+          },
+          {
+            "year": 2022,
+            "codes": 2,
+            "days": 242,
+            "rows": 484
+          },
+          {
+            "year": 2023,
+            "codes": 159,
+            "days": 242,
+            "rows": 30077
+          },
+          {
+            "year": 2024,
+            "codes": 159,
+            "days": 248,
+            "rows": 38300
+          },
+          {
+            "year": 2025,
+            "codes": 5449,
+            "days": 243,
+            "rows": 633633
+          },
+          {
+            "year": 2026,
+            "codes": 5575,
+            "days": 189,
+            "rows": 1033577
+          }
+        ],
+        "column_fill": {
+          "open": 1.0,
+          "high": 1.0,
+          "low": 1.0,
+          "close": 1.0,
+          "volume": 1.0,
+          "amount": 1.0
+        },
+        "kline_turnover_fill": 0.0,
+        "recent_days": 6,
+        "recent_codes": 5567,
+        "intraday_rows": 325,
+        "intraday_codes": 1,
+        "trading_calendar_rows": 1400,
+        "trading_calendar_latest": "20261016",
+        "trading_calendar_format": "compact_yyyymmdd",
+        "notes": [
+          "dropped 99 duplicate/unparseable kline rows"
+        ]
+      }
+    },
+    {
+      "section": "predictions",
+      "status": "degraded",
+      "detail": "205 predictions / 205 strategies; blocks(code,as_of)=37, blocks(strategy,code,as_of)=205; scorable=186; one prediction per strategy — predictions are submission-time, not daily",
+      "evidence": {
+        "predictions": 205,
+        "distinct_strategies": 205,
+        "predictions_per_strategy": 1.0,
+        "as_of_dates": [
+          "2026-07-16",
+          "2026-07-23",
+          "2026-10-15"
+        ],
+        "direction_mix": {
+          "neutral": 99,
+          "up": 83,
+          "down": 23
+        },
+        "scorable": 186,
+        "unscorable_reasons": {
+          "horizon_incomplete": 19
+        },
+        "outcomes": [
+          {
+            "score_version": "trade_prediction_score_daily_v1",
+            "score_status": "partial_daily_only",
+            "n": 186
+          },
+          {
+            "score_version": "trade_prediction_score_daily_v1",
+            "score_status": "pending_market_data",
+            "n": 600
+          },
+          {
+            "score_version": "trade_prediction_score_v2",
+            "score_status": "partial_intraday_missing",
+            "n": 786
+          }
+        ],
+        "stuck_pending_market_data": 600,
+        "paper_orders": 547,
+        "orders_matched_target_date": 0,
+        "orders_matched_window": 56,
+        "blocks_code_as_of": 37,
+        "blocks_strategy_code_as_of": 205
+      }
+    },
+    {
+      "section": "baseline",
+      "status": "measured",
+      "detail": "hit rates are quoted both absolutely and against the same-day cross-sectional base",
+      "evidence": {
+        "scorable_rows": 186,
+        "directional_rows": 105,
+        "neutral_share": 0.4355,
+        "per_horizon": {
+          "1": {
+            "predictions": 94,
+            "unique_blocks": 15,
+            "hits": 4,
+            "hit_rate": 0.2667,
+            "wilson_lcb": 0.109,
+            "uplift_vs_same_day_base": {
+              "n_days": 3,
+              "effective_n": 3.0,
+              "overlap_days": 1,
+              "mean": 0.3114,
+              "sd": 0.5315,
+              "t": 1.01,
+              "lcb": -0.29
+            }
+          },
+          "5": {
+            "predictions": 4,
+            "unique_blocks": 1,
+            "hits": 0,
+            "hit_rate": 0.0,
+            "wilson_lcb": 0.0,
+            "uplift_vs_same_day_base": {
+              "n_days": 1,
+              "mean": null,
+              "t": null,
+              "lcb": null,
+              "effective_n": null,
+              "reason": "insufficient_days"
+            }
+          },
+          "8": {
+            "predictions": 1,
+            "unique_blocks": 1,
+            "hits": 0,
+            "hit_rate": 0.0,
+            "wilson_lcb": 0.0,
+            "uplift_vs_same_day_base": {
+              "n_days": 1,
+              "mean": null,
+              "t": null,
+              "lcb": null,
+              "effective_n": null,
+              "reason": "insufficient_days"
+            }
+          },
+          "10": {
+            "predictions": 28,
+            "unique_blocks": 16,
+            "hits": 0,
+            "hit_rate": 0.0,
+            "wilson_lcb": 0.0,
+            "uplift_vs_same_day_base": {
+              "n_days": 2,
+              "effective_n": 1.0,
+              "overlap_days": 10,
+              "mean": -0.587,
+              "sd": 0.3619,
+              "t": null,
+              "lcb": null,
+              "reason": "effective_n_below_3_after_overlap_correction"
+            }
+          },
+          "12": {
+            "predictions": 18,
+            "unique_blocks": 2,
+            "hits": 0,
+            "hit_rate": 0.0,
+            "wilson_lcb": 0.0,
+            "uplift_vs_same_day_base": {
+              "n_days": 2,
+              "effective_n": 1.0,
+              "overlap_days": 12,
+              "mean": -0.7028,
+              "sd": 0.2629,
+              "t": null,
+              "lcb": null,
+              "reason": "effective_n_below_3_after_overlap_correction"
+            }
+          },
+          "14": {
+            "predictions": 1,
+            "unique_blocks": 1,
+            "hits": 0,
+            "hit_rate": 0.0,
+            "wilson_lcb": 0.0,
+            "uplift_vs_same_day_base": {
+              "n_days": 1,
+              "mean": null,
+              "t": null,
+              "lcb": null,
+              "effective_n": null,
+              "reason": "insufficient_days"
+            }
+          },
+          "15": {
+            "predictions": 17,
+            "unique_blocks": 5,
+            "hits": 1,
+            "hit_rate": 0.2,
+            "wilson_lcb": 0.0362,
+            "uplift_vs_same_day_base": {
+              "n_days": 2,
+              "effective_n": 1.0,
+              "overlap_days": 15,
+              "mean": -0.6061,
+              "sd": 0.0008,
+              "t": null,
+              "lcb": null,
+              "reason": "effective_n_below_3_after_overlap_correction"
+            }
+          },
+          "16": {
+            "predictions": 1,
+            "unique_blocks": 1,
+            "hits": 0,
+            "hit_rate": 0.0,
+            "wilson_lcb": 0.0,
+            "uplift_vs_same_day_base": {
+              "n_days": 1,
+              "mean": null,
+              "t": null,
+              "lcb": null,
+              "effective_n": null,
+              "reason": "insufficient_days"
+            }
+          },
+          "20": {
+            "predictions": 22,
+            "unique_blocks": 5,
+            "hits": 1,
+            "hit_rate": 0.2,
+            "wilson_lcb": 0.0362,
+            "uplift_vs_same_day_base": {
+              "n_days": 2,
+              "effective_n": 1.0,
+              "overlap_days": 20,
+              "mean": -0.4732,
+              "sd": 0.4426,
+              "t": null,
+              "lcb": null,
+              "reason": "effective_n_below_3_after_overlap_correction"
+            }
+          }
+        },
+        "per_date": [
+          {
+            "as_of": "2026-07-16",
+            "horizon_days": 1,
+            "rows": 74,
+            "unique_blocks": 1,
+            "hit_rate": 0.0,
+            "same_day_base": 0.075
+          },
+          {
+            "as_of": "2026-07-16",
+            "horizon_days": 5,
+            "rows": 1,
+            "unique_blocks": 1,
+            "hit_rate": 0.0,
+            "same_day_base": 0.2311
+          },
+          {
+            "as_of": "2026-07-16",
+            "horizon_days": 20,
+            "rows": 16,
+            "unique_blocks": 2,
+            "hit_rate": 1.0,
+            "same_day_base": 0.6602
+          },
+          {
+            "as_of": "2026-07-23",
+            "horizon_days": 1,
+            "rows": 7,
+            "unique_blocks": 7,
+            "hit_rate": 0.1429,
+            "same_day_base": 0.1289
+          },
+          {
+            "as_of": "2026-10-15",
+            "horizon_days": 1,
+            "rows": 7,
+            "unique_blocks": 7,
+            "hit_rate": 0.2857,
+            "same_day_base": 0.2904
+          }
+        ]
+      }
+    },
+    {
+      "section": "confidence",
+      "status": "degraded",
+      "detail": "max confidence 0.7833, rows>=0.85 0, rows>=0.80 0, distinct (horizon,direction,confidence) combos 21",
+      "evidence": {
+        "max_confidence": 0.783333,
+        "rows_ge_085": 0,
+        "rows_ge_080": 0,
+        "combo_count": 21,
+        "one_to_one_with_horizon_direction": false,
+        "raw_confidence_brier": 0.2599,
+        "monotonicity_by_horizon": {
+          "1": {
+            "buckets": 2,
+            "spearman": 1.0,
+            "detail": [
+              {
+                "confidence": 0.5462,
+                "blocks": 11,
+                "hit_rate": 0.1818
+              },
+              {
+                "confidence": 0.6966,
+                "blocks": 5,
+                "hit_rate": 0.2
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "section": "selectivity",
+      "status": "measured",
+      "detail": "unconditional base rate >=85% on 5d: 1/427 days (0.2%), 20d: 2/412 days (0.5%)",
+      "evidence": {
+        "base_rate_by_horizon": {
+          "5d": {
+            "days": 427,
+            "mean_base": 0.3069,
+            "days_ge_085": 1,
+            "days_ge_080": 10,
+            "share_days_ge_085": 0.0023,
+            "share_days_ge_080": 0.0234,
+            "regimes": {
+              "all": {
+                "days": 427,
+                "mean_base": 0.3069,
+                "share_ge_085": 0.0023
+              },
+              "mom20>0": {
+                "days": 251,
+                "mean_base": 0.3061,
+                "share_ge_085": 0.0
+              },
+              "mom20>2pct": {
+                "days": 183,
+                "mean_base": 0.3329,
+                "share_ge_085": 0.0
+              },
+              "breadth_top50": {
+                "days": 214,
+                "mean_base": 0.4242,
+                "share_ge_085": 0.0047
+              },
+              "breadth_top10": {
+                "days": 43,
+                "mean_base": 0.4271,
+                "share_ge_085": 0.0
+              }
+            }
+          },
+          "20d": {
+            "days": 412,
+            "mean_base": 0.3046,
+            "days_ge_085": 2,
+            "days_ge_080": 12,
+            "share_days_ge_085": 0.0049,
+            "share_days_ge_080": 0.0291,
+            "regimes": {
+              "all": {
+                "days": 412,
+                "mean_base": 0.3046,
+                "share_ge_085": 0.0049
+              },
+              "mom20>0": {
+                "days": 244,
+                "mean_base": 0.2817,
+                "share_ge_085": 0.0
+              },
+              "mom20>2pct": {
+                "days": 180,
+                "mean_base": 0.3108,
+                "share_ge_085": 0.0
+              },
+              "breadth_top50": {
+                "days": 206,
+                "mean_base": 0.3972,
+                "share_ge_085": 0.0
+              },
+              "breadth_top10": {
+                "days": 42,
+                "mean_base": 0.3972,
+                "share_ge_085": 0.0
+              }
+            }
+          }
+        },
+        "required_std_for_85": {
+          "0.43": {
+            "q=0.1": 0.946,
+            "q=0.05": 0.737,
+            "q=0.01": 0.521,
+            "q=0.001": 0.392
+          },
+          "0.5": {
+            "q=0.1": 0.809,
+            "q=0.05": 0.63,
+            "q=0.01": 0.446,
+            "q=0.001": 0.335
+          },
+          "0.6": {
+            "q=0.1": 0.611,
+            "q=0.05": 0.476,
+            "q=0.01": 0.337,
+            "q=0.001": 0.253
+          },
+          "0.7": {
+            "q=0.1": 0.4,
+            "q=0.05": 0.311,
+            "q=0.01": 0.22,
+            "q=0.001": 0.166
+          },
+          "0.8": {
+            "q=0.1": 0.152,
+            "q=0.05": 0.118,
+            "q=0.01": 0.084,
+            "q=0.001": 0.063
+          }
+        }
+      }
+    },
+    {
+      "section": "factors",
+      "status": "measured",
+      "detail": "scanned 10 OHLCV factors on 5d/20d; best top-0.1% hit 0.4657 (uplift 0.027)",
+      "evidence": {
+        "top_by_uplift": [
+          {
+            "key": "5d:mom_20",
+            "description": "20-day close momentum",
+            "days": 277,
+            "rank_ic_mean": -0.0461,
+            "rank_ic_ir": -0.3,
+            "rank_ic_positive_share": 0.383,
+            "top_0.1": {
+              "mean_hit": 0.4236,
+              "mean_uplift": -0.0151,
+              "share_days_ge_085": 0.0036,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 55.4,
+                "overlap_days": 5,
+                "mean": -0.0151,
+                "sd": 0.1375,
+                "t": -0.82,
+                "lcb": -0.0513
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4227,
+              "mean_uplift": -0.016,
+              "share_days_ge_085": 0.0036,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 55.4,
+                "overlap_days": 5,
+                "mean": -0.016,
+                "sd": 0.1572,
+                "t": -0.76,
+                "lcb": -0.0575
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.4259,
+              "mean_uplift": -0.0128,
+              "share_days_ge_085": 0.0072,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 55.4,
+                "overlap_days": 5,
+                "mean": -0.0128,
+                "sd": 0.1862,
+                "t": -0.51,
+                "lcb": -0.0619
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.4657,
+              "mean_uplift": 0.027,
+              "share_days_ge_085": 0.0975,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 55.4,
+                "overlap_days": 5,
+                "mean": 0.027,
+                "sd": 0.3148,
+                "t": 0.64,
+                "lcb": -0.0559
+              }
+            }
+          },
+          {
+            "key": "5d:amt_20",
+            "description": "log 20-day mean amount (size proxy)",
+            "days": 278,
+            "rank_ic_mean": -0.0422,
+            "rank_ic_ir": -0.224,
+            "rank_ic_positive_share": 0.464,
+            "top_0.1": {
+              "mean_hit": 0.4367,
+              "mean_uplift": -0.0027,
+              "share_days_ge_085": 0.0072,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0027,
+                "sd": 0.1465,
+                "t": -0.14,
+                "lcb": -0.0413
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4389,
+              "mean_uplift": -0.0006,
+              "share_days_ge_085": 0.0324,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0006,
+                "sd": 0.1685,
+                "t": -0.03,
+                "lcb": -0.0449
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.4474,
+              "mean_uplift": 0.008,
+              "share_days_ge_085": 0.0827,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": 0.008,
+                "sd": 0.2366,
+                "t": 0.25,
+                "lcb": -0.0542
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.4597,
+              "mean_uplift": 0.0202,
+              "share_days_ge_085": 0.1583,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": 0.0202,
+                "sd": 0.3429,
+                "t": 0.44,
+                "lcb": -0.0699
+              }
+            }
+          },
+          {
+            "key": "5d:mom_60",
+            "description": "60-day close momentum",
+            "days": 237,
+            "rank_ic_mean": -0.037,
+            "rank_ic_ir": -0.229,
+            "rank_ic_positive_share": 0.414,
+            "top_0.1": {
+              "mean_hit": 0.4303,
+              "mean_uplift": -0.0095,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 237,
+                "effective_n": 47.4,
+                "overlap_days": 5,
+                "mean": -0.0095,
+                "sd": 0.1544,
+                "t": -0.42,
+                "lcb": -0.0534
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4315,
+              "mean_uplift": -0.0082,
+              "share_days_ge_085": 0.0042,
+              "paired": {
+                "n_days": 237,
+                "effective_n": 47.4,
+                "overlap_days": 5,
+                "mean": -0.0082,
+                "sd": 0.1764,
+                "t": -0.32,
+                "lcb": -0.0585
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.4325,
+              "mean_uplift": -0.0073,
+              "share_days_ge_085": 0.0422,
+              "paired": {
+                "n_days": 237,
+                "effective_n": 47.4,
+                "overlap_days": 5,
+                "mean": -0.0073,
+                "sd": 0.2056,
+                "t": -0.24,
+                "lcb": -0.0658
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.4498,
+              "mean_uplift": 0.01,
+              "share_days_ge_085": 0.0759,
+              "paired": {
+                "n_days": 237,
+                "effective_n": 47.4,
+                "overlap_days": 5,
+                "mean": 0.01,
+                "sd": 0.2875,
+                "t": 0.24,
+                "lcb": -0.0719
+              }
+            }
+          },
+          {
+            "key": "5d:close_pos_20",
+            "description": "close position inside the 20-day range",
+            "days": 278,
+            "rank_ic_mean": -0.0328,
+            "rank_ic_ir": -0.23,
+            "rank_ic_positive_share": 0.428,
+            "top_0.1": {
+              "mean_hit": 0.4309,
+              "mean_uplift": -0.0086,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0086,
+                "sd": 0.123,
+                "t": -0.52,
+                "lcb": -0.041
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4205,
+              "mean_uplift": -0.0189,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0189,
+                "sd": 0.1385,
+                "t": -1.02,
+                "lcb": -0.0553
+              }
+            },
+            "top_0.01": {
+              "mean_hit": NaN,
+              "mean_uplift": NaN,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 260,
+                "effective_n": 52.0,
+                "overlap_days": 5,
+                "mean": -0.0367,
+                "sd": 0.1657,
+                "t": -1.6,
+                "lcb": -0.0817
+              }
+            },
+            "top_0.001": {
+              "mean_hit": NaN,
+              "mean_uplift": NaN,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 0,
+                "mean": null,
+                "t": null,
+                "lcb": null,
+                "effective_n": null,
+                "reason": "insufficient_days"
+              }
+            }
+          },
+          {
+            "key": "20d:mom_20",
+            "description": "20-day close momentum",
+            "days": 262,
+            "rank_ic_mean": -0.0512,
+            "rank_ic_ir": -0.351,
+            "rank_ic_positive_share": 0.416,
+            "top_0.1": {
+              "mean_hit": 0.4084,
+              "mean_uplift": -0.0249,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 262,
+                "effective_n": 13.1,
+                "overlap_days": 20,
+                "mean": -0.0249,
+                "sd": 0.1557,
+                "t": -0.58,
+                "lcb": -0.1092
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4069,
+              "mean_uplift": -0.0265,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 262,
+                "effective_n": 13.1,
+                "overlap_days": 20,
+                "mean": -0.0265,
+                "sd": 0.1741,
+                "t": -0.55,
+                "lcb": -0.1207
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.3924,
+              "mean_uplift": -0.0409,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 262,
+                "effective_n": 13.1,
+                "overlap_days": 20,
+                "mean": -0.0409,
+                "sd": 0.1916,
+                "t": -0.77,
+                "lcb": -0.1447
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.4427,
+              "mean_uplift": 0.0094,
+              "share_days_ge_085": 0.0496,
+              "paired": {
+                "n_days": 262,
+                "effective_n": 13.1,
+                "overlap_days": 20,
+                "mean": 0.0094,
+                "sd": 0.2665,
+                "t": 0.13,
+                "lcb": -0.1349
+              }
+            }
+          },
+          {
+            "key": "20d:amt_20",
+            "description": "log 20-day mean amount (size proxy)",
+            "days": 263,
+            "rank_ic_mean": -0.0738,
+            "rank_ic_ir": -0.433,
+            "rank_ic_positive_share": 0.403,
+            "top_0.1": {
+              "mean_hit": 0.4174,
+              "mean_uplift": -0.0162,
+              "share_days_ge_085": 0.0038,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.0162,
+                "sd": 0.1402,
+                "t": -0.42,
+                "lcb": -0.092
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4232,
+              "mean_uplift": -0.0104,
+              "share_days_ge_085": 0.0038,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.0104,
+                "sd": 0.1601,
+                "t": -0.24,
+                "lcb": -0.097
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.425,
+              "mean_uplift": -0.0086,
+              "share_days_ge_085": 0.0114,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.0086,
+                "sd": 0.2336,
+                "t": -0.13,
+                "lcb": -0.1349
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.4411,
+              "mean_uplift": 0.0075,
+              "share_days_ge_085": 0.0798,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": 0.0075,
+                "sd": 0.3823,
+                "t": 0.07,
+                "lcb": -0.1991
+              }
+            }
+          },
+          {
+            "key": "5d:mom_5",
+            "description": "5-day close momentum",
+            "days": 292,
+            "rank_ic_mean": -0.0165,
+            "rank_ic_ir": -0.112,
+            "rank_ic_positive_share": 0.466,
+            "top_0.1": {
+              "mean_hit": 0.4285,
+              "mean_uplift": -0.0152,
+              "share_days_ge_085": 0.0034,
+              "paired": {
+                "n_days": 292,
+                "effective_n": 58.4,
+                "overlap_days": 5,
+                "mean": -0.0152,
+                "sd": 0.1299,
+                "t": -0.89,
+                "lcb": -0.0485
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4223,
+              "mean_uplift": -0.0214,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 292,
+                "effective_n": 58.4,
+                "overlap_days": 5,
+                "mean": -0.0214,
+                "sd": 0.1508,
+                "t": -1.08,
+                "lcb": -0.0601
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.417,
+              "mean_uplift": -0.0267,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 292,
+                "effective_n": 58.4,
+                "overlap_days": 5,
+                "mean": -0.0267,
+                "sd": 0.1864,
+                "t": -1.1,
+                "lcb": -0.0745
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.4452,
+              "mean_uplift": 0.0015,
+              "share_days_ge_085": 0.0479,
+              "paired": {
+                "n_days": 292,
+                "effective_n": 58.4,
+                "overlap_days": 5,
+                "mean": 0.0015,
+                "sd": 0.2937,
+                "t": 0.04,
+                "lcb": -0.0739
+              }
+            }
+          },
+          {
+            "key": "20d:mom_60",
+            "description": "60-day close momentum",
+            "days": 222,
+            "rank_ic_mean": -0.0665,
+            "rank_ic_ir": -0.366,
+            "rank_ic_positive_share": 0.405,
+            "top_0.1": {
+              "mean_hit": 0.4155,
+              "mean_uplift": -0.0146,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 222,
+                "effective_n": 11.1,
+                "overlap_days": 20,
+                "mean": -0.0146,
+                "sd": 0.1659,
+                "t": -0.29,
+                "lcb": -0.1122
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4197,
+              "mean_uplift": -0.0104,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 222,
+                "effective_n": 11.1,
+                "overlap_days": 20,
+                "mean": -0.0104,
+                "sd": 0.1836,
+                "t": -0.19,
+                "lcb": -0.1184
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.4027,
+              "mean_uplift": -0.0273,
+              "share_days_ge_085": 0.009,
+              "paired": {
+                "n_days": 222,
+                "effective_n": 11.1,
+                "overlap_days": 20,
+                "mean": -0.0273,
+                "sd": 0.2119,
+                "t": -0.43,
+                "lcb": -0.152
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.409,
+              "mean_uplift": -0.0211,
+              "share_days_ge_085": 0.0586,
+              "paired": {
+                "n_days": 222,
+                "effective_n": 11.1,
+                "overlap_days": 20,
+                "mean": -0.0211,
+                "sd": 0.3241,
+                "t": -0.22,
+                "lcb": -0.2117
+              }
+            }
+          }
+        ],
+        "all": {
+          "5d:mom_5": {
+            "description": "5-day close momentum",
+            "days": 292,
+            "rank_ic_mean": -0.0165,
+            "rank_ic_ir": -0.112,
+            "rank_ic_positive_share": 0.466,
+            "top_0.1": {
+              "mean_hit": 0.4285,
+              "mean_uplift": -0.0152,
+              "share_days_ge_085": 0.0034,
+              "paired": {
+                "n_days": 292,
+                "effective_n": 58.4,
+                "overlap_days": 5,
+                "mean": -0.0152,
+                "sd": 0.1299,
+                "t": -0.89,
+                "lcb": -0.0485
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4223,
+              "mean_uplift": -0.0214,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 292,
+                "effective_n": 58.4,
+                "overlap_days": 5,
+                "mean": -0.0214,
+                "sd": 0.1508,
+                "t": -1.08,
+                "lcb": -0.0601
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.417,
+              "mean_uplift": -0.0267,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 292,
+                "effective_n": 58.4,
+                "overlap_days": 5,
+                "mean": -0.0267,
+                "sd": 0.1864,
+                "t": -1.1,
+                "lcb": -0.0745
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.4452,
+              "mean_uplift": 0.0015,
+              "share_days_ge_085": 0.0479,
+              "paired": {
+                "n_days": 292,
+                "effective_n": 58.4,
+                "overlap_days": 5,
+                "mean": 0.0015,
+                "sd": 0.2937,
+                "t": 0.04,
+                "lcb": -0.0739
+              }
+            }
+          },
+          "5d:mom_20": {
+            "description": "20-day close momentum",
+            "days": 277,
+            "rank_ic_mean": -0.0461,
+            "rank_ic_ir": -0.3,
+            "rank_ic_positive_share": 0.383,
+            "top_0.1": {
+              "mean_hit": 0.4236,
+              "mean_uplift": -0.0151,
+              "share_days_ge_085": 0.0036,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 55.4,
+                "overlap_days": 5,
+                "mean": -0.0151,
+                "sd": 0.1375,
+                "t": -0.82,
+                "lcb": -0.0513
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4227,
+              "mean_uplift": -0.016,
+              "share_days_ge_085": 0.0036,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 55.4,
+                "overlap_days": 5,
+                "mean": -0.016,
+                "sd": 0.1572,
+                "t": -0.76,
+                "lcb": -0.0575
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.4259,
+              "mean_uplift": -0.0128,
+              "share_days_ge_085": 0.0072,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 55.4,
+                "overlap_days": 5,
+                "mean": -0.0128,
+                "sd": 0.1862,
+                "t": -0.51,
+                "lcb": -0.0619
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.4657,
+              "mean_uplift": 0.027,
+              "share_days_ge_085": 0.0975,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 55.4,
+                "overlap_days": 5,
+                "mean": 0.027,
+                "sd": 0.3148,
+                "t": 0.64,
+                "lcb": -0.0559
+              }
+            }
+          },
+          "5d:mom_60": {
+            "description": "60-day close momentum",
+            "days": 237,
+            "rank_ic_mean": -0.037,
+            "rank_ic_ir": -0.229,
+            "rank_ic_positive_share": 0.414,
+            "top_0.1": {
+              "mean_hit": 0.4303,
+              "mean_uplift": -0.0095,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 237,
+                "effective_n": 47.4,
+                "overlap_days": 5,
+                "mean": -0.0095,
+                "sd": 0.1544,
+                "t": -0.42,
+                "lcb": -0.0534
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4315,
+              "mean_uplift": -0.0082,
+              "share_days_ge_085": 0.0042,
+              "paired": {
+                "n_days": 237,
+                "effective_n": 47.4,
+                "overlap_days": 5,
+                "mean": -0.0082,
+                "sd": 0.1764,
+                "t": -0.32,
+                "lcb": -0.0585
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.4325,
+              "mean_uplift": -0.0073,
+              "share_days_ge_085": 0.0422,
+              "paired": {
+                "n_days": 237,
+                "effective_n": 47.4,
+                "overlap_days": 5,
+                "mean": -0.0073,
+                "sd": 0.2056,
+                "t": -0.24,
+                "lcb": -0.0658
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.4498,
+              "mean_uplift": 0.01,
+              "share_days_ge_085": 0.0759,
+              "paired": {
+                "n_days": 237,
+                "effective_n": 47.4,
+                "overlap_days": 5,
+                "mean": 0.01,
+                "sd": 0.2875,
+                "t": 0.24,
+                "lcb": -0.0719
+              }
+            }
+          },
+          "5d:rev_1": {
+            "description": "1-day reversal (negated 1d return)",
+            "days": 296,
+            "rank_ic_mean": 0.0011,
+            "rank_ic_ir": 0.008,
+            "rank_ic_positive_share": 0.503,
+            "top_0.1": {
+              "mean_hit": 0.4187,
+              "mean_uplift": -0.0264,
+              "share_days_ge_085": 0.0236,
+              "paired": {
+                "n_days": 296,
+                "effective_n": 59.2,
+                "overlap_days": 5,
+                "mean": -0.0264,
+                "sd": 0.1011,
+                "t": -2.01,
+                "lcb": -0.0522
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.409,
+              "mean_uplift": -0.0361,
+              "share_days_ge_085": 0.0236,
+              "paired": {
+                "n_days": 296,
+                "effective_n": 59.2,
+                "overlap_days": 5,
+                "mean": -0.0361,
+                "sd": 0.1135,
+                "t": -2.45,
+                "lcb": -0.065
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.3883,
+              "mean_uplift": -0.0568,
+              "share_days_ge_085": 0.0135,
+              "paired": {
+                "n_days": 296,
+                "effective_n": 59.2,
+                "overlap_days": 5,
+                "mean": -0.0568,
+                "sd": 0.1376,
+                "t": -3.18,
+                "lcb": -0.0918
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.3731,
+              "mean_uplift": -0.072,
+              "share_days_ge_085": 0.0304,
+              "paired": {
+                "n_days": 296,
+                "effective_n": 59.2,
+                "overlap_days": 5,
+                "mean": -0.072,
+                "sd": 0.2304,
+                "t": -2.4,
+                "lcb": -0.1307
+              }
+            }
+          },
+          "5d:rev_5": {
+            "description": "5-day reversal (negated 5d return)",
+            "days": 292,
+            "rank_ic_mean": 0.0165,
+            "rank_ic_ir": 0.112,
+            "rank_ic_positive_share": 0.534,
+            "top_0.1": {
+              "mean_hit": 0.4234,
+              "mean_uplift": -0.0203,
+              "share_days_ge_085": 0.0445,
+              "paired": {
+                "n_days": 292,
+                "effective_n": 58.4,
+                "overlap_days": 5,
+                "mean": -0.0203,
+                "sd": 0.1058,
+                "t": -1.47,
+                "lcb": -0.0474
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4189,
+              "mean_uplift": -0.0249,
+              "share_days_ge_085": 0.0377,
+              "paired": {
+                "n_days": 292,
+                "effective_n": 58.4,
+                "overlap_days": 5,
+                "mean": -0.0249,
+                "sd": 0.1138,
+                "t": -1.67,
+                "lcb": -0.054
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.4124,
+              "mean_uplift": -0.0314,
+              "share_days_ge_085": 0.0479,
+              "paired": {
+                "n_days": 292,
+                "effective_n": 58.4,
+                "overlap_days": 5,
+                "mean": -0.0314,
+                "sd": 0.1347,
+                "t": -1.78,
+                "lcb": -0.0659
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.3979,
+              "mean_uplift": -0.0458,
+              "share_days_ge_085": 0.0788,
+              "paired": {
+                "n_days": 292,
+                "effective_n": 58.4,
+                "overlap_days": 5,
+                "mean": -0.0458,
+                "sd": 0.2491,
+                "t": -1.4,
+                "lcb": -0.1097
+              }
+            }
+          },
+          "5d:vol_20": {
+            "description": "20-day realized volatility (negated: lower vol)",
+            "days": 277,
+            "rank_ic_mean": 0.0657,
+            "rank_ic_ir": 0.295,
+            "rank_ic_positive_share": 0.628,
+            "top_0.1": {
+              "mean_hit": 0.4307,
+              "mean_uplift": -0.008,
+              "share_days_ge_085": 0.0505,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 55.4,
+                "overlap_days": 5,
+                "mean": -0.008,
+                "sd": 0.1708,
+                "t": -0.35,
+                "lcb": -0.053
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4229,
+              "mean_uplift": -0.0158,
+              "share_days_ge_085": 0.065,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 55.4,
+                "overlap_days": 5,
+                "mean": -0.0158,
+                "sd": 0.2044,
+                "t": -0.58,
+                "lcb": -0.0696
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.4027,
+              "mean_uplift": -0.036,
+              "share_days_ge_085": 0.065,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 55.4,
+                "overlap_days": 5,
+                "mean": -0.036,
+                "sd": 0.255,
+                "t": -1.05,
+                "lcb": -0.1031
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.4116,
+              "mean_uplift": -0.0272,
+              "share_days_ge_085": 0.083,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 55.4,
+                "overlap_days": 5,
+                "mean": -0.0272,
+                "sd": 0.3228,
+                "t": -0.63,
+                "lcb": -0.1122
+              }
+            }
+          },
+          "5d:amt_20": {
+            "description": "log 20-day mean amount (size proxy)",
+            "days": 278,
+            "rank_ic_mean": -0.0422,
+            "rank_ic_ir": -0.224,
+            "rank_ic_positive_share": 0.464,
+            "top_0.1": {
+              "mean_hit": 0.4367,
+              "mean_uplift": -0.0027,
+              "share_days_ge_085": 0.0072,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0027,
+                "sd": 0.1465,
+                "t": -0.14,
+                "lcb": -0.0413
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4389,
+              "mean_uplift": -0.0006,
+              "share_days_ge_085": 0.0324,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0006,
+                "sd": 0.1685,
+                "t": -0.03,
+                "lcb": -0.0449
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.4474,
+              "mean_uplift": 0.008,
+              "share_days_ge_085": 0.0827,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": 0.008,
+                "sd": 0.2366,
+                "t": 0.25,
+                "lcb": -0.0542
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.4597,
+              "mean_uplift": 0.0202,
+              "share_days_ge_085": 0.1583,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": 0.0202,
+                "sd": 0.3429,
+                "t": 0.44,
+                "lcb": -0.0699
+              }
+            }
+          },
+          "5d:range_20": {
+            "description": "20-day mean (high-low)/close (negated)",
+            "days": 278,
+            "rank_ic_mean": 0.0585,
+            "rank_ic_ir": 0.244,
+            "rank_ic_positive_share": 0.601,
+            "top_0.1": {
+              "mean_hit": 0.4267,
+              "mean_uplift": -0.0127,
+              "share_days_ge_085": 0.0468,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0127,
+                "sd": 0.1833,
+                "t": -0.52,
+                "lcb": -0.0609
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4163,
+              "mean_uplift": -0.0231,
+              "share_days_ge_085": 0.0647,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0231,
+                "sd": 0.2176,
+                "t": -0.79,
+                "lcb": -0.0803
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.3992,
+              "mean_uplift": -0.0403,
+              "share_days_ge_085": 0.0827,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0403,
+                "sd": 0.2599,
+                "t": -1.16,
+                "lcb": -0.1086
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.3741,
+              "mean_uplift": -0.0654,
+              "share_days_ge_085": 0.0683,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0654,
+                "sd": 0.3192,
+                "t": -1.53,
+                "lcb": -0.1493
+              }
+            }
+          },
+          "5d:close_pos_20": {
+            "description": "close position inside the 20-day range",
+            "days": 278,
+            "rank_ic_mean": -0.0328,
+            "rank_ic_ir": -0.23,
+            "rank_ic_positive_share": 0.428,
+            "top_0.1": {
+              "mean_hit": 0.4309,
+              "mean_uplift": -0.0086,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0086,
+                "sd": 0.123,
+                "t": -0.52,
+                "lcb": -0.041
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4205,
+              "mean_uplift": -0.0189,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0189,
+                "sd": 0.1385,
+                "t": -1.02,
+                "lcb": -0.0553
+              }
+            },
+            "top_0.01": {
+              "mean_hit": NaN,
+              "mean_uplift": NaN,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 260,
+                "effective_n": 52.0,
+                "overlap_days": 5,
+                "mean": -0.0367,
+                "sd": 0.1657,
+                "t": -1.6,
+                "lcb": -0.0817
+              }
+            },
+            "top_0.001": {
+              "mean_hit": NaN,
+              "mean_uplift": NaN,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 0,
+                "mean": null,
+                "t": null,
+                "lcb": null,
+                "effective_n": null,
+                "reason": "insufficient_days"
+              }
+            }
+          },
+          "5d:vol_surge": {
+            "description": "volume vs its 20-day mean",
+            "days": 278,
+            "rank_ic_mean": -0.0266,
+            "rank_ic_ir": -0.307,
+            "rank_ic_positive_share": 0.396,
+            "top_0.1": {
+              "mean_hit": 0.4157,
+              "mean_uplift": -0.0238,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0238,
+                "sd": 0.0945,
+                "t": -1.88,
+                "lcb": -0.0486
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4076,
+              "mean_uplift": -0.0319,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0319,
+                "sd": 0.1129,
+                "t": -2.11,
+                "lcb": -0.0616
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.4032,
+              "mean_uplift": -0.0363,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0363,
+                "sd": 0.1487,
+                "t": -1.82,
+                "lcb": -0.0754
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.3698,
+              "mean_uplift": -0.0697,
+              "share_days_ge_085": 0.0108,
+              "paired": {
+                "n_days": 278,
+                "effective_n": 55.6,
+                "overlap_days": 5,
+                "mean": -0.0697,
+                "sd": 0.2683,
+                "t": -1.94,
+                "lcb": -0.1402
+              }
+            }
+          },
+          "20d:mom_5": {
+            "description": "5-day close momentum",
+            "days": 277,
+            "rank_ic_mean": -0.0343,
+            "rank_ic_ir": -0.254,
+            "rank_ic_positive_share": 0.426,
+            "top_0.1": {
+              "mean_hit": 0.4101,
+              "mean_uplift": -0.0331,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 13.85,
+                "overlap_days": 20,
+                "mean": -0.0331,
+                "sd": 0.1149,
+                "t": -1.07,
+                "lcb": -0.0936
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.3965,
+              "mean_uplift": -0.0468,
+              "share_days_ge_085": 0.0036,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 13.85,
+                "overlap_days": 20,
+                "mean": -0.0468,
+                "sd": 0.1378,
+                "t": -1.26,
+                "lcb": -0.1193
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.3709,
+              "mean_uplift": -0.0724,
+              "share_days_ge_085": 0.0036,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 13.85,
+                "overlap_days": 20,
+                "mean": -0.0724,
+                "sd": 0.1816,
+                "t": -1.48,
+                "lcb": -0.168
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.3798,
+              "mean_uplift": -0.0634,
+              "share_days_ge_085": 0.0108,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 13.85,
+                "overlap_days": 20,
+                "mean": -0.0634,
+                "sd": 0.2537,
+                "t": -0.93,
+                "lcb": -0.1971
+              }
+            }
+          },
+          "20d:mom_20": {
+            "description": "20-day close momentum",
+            "days": 262,
+            "rank_ic_mean": -0.0512,
+            "rank_ic_ir": -0.351,
+            "rank_ic_positive_share": 0.416,
+            "top_0.1": {
+              "mean_hit": 0.4084,
+              "mean_uplift": -0.0249,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 262,
+                "effective_n": 13.1,
+                "overlap_days": 20,
+                "mean": -0.0249,
+                "sd": 0.1557,
+                "t": -0.58,
+                "lcb": -0.1092
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4069,
+              "mean_uplift": -0.0265,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 262,
+                "effective_n": 13.1,
+                "overlap_days": 20,
+                "mean": -0.0265,
+                "sd": 0.1741,
+                "t": -0.55,
+                "lcb": -0.1207
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.3924,
+              "mean_uplift": -0.0409,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 262,
+                "effective_n": 13.1,
+                "overlap_days": 20,
+                "mean": -0.0409,
+                "sd": 0.1916,
+                "t": -0.77,
+                "lcb": -0.1447
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.4427,
+              "mean_uplift": 0.0094,
+              "share_days_ge_085": 0.0496,
+              "paired": {
+                "n_days": 262,
+                "effective_n": 13.1,
+                "overlap_days": 20,
+                "mean": 0.0094,
+                "sd": 0.2665,
+                "t": 0.13,
+                "lcb": -0.1349
+              }
+            }
+          },
+          "20d:mom_60": {
+            "description": "60-day close momentum",
+            "days": 222,
+            "rank_ic_mean": -0.0665,
+            "rank_ic_ir": -0.366,
+            "rank_ic_positive_share": 0.405,
+            "top_0.1": {
+              "mean_hit": 0.4155,
+              "mean_uplift": -0.0146,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 222,
+                "effective_n": 11.1,
+                "overlap_days": 20,
+                "mean": -0.0146,
+                "sd": 0.1659,
+                "t": -0.29,
+                "lcb": -0.1122
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4197,
+              "mean_uplift": -0.0104,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 222,
+                "effective_n": 11.1,
+                "overlap_days": 20,
+                "mean": -0.0104,
+                "sd": 0.1836,
+                "t": -0.19,
+                "lcb": -0.1184
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.4027,
+              "mean_uplift": -0.0273,
+              "share_days_ge_085": 0.009,
+              "paired": {
+                "n_days": 222,
+                "effective_n": 11.1,
+                "overlap_days": 20,
+                "mean": -0.0273,
+                "sd": 0.2119,
+                "t": -0.43,
+                "lcb": -0.152
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.409,
+              "mean_uplift": -0.0211,
+              "share_days_ge_085": 0.0586,
+              "paired": {
+                "n_days": 222,
+                "effective_n": 11.1,
+                "overlap_days": 20,
+                "mean": -0.0211,
+                "sd": 0.3241,
+                "t": -0.22,
+                "lcb": -0.2117
+              }
+            }
+          },
+          "20d:rev_1": {
+            "description": "1-day reversal (negated 1d return)",
+            "days": 281,
+            "rank_ic_mean": 0.0102,
+            "rank_ic_ir": 0.078,
+            "rank_ic_positive_share": 0.509,
+            "top_0.1": {
+              "mean_hit": 0.4167,
+              "mean_uplift": -0.0306,
+              "share_days_ge_085": 0.0107,
+              "paired": {
+                "n_days": 281,
+                "effective_n": 14.05,
+                "overlap_days": 20,
+                "mean": -0.0306,
+                "sd": 0.1055,
+                "t": -1.09,
+                "lcb": -0.0858
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4054,
+              "mean_uplift": -0.0419,
+              "share_days_ge_085": 0.0142,
+              "paired": {
+                "n_days": 281,
+                "effective_n": 14.05,
+                "overlap_days": 20,
+                "mean": -0.0419,
+                "sd": 0.1184,
+                "t": -1.33,
+                "lcb": -0.1039
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.3796,
+              "mean_uplift": -0.0677,
+              "share_days_ge_085": 0.0142,
+              "paired": {
+                "n_days": 281,
+                "effective_n": 14.05,
+                "overlap_days": 20,
+                "mean": -0.0677,
+                "sd": 0.1383,
+                "t": -1.84,
+                "lcb": -0.14
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.3795,
+              "mean_uplift": -0.0678,
+              "share_days_ge_085": 0.0285,
+              "paired": {
+                "n_days": 281,
+                "effective_n": 14.05,
+                "overlap_days": 20,
+                "mean": -0.0678,
+                "sd": 0.2375,
+                "t": -1.07,
+                "lcb": -0.192
+              }
+            }
+          },
+          "20d:rev_5": {
+            "description": "5-day reversal (negated 5d return)",
+            "days": 277,
+            "rank_ic_mean": 0.0343,
+            "rank_ic_ir": 0.254,
+            "rank_ic_positive_share": 0.574,
+            "top_0.1": {
+              "mean_hit": 0.422,
+              "mean_uplift": -0.0212,
+              "share_days_ge_085": 0.0325,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 13.85,
+                "overlap_days": 20,
+                "mean": -0.0212,
+                "sd": 0.0982,
+                "t": -0.8,
+                "lcb": -0.073
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4134,
+              "mean_uplift": -0.0298,
+              "share_days_ge_085": 0.0289,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 13.85,
+                "overlap_days": 20,
+                "mean": -0.0298,
+                "sd": 0.1085,
+                "t": -1.02,
+                "lcb": -0.087
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.4068,
+              "mean_uplift": -0.0364,
+              "share_days_ge_085": 0.0361,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 13.85,
+                "overlap_days": 20,
+                "mean": -0.0364,
+                "sd": 0.1228,
+                "t": -1.1,
+                "lcb": -0.1011
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.4116,
+              "mean_uplift": -0.0317,
+              "share_days_ge_085": 0.0325,
+              "paired": {
+                "n_days": 277,
+                "effective_n": 13.85,
+                "overlap_days": 20,
+                "mean": -0.0317,
+                "sd": 0.2206,
+                "t": -0.53,
+                "lcb": -0.1478
+              }
+            }
+          },
+          "20d:vol_20": {
+            "description": "20-day realized volatility (negated: lower vol)",
+            "days": 262,
+            "rank_ic_mean": 0.0937,
+            "rank_ic_ir": 0.444,
+            "rank_ic_positive_share": 0.634,
+            "top_0.1": {
+              "mean_hit": 0.4366,
+              "mean_uplift": 0.0033,
+              "share_days_ge_085": 0.0267,
+              "paired": {
+                "n_days": 262,
+                "effective_n": 13.1,
+                "overlap_days": 20,
+                "mean": 0.0033,
+                "sd": 0.1554,
+                "t": 0.08,
+                "lcb": -0.0809
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.42,
+              "mean_uplift": -0.0133,
+              "share_days_ge_085": 0.0344,
+              "paired": {
+                "n_days": 262,
+                "effective_n": 13.1,
+                "overlap_days": 20,
+                "mean": -0.0133,
+                "sd": 0.1821,
+                "t": -0.26,
+                "lcb": -0.1119
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.3787,
+              "mean_uplift": -0.0546,
+              "share_days_ge_085": 0.0153,
+              "paired": {
+                "n_days": 262,
+                "effective_n": 13.1,
+                "overlap_days": 20,
+                "mean": -0.0546,
+                "sd": 0.22,
+                "t": -0.9,
+                "lcb": -0.1737
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.358,
+              "mean_uplift": -0.0753,
+              "share_days_ge_085": 0.0344,
+              "paired": {
+                "n_days": 262,
+                "effective_n": 13.1,
+                "overlap_days": 20,
+                "mean": -0.0753,
+                "sd": 0.268,
+                "t": -1.02,
+                "lcb": -0.2204
+              }
+            }
+          },
+          "20d:amt_20": {
+            "description": "log 20-day mean amount (size proxy)",
+            "days": 263,
+            "rank_ic_mean": -0.0738,
+            "rank_ic_ir": -0.433,
+            "rank_ic_positive_share": 0.403,
+            "top_0.1": {
+              "mean_hit": 0.4174,
+              "mean_uplift": -0.0162,
+              "share_days_ge_085": 0.0038,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.0162,
+                "sd": 0.1402,
+                "t": -0.42,
+                "lcb": -0.092
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4232,
+              "mean_uplift": -0.0104,
+              "share_days_ge_085": 0.0038,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.0104,
+                "sd": 0.1601,
+                "t": -0.24,
+                "lcb": -0.097
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.425,
+              "mean_uplift": -0.0086,
+              "share_days_ge_085": 0.0114,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.0086,
+                "sd": 0.2336,
+                "t": -0.13,
+                "lcb": -0.1349
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.4411,
+              "mean_uplift": 0.0075,
+              "share_days_ge_085": 0.0798,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": 0.0075,
+                "sd": 0.3823,
+                "t": 0.07,
+                "lcb": -0.1991
+              }
+            }
+          },
+          "20d:range_20": {
+            "description": "20-day mean (high-low)/close (negated)",
+            "days": 263,
+            "rank_ic_mean": 0.0803,
+            "rank_ic_ir": 0.364,
+            "rank_ic_positive_share": 0.635,
+            "top_0.1": {
+              "mean_hit": 0.4264,
+              "mean_uplift": -0.0072,
+              "share_days_ge_085": 0.019,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.0072,
+                "sd": 0.1657,
+                "t": -0.16,
+                "lcb": -0.0967
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4105,
+              "mean_uplift": -0.0231,
+              "share_days_ge_085": 0.0304,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.0231,
+                "sd": 0.1944,
+                "t": -0.43,
+                "lcb": -0.1281
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.3762,
+              "mean_uplift": -0.0574,
+              "share_days_ge_085": 0.0342,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.0574,
+                "sd": 0.215,
+                "t": -0.97,
+                "lcb": -0.1736
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.3247,
+              "mean_uplift": -0.1089,
+              "share_days_ge_085": 0.0114,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.1089,
+                "sd": 0.2518,
+                "t": -1.57,
+                "lcb": -0.245
+              }
+            }
+          },
+          "20d:close_pos_20": {
+            "description": "close position inside the 20-day range",
+            "days": 263,
+            "rank_ic_mean": -0.0269,
+            "rank_ic_ir": -0.183,
+            "rank_ic_positive_share": 0.51,
+            "top_0.1": {
+              "mean_hit": 0.4236,
+              "mean_uplift": -0.01,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.01,
+                "sd": 0.1193,
+                "t": -0.31,
+                "lcb": -0.0745
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.4116,
+              "mean_uplift": -0.022,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.022,
+                "sd": 0.1311,
+                "t": -0.61,
+                "lcb": -0.0929
+              }
+            },
+            "top_0.01": {
+              "mean_hit": NaN,
+              "mean_uplift": NaN,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 245,
+                "effective_n": 12.25,
+                "overlap_days": 20,
+                "mean": -0.0671,
+                "sd": 0.1476,
+                "t": -1.59,
+                "lcb": -0.1498
+              }
+            },
+            "top_0.001": {
+              "mean_hit": NaN,
+              "mean_uplift": NaN,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 0,
+                "mean": null,
+                "t": null,
+                "lcb": null,
+                "effective_n": null,
+                "reason": "insufficient_days"
+              }
+            }
+          },
+          "20d:vol_surge": {
+            "description": "volume vs its 20-day mean",
+            "days": 263,
+            "rank_ic_mean": -0.0216,
+            "rank_ic_ir": -0.275,
+            "rank_ic_positive_share": 0.426,
+            "top_0.1": {
+              "mean_hit": 0.3968,
+              "mean_uplift": -0.0368,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.0368,
+                "sd": 0.0724,
+                "t": -1.84,
+                "lcb": -0.0759
+              }
+            },
+            "top_0.05": {
+              "mean_hit": 0.3844,
+              "mean_uplift": -0.0492,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.0492,
+                "sd": 0.0815,
+                "t": -2.19,
+                "lcb": -0.0932
+              }
+            },
+            "top_0.01": {
+              "mean_hit": 0.3646,
+              "mean_uplift": -0.069,
+              "share_days_ge_085": 0.0,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.069,
+                "sd": 0.1094,
+                "t": -2.29,
+                "lcb": -0.1281
+              }
+            },
+            "top_0.001": {
+              "mean_hit": 0.3308,
+              "mean_uplift": -0.1028,
+              "share_days_ge_085": 0.0228,
+              "paired": {
+                "n_days": 263,
+                "effective_n": 13.15,
+                "overlap_days": 20,
+                "mean": -0.1028,
+                "sd": 0.2294,
+                "t": -1.63,
+                "lcb": -0.2268
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "section": "joint",
+      "status": "measured",
+      "detail": "momentum-20 top-k selection, split by same-day base rate; best conditional hit 0.8519",
+      "evidence": {
+        "by_horizon": {
+          "5d": {
+            "k=1": {
+              "days": 277,
+              "selected_hit_mean": 0.4549,
+              "share_days_hit_ge_085": 0.4549,
+              "base_q50": 0.4272,
+              "base_q90": 0.7237,
+              "on_top_decile_base_days": {
+                "days": 28,
+                "selected_hit_mean": 0.6429,
+                "share_days_hit_ge_085": 0.6429
+              }
+            },
+            "k=5": {
+              "days": 277,
+              "selected_hit_mean": 0.4671,
+              "share_days_hit_ge_085": 0.0975,
+              "base_q50": 0.4272,
+              "base_q90": 0.7237,
+              "on_top_decile_base_days": {
+                "days": 28,
+                "selected_hit_mean": 0.6071,
+                "share_days_hit_ge_085": 0.3214
+              }
+            },
+            "k=20": {
+              "days": 277,
+              "selected_hit_mean": 0.4514,
+              "share_days_hit_ge_085": 0.0361,
+              "base_q50": 0.4272,
+              "base_q90": 0.7237,
+              "on_top_decile_base_days": {
+                "days": 28,
+                "selected_hit_mean": 0.6393,
+                "share_days_hit_ge_085": 0.1786
+              }
+            }
+          },
+          "20d": {
+            "k=1": {
+              "days": 262,
+              "selected_hit_mean": 0.5,
+              "share_days_hit_ge_085": 0.5,
+              "base_q50": 0.4163,
+              "base_q90": 0.7255,
+              "on_top_decile_base_days": {
+                "days": 27,
+                "selected_hit_mean": 0.8519,
+                "share_days_hit_ge_085": 0.8519
+              }
+            },
+            "k=5": {
+              "days": 262,
+              "selected_hit_mean": 0.4443,
+              "share_days_hit_ge_085": 0.0496,
+              "base_q50": 0.4163,
+              "base_q90": 0.7255,
+              "on_top_decile_base_days": {
+                "days": 27,
+                "selected_hit_mean": 0.6889,
+                "share_days_hit_ge_085": 0.2222
+              }
+            },
+            "k=20": {
+              "days": 262,
+              "selected_hit_mean": 0.3956,
+              "share_days_hit_ge_085": 0.0,
+              "base_q50": 0.4163,
+              "base_q90": 0.7255,
+              "on_top_decile_base_days": {
+                "days": 27,
+                "selected_hit_mean": 0.5833,
+                "share_days_hit_ge_085": 0.0
+              }
+            }
+          }
+        },
+        "ex_ante_day_filter": {
+          "5d": {
+            "spearman_feature_vs_day_base": {
+              "market_ret_20": 0.0714,
+              "breadth_ma20": 0.5682,
+              "mean_vol_20": 0.5255,
+              "dispersion_20": 0.597
+            },
+            "top_decile_days": 38,
+            "top_decile_mean_base": 0.4392,
+            "all_days_mean_base": 0.3069,
+            "bottom_decile_mean_base": 0.2517,
+            "ex_ante_top_decile_top1_hit": 0.5333,
+            "ex_ante_top_decile_days": 30
+          },
+          "20d": {
+            "spearman_feature_vs_day_base": {
+              "market_ret_20": -0.0018,
+              "breadth_ma20": 0.4913,
+              "mean_vol_20": 0.4278,
+              "dispersion_20": 0.5658
+            },
+            "top_decile_days": 36,
+            "top_decile_mean_base": 0.4777,
+            "all_days_mean_base": 0.3046,
+            "bottom_decile_mean_base": 0.1368,
+            "ex_ante_top_decile_top1_hit": 0.4706,
+            "ex_ante_top_decile_days": 34
+          }
+        },
+        "out_of_sample_by_year": {
+          "5d": {
+            "2025": {
+              "days": 243,
+              "spearman_score_vs_base": 0.724,
+              "mean_base": 0.2217,
+              "top_decile_days": 25,
+              "top_decile_mean_base": 0.3471,
+              "top1_all_days_hit": 0.5213,
+              "top1_all_days_n": 94,
+              "top1_on_top_decile_hit": 0.36,
+              "top1_on_top_decile_n": 25
+            },
+            "2026": {
+              "days": 184,
+              "spearman_score_vs_base": 0.014,
+              "mean_base": 0.4194,
+              "top_decile_days": 19,
+              "top_decile_mean_base": 0.3311,
+              "top1_all_days_hit": 0.4208,
+              "top1_all_days_n": 183,
+              "top1_on_top_decile_hit": 0.5263,
+              "top1_on_top_decile_n": 19
+            }
+          },
+          "20d": {
+            "2025": {
+              "days": 243,
+              "spearman_score_vs_base": 0.656,
+              "mean_base": 0.2425,
+              "top_decile_days": 25,
+              "top_decile_mean_base": 0.3541,
+              "top1_all_days_hit": 0.6702,
+              "top1_all_days_n": 94,
+              "top1_on_top_decile_hit": 0.56,
+              "top1_on_top_decile_n": 25
+            },
+            "2026": {
+              "days": 169,
+              "spearman_score_vs_base": -0.238,
+              "mean_base": 0.3939,
+              "top_decile_days": 17,
+              "top_decile_mean_base": 0.2863,
+              "top1_all_days_hit": 0.4048,
+              "top1_all_days_n": 168,
+              "top1_on_top_decile_hit": 0.5294,
+              "top1_on_top_decile_n": 17
+            }
+          }
+        }
+      }
+    }
+  ]
+}

@@ -40,6 +40,8 @@ from .metrics_recorder import MetricsRecorder
 from .hit_rate_reporter import HitRateReporter
 from .feedback_writer import FeedbackWriter
 from .trade_prediction_verifier import TradePredictionDailyVerifier
+from .horizon_scorer import HorizonScorer
+from .directional_scorecard import build_directional_scorecard
 from .accelerator import IncubationAccelerator
 from .alert_monitor import AlertMonitor
 
@@ -105,6 +107,7 @@ class IncubationFactoryRunner:
         self._reporter = HitRateReporter()
         self._feedback_writer = FeedbackWriter()
         self._trade_prediction_verifier = TradePredictionDailyVerifier()
+        self._horizon_scorer = HorizonScorer()
         self._accelerator = IncubationAccelerator()
         self._alert_monitor = AlertMonitor()
 
@@ -399,6 +402,23 @@ class IncubationFactoryRunner:
                 timeout=BATCH_TIMEOUT_SEC,
             ) or {}
 
+            logger.info("IncubationFactory [%s] Phase 3d: Horizon net scoring (WP-A)", run_id)
+            horizon_scoring_result = await _run_phase(
+                "horizon_scoring",
+                lambda: self._horizon_scorer.verify_pending(
+                    db,
+                    persist=not self.dry_run,
+                ),
+                timeout=BATCH_TIMEOUT_SEC,
+            ) or {}
+
+            logger.info("IncubationFactory [%s] Phase 3c: Directional scorecard (WP-D)", run_id)
+            directional_scorecard_result = await _run_phase(
+                "directional_scorecard",
+                lambda: build_directional_scorecard(db),
+                timeout=BATCH_TIMEOUT_SEC,
+            ) or {}
+
             logger.info("IncubationFactory [%s] Phase 3c: Signal-only paper execution backlog", run_id)
             paper_execution_backlog_result = await _run_phase(
                 "paper_execution_backlog",
@@ -576,6 +596,14 @@ class IncubationFactoryRunner:
                     "data_quality_status_counts": dict(trade_prediction_result.get("data_quality_status_counts") or {}),
                     "intraday_sync": dict(trade_prediction_result.get("intraday_sync") or {}),
                 },
+                "horizon_scoring": {
+                    "status": horizon_scoring_result.get("status"),
+                    "score_version": horizon_scoring_result.get("score_version"),
+                    "evaluated": int(horizon_scoring_result.get("evaluated") or 0),
+                    "score_status_counts": dict(horizon_scoring_result.get("score_status_counts") or {}),
+                    "reason_counts": dict(horizon_scoring_result.get("reason_counts") or {}),
+                },
+                "directional_scorecard": directional_scorecard_result,
                 "paper_execution_backlog": paper_execution_backlog_result,
                 "exit_signal_paper_execution": exit_signal_execution_result,
                 "stale_paper_position_closure": stale_position_closure_result,
