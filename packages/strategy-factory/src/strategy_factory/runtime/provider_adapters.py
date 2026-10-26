@@ -7,7 +7,7 @@ that compatibility in one runtime-boundary module.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from ..infrastructure.runtime_services import (
@@ -81,6 +81,143 @@ class LegacyIncubationProvider:
 
     async def verify_trade_predictions(self, db: Any) -> dict[str, Any]:
         return await self.support._trade_prediction_verifier.verify_pending(db)
+
+    async def write_daily_predictions(
+        self,
+        db: Any,
+        strategy: dict[str, Any],
+        signal_result: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Write predictions from signals already persisted by Phase 3.
+
+        This hook deliberately reads the signal ledger instead of generating a
+        second signal pass.  The incubation service owns signal generation and
+        paper-order settlement; the prediction writer only creates the
+        prediction view for those same signals.
+        """
+        from ..application.research.daily_prediction_writer import DailyPredictionWriter
+
+        strategy_id = str(strategy.get("id") or "").strip()
+        get_signals = getattr(db, "get_signals", None)
+        get_klines = getattr(db, "get_klines", None)
+        save = getattr(db, "save_strategy_trade_prediction", None)
+        if not callable(get_signals) or not callable(get_klines) or not callable(save):
+            return {"status": "degraded", "reason": "prediction_storage_unavailable", "written": 0}
+
+        # The signal generator normally returns the closed-bar date.  Older
+        # providers sometimes omit it or return the wall-clock Saturday/Sunday
+        # date.  Never use that date to label a prediction: recover the latest
+        # date that is actually present in the persisted signal ledger.
+        raw_day = signal_result.get("signal_date")
+        try:
+            requested_day = raw_day if isinstance(raw_day, date) else date.fromisoformat(str(raw_day)[:10])
+        except (TypeError, ValueError):
+            requested_day = None
+
+        signals = []
+        signal_day: date | None = requested_day
+        if signal_day is not None:
+            signals = await get_signals(
+                strategy_id, start_date=signal_day, end_date=signal_day, limit=500
+            )
+        if not signals:
+            recent = await get_signals(strategy_id, limit=500)
+            dated: list[tuple[date, dict[str, Any]]] = []
+            for payload in list(recent or []):
+                item = dict(payload or {})
+                token = str(item.get("signal_date") or "")[:10]
+                try:
+                    day = date.fromisoformat(token)
+                except ValueError:
+                    continue
+                dated.append((day, item))
+            if dated:
+                signal_day = max(day for day, _ in dated)
+                signals = [item for day, item in dated if day == signal_day]
+        if signal_day is None:
+            return {"status": "degraded", "reason": "signal_date_unavailable", "written": 0}
+
+        writer = DailyPredictionWriter()
+        written: list[dict[str, Any]] = []
+        errors: list[str] = []
+        for signal in list(signals or []):
+            item = dict(signal or {})
+            code = str(item.get("code") or "").strip()
+            if not code:
+                continue
+            try:
+                bars = list(await get_klines(code, limit=400) or [])
+                # A sync can already contain bars newer than the signal being
+                # materialised.  Bound the input to the signal date so the
+                # writer cannot label a 10-21 signal with a 10-23 bar.
+                bounded: list[dict[str, Any]] = []
+                for bar in bars:
+                    raw_bar_day = str(
+                        bar.get("date") or bar.get("trade_date") or bar.get("time") or ""
+                    )[:10]
+                    try:
+                        if date.fromisoformat(raw_bar_day) <= signal_day:
+                            bounded.append(dict(bar))
+                    except (TypeError, ValueError):
+                        continue
+                result = await writer.write(
+                    db,
+                    strategy=strategy,
+                    code=code,
+                    klines=bounded,
+                    signal=int(item.get("signal") or 0),
+                    # ``bounded`` already excludes bars newer than the signal;
+                    # use the current closed-session clock so the signal-day
+                    # bar itself is retained (midnight would be treated as an
+                    # in-progress bar by the writer).
+                    now=datetime.now().astimezone(),
+                )
+                if result.get("status") == "ok":
+                    written.append(result)
+                elif result.get("status") not in {"skipped", "degraded"}:
+                    errors.append(f"{code}:{result.get('reason') or result.get('status')}")
+                elif result.get("status") == "degraded":
+                    errors.append(f"{code}:{result.get('reason') or 'degraded'}")
+            except Exception as exc:  # one symbol must not abort the cycle
+                errors.append(f"{code}:{type(exc).__name__}:{exc}")
+        return {
+            "status": "ok" if not errors else "degraded",
+            "strategy_id": strategy_id,
+            "signal_date": signal_day.isoformat(),
+            "written": len(written),
+            "predictions": written,
+            "errors": errors[:20],
+        }
+
+    # Horizon scoring and calibration are implemented by the host (akshare-mcp
+    # owns HorizonScorer / CalibrationService); strategy-factory must not import
+    # it.  Delegate to the host support and say so when it lacks the hook.
+    async def score_horizon_predictions(self, db: Any) -> dict[str, Any]:
+        hook = getattr(self.support, "score_horizon_predictions", None)
+        if not callable(hook):
+            return {"status": "degraded", "reason": "score_horizon_predictions_unavailable"}
+        return await hook(db)
+
+    async def run_calibration(self, db: Any) -> dict[str, Any]:
+        hook = getattr(self.support, "run_calibration", None)
+        if not callable(hook):
+            return {"status": "degraded", "reason": "run_calibration_unavailable"}
+        return await hook(db)
+
+    async def evaluate_selective_gate(self, db: Any, *, signal_date: Any) -> dict[str, Any]:
+        from strategy_factory.application.selective_gate import SelectiveGate
+
+        if not isinstance(signal_date, date):
+            signal_date = date.fromisoformat(str(signal_date)[:10])
+        # The legacy incubation adapter has no executor contract.  Passing no
+        # executor is intentional: an ordered decision is persisted, while the
+        # gate remains fail-closed until a calibrated execution adapter exists.
+        return await SelectiveGate().evaluate_session(
+            db,
+            signal_date=signal_date,
+            persist=True,
+            executor=None,
+        )
 
     async def run_accelerator(self, db: Any) -> dict[str, Any]:
         return await self.support._accelerator.evaluate_batch(db, [], {})

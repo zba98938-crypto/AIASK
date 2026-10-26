@@ -125,6 +125,32 @@ class IncubationRuntimeSupport(Protocol):
         """
         ...
 
+    async def write_daily_predictions(
+        self,
+        db: Any,
+        strategy: dict[str, Any],
+        signal_result: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Persist predictions for signals already generated in this cycle."""
+        ...
+
+    async def score_horizon_predictions(self, db: Any) -> dict[str, Any]:
+        """Score pending predictions using the net-of-cost horizon contract."""
+        ...
+
+    async def run_calibration(self, db: Any) -> dict[str, Any]:
+        """Evaluate calibration start gates and fit only an eligible model."""
+        ...
+
+    async def evaluate_selective_gate(
+        self,
+        db: Any,
+        *,
+        signal_date: Any,
+    ) -> dict[str, Any]:
+        """Persist selective decisions for a target session."""
+        ...
+
     async def run_accelerator(self, db: Any) -> dict[str, Any]:
         """Run incubation accelerator to fast-track high-quality strategies.
 

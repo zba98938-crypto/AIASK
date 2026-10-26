@@ -19,7 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 from uuid import uuid4
 
@@ -28,6 +28,12 @@ from .contracts import (
     IncubationRunSummary,
 )
 from .provider import IncubationRuntimeSupport
+from ..hitrate_toggles import (
+    calibration_enabled,
+    daily_prediction_writing_enabled,
+    horizon_scoring_enabled,
+    selective_gate_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +79,7 @@ class IncubationOrchestrator:
             coro_factory,
             *,
             timeout: float = STRATEGY_TIMEOUT_SEC,
+            failure_statuses: set[str] | None = None,
         ) -> dict[str, Any] | None:
             """Run a single phase with timeout and error capture."""
             phase_start = datetime.now(timezone.utc)
@@ -80,6 +87,20 @@ class IncubationOrchestrator:
                 result = await asyncio.wait_for(coro_factory(), timeout=timeout)
                 phase_end = datetime.now(timezone.utc)
                 duration = (phase_end - phase_start).total_seconds()
+                if isinstance(result, dict) and str(result.get("status") or "").lower() in (failure_statuses or set()):
+                    error = str(result.get("reason") or result.get("status"))
+                    phase_failures.append({"phase": name, "error": error})
+                    phases.append(
+                        IncubationPhaseResult(
+                            phase_name=name,
+                            success=False,
+                            strategies_processed=int(result.get("strategies_processed") or 0),
+                            duration_sec=duration,
+                            error=error,
+                            metadata=result,
+                        )
+                    )
+                    return result
                 phases.append(
                     IncubationPhaseResult(
                         phase_name=name,
@@ -137,6 +158,14 @@ class IncubationOrchestrator:
 
         # Get DB connection (assumed to be provided by support)
         db = await self._get_db()
+
+        # These are deliberately captured once per cycle.  A supervisor may
+        # change environment variables between runs, but a single cycle must
+        # not observe a half-switched set of gates.
+        write_predictions_enabled = daily_prediction_writing_enabled()
+        score_horizon_enabled = horizon_scoring_enabled()
+        run_calibration_enabled = calibration_enabled()
+        run_selective_gate_enabled = selective_gate_enabled()
 
         try:
             # Phase 1: Intake
@@ -210,6 +239,15 @@ class IncubationOrchestrator:
             signals_generated_total = 0
             orders_filled_total = 0
             orders_rejected_total = 0
+            prediction_target_dates: set[date] = set()
+            effective_signal_dates: set[date] = set()
+            daily_prediction_summary: dict[str, Any] = {
+                "enabled": bool(write_predictions_enabled and not dry_run),
+                "strategies_processed": 0,
+                "written": 0,
+                "target_dates": [],
+                "errors": [],
+            }
 
             for strategy in all_strategies:
                 sid = str(strategy.get("id") or "").strip()
@@ -225,6 +263,91 @@ class IncubationOrchestrator:
                     signals_generated_total += int(
                         signal_result.get("signals_generated") or 0
                     )
+
+                    # Keep the effective signal date from the signal generator
+                    # itself.  It is the closed-bar date used by the ledger and
+                    # is also the only safe fallback for the selective session.
+                    raw_signal_date = signal_result.get("signal_date")
+                    try:
+                        if isinstance(raw_signal_date, datetime):
+                            effective_signal_dates.add(raw_signal_date.date())
+                        elif isinstance(raw_signal_date, date):
+                            effective_signal_dates.add(raw_signal_date)
+                        elif raw_signal_date:
+                            effective_signal_dates.add(date.fromisoformat(str(raw_signal_date)[:10]))
+                    except (TypeError, ValueError):
+                        logger.warning(
+                            "IncubationOrchestrator [%s]: invalid signal date for %s: %r",
+                            run_id,
+                            sid,
+                            raw_signal_date,
+                        )
+
+                    # Daily predictions are a view over the signals that were
+                    # just generated and persisted.  The provider reads that
+                    # ledger; it must not call the signal generator a second
+                    # time.  A per-strategy phase keeps failures isolated while
+                    # preserving the existing one-strategy-at-a-time timeout.
+                    if write_predictions_enabled and not dry_run:
+                        writer_hook = getattr(self._support, "write_daily_predictions", None)
+                        if callable(writer_hook):
+                            daily_prediction_summary["strategies_processed"] += 1
+                            prediction_result = await _run_phase(
+                                f"daily_prediction_writing:{sid}",
+                                lambda hook=writer_hook: hook(db, strategy, signal_result),
+                                timeout=STRATEGY_TIMEOUT_SEC,
+                                failure_statuses={"degraded", "failed"},
+                            )
+                            if prediction_result:
+                                daily_prediction_summary["written"] += int(
+                                    prediction_result.get("written") or 0
+                                )
+                                target = prediction_result.get("target_trading_date")
+                                targets = prediction_result.get("target_dates") or []
+                                # Legacy providers return one result per
+                                # symbol under ``predictions`` rather than a
+                                # flattened target_dates field.
+                                targets = [
+                                    *targets,
+                                    *[
+                                        item.get("target_trading_date")
+                                        for item in (prediction_result.get("predictions") or [])
+                                        if isinstance(item, dict)
+                                    ],
+                                ]
+                                if target:
+                                    targets = [*targets, target]
+                                for raw_target in targets:
+                                    try:
+                                        if isinstance(raw_target, datetime):
+                                            prediction_target_dates.add(raw_target.date())
+                                        elif isinstance(raw_target, date):
+                                            prediction_target_dates.add(raw_target)
+                                        elif raw_target:
+                                            prediction_target_dates.add(
+                                                date.fromisoformat(str(raw_target)[:10])
+                                            )
+                                    except (TypeError, ValueError):
+                                        daily_prediction_summary["errors"].append(
+                                            f"{sid}:invalid_target_date:{raw_target}"
+                                        )
+                                if prediction_result.get("errors"):
+                                    daily_prediction_summary["errors"].extend(
+                                        str(item) for item in prediction_result["errors"]
+                                    )
+                        else:
+                            reason = "write_daily_predictions_unavailable"
+                            daily_prediction_summary["errors"].append(f"{sid}:{reason}")
+                            phase_failures.append({"phase": f"daily_prediction_writing:{sid}", "error": reason})
+                            phases.append(
+                                IncubationPhaseResult(
+                                    phase_name=f"daily_prediction_writing:{sid}",
+                                    success=False,
+                                    strategies_processed=0,
+                                    duration_sec=0.0,
+                                    error=reason,
+                                )
+                            )
 
                     # Settle orders (paper trading)
                     if (
@@ -312,6 +435,89 @@ class IncubationOrchestrator:
                 or {}
             )
 
+            # Optional hit-rate pipeline hooks run after the existing trade
+            # prediction verifier.  They are all writes (status transitions,
+            # model rows, or execution decisions), so dry-run deliberately
+            # skips them.  Each hook is isolated by _run_phase so a timeout or
+            # provider error cannot abort the incubation cycle.
+            horizon_result: dict[str, Any] = {
+                "enabled": bool(score_horizon_enabled and not dry_run),
+                "status": "disabled" if not score_horizon_enabled else ("skipped_dry_run" if dry_run else "not_run"),
+            }
+            calibration_result: dict[str, Any] = {
+                "enabled": bool(run_calibration_enabled and not dry_run),
+                "status": "disabled" if not run_calibration_enabled else ("skipped_dry_run" if dry_run else "not_run"),
+            }
+            selective_gate_result: dict[str, Any] = {
+                "enabled": bool(run_selective_gate_enabled and not dry_run),
+                "status": "disabled" if not run_selective_gate_enabled else ("skipped_dry_run" if dry_run else "not_run"),
+            }
+
+            if score_horizon_enabled and not dry_run:
+                horizon_hook = getattr(self._support, "score_horizon_predictions", None)
+                if callable(horizon_hook):
+                    horizon_result.update(
+                        await _run_phase(
+                            "horizon_scoring",
+                            lambda: horizon_hook(db),
+                            timeout=BATCH_TIMEOUT_SEC,
+                            failure_statuses={"degraded", "failed"},
+                        )
+                        or {"status": "failed"}
+                    )
+                else:
+                    reason = "score_horizon_predictions_unavailable"
+                    horizon_result.update({"status": "degraded", "reason": reason})
+                    phase_failures.append({"phase": "horizon_scoring", "error": reason})
+                    phases.append(IncubationPhaseResult("horizon_scoring", False, 0, 0.0, error=reason))
+
+            if run_calibration_enabled and not dry_run:
+                calibration_hook = getattr(self._support, "run_calibration", None)
+                if callable(calibration_hook):
+                    calibration_result.update(
+                        await _run_phase(
+                            "calibration",
+                            lambda: calibration_hook(db),
+                            timeout=BATCH_TIMEOUT_SEC,
+                            failure_statuses={"degraded", "failed"},
+                        )
+                        or {"status": "failed"}
+                    )
+                else:
+                    reason = "run_calibration_unavailable"
+                    calibration_result.update({"status": "degraded", "reason": reason})
+                    phase_failures.append({"phase": "calibration", "error": reason})
+                    phases.append(IncubationPhaseResult("calibration", False, 0, 0.0, error=reason))
+
+            if run_selective_gate_enabled and not dry_run:
+                gate_hook = getattr(self._support, "evaluate_selective_gate", None)
+                if callable(gate_hook):
+                    session_date = max(prediction_target_dates or effective_signal_dates, default=None)
+                    if session_date is None:
+                        selective_gate_result.update(
+                            {"status": "skipped", "reason": "no_effective_signal_date"}
+                        )
+                    else:
+                        selective_gate_result["signal_date"] = session_date.isoformat()
+                        selective_gate_result.update(
+                            await _run_phase(
+                                "selective_gate",
+                                lambda: gate_hook(db, signal_date=session_date),
+                                timeout=BATCH_TIMEOUT_SEC,
+                                failure_statuses={"degraded", "failed"},
+                            )
+                            or {"status": "failed"}
+                        )
+                else:
+                    reason = "evaluate_selective_gate_unavailable"
+                    selective_gate_result.update({"status": "degraded", "reason": reason})
+                    phase_failures.append({"phase": "selective_gate", "error": reason})
+                    phases.append(IncubationPhaseResult("selective_gate", False, 0, 0.0, error=reason))
+
+            daily_prediction_summary["target_dates"] = sorted(
+                item.isoformat() for item in prediction_target_dates
+            )
+
             # Phase 5: Accelerator
             logger.info("IncubationOrchestrator [%s] Phase 5: Accelerator", run_id)
             accelerator_result = (
@@ -388,7 +594,20 @@ class IncubationOrchestrator:
                 accelerator_result.get("promoted_count", 0),
             )
 
-            return self._summary_to_dict(summary)
+            summary_dict = self._summary_to_dict(summary)
+            # Keep the established phase list as the canonical audit trail and
+            # expose concise top-level copies for callers that do not inspect
+            # phase metadata.
+            summary_dict.update(
+                {
+                    "daily_predictions": daily_prediction_summary,
+                    "horizon_scoring": horizon_result,
+                    "calibration": calibration_result,
+                    "selective_gate": selective_gate_result,
+                    "trade_prediction_verification": trade_pred_result,
+                }
+            )
+            return summary_dict
 
         except Exception as exc:
             end_time = datetime.now(timezone.utc)

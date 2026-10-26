@@ -100,13 +100,46 @@ def _direction_from_signal(signal: int) -> str:
     return "neutral"
 
 
-def _confidence_from_signal(signal: int) -> Optional[float]:
-    """The signal path has no probability; store its absence.
+def _strategy_prediction_contract(strategy: dict[str, Any]) -> dict[str, Any]:
+    """Return the strategy's explicit prediction contract, if it has one.
 
-    Writing a rule constant here is what produced 3,519 rows with the same
-    ``0.675807`` and made calibration look possible when it was not.
+    The daily signal itself is a direction, not a probability.  A confidence
+    value is therefore accepted only when it already exists in the strategy's
+    persisted prediction contract (or its confidence contract).  This keeps
+    the writer from manufacturing a probability from a rule signal.
     """
-    return None
+    params = strategy.get("params") if isinstance(strategy.get("params"), dict) else {}
+    if isinstance(strategy.get("params"), str):
+        try:
+            params = json.loads(strategy["params"])
+        except (TypeError, ValueError):
+            params = {}
+    for source in (
+        strategy.get("trade_prediction_contract"),
+        strategy.get("prediction_contract"),
+        strategy.get("confidence_contract"),
+        params.get("trade_prediction_contract"),
+        params.get("prediction_contract"),
+        params.get("confidence_contract"),
+    ):
+        if isinstance(source, dict):
+            return dict(source)
+    return {}
+
+
+def _confidence_from_strategy(strategy: dict[str, Any]) -> tuple[Optional[float], Optional[str], list[str]]:
+    contract = _strategy_prediction_contract(strategy)
+    value = contract.get("confidence")
+    if value is None:
+        value = strategy.get("confidence")
+    confidence = _number(value)
+    if confidence is None or not 0.0 <= confidence <= 1.0:
+        return None, None, []
+    source = _string(contract.get("confidence_source") or strategy.get("confidence_source")) or None
+    refs = contract.get("evidence_refs") or strategy.get("evidence_refs") or []
+    if isinstance(refs, str):
+        refs = [refs]
+    return confidence, source, [_string(ref) for ref in refs if _string(ref)]
 
 
 def _prediction_id(strategy_id: str, code: str, as_of: date) -> str:
@@ -146,7 +179,7 @@ class DailyPredictionWriter:
         if target is None:
             return {"status": "skipped", "reason": "next_session_unavailable", "strategy_id": strategy_id, "code": code, "as_of": as_of.isoformat()}
         direction = _direction_from_signal(int(signal))
-        confidence = _confidence_from_signal(int(signal))
+        confidence, confidence_source, confidence_refs = _confidence_from_strategy(strategy)
         contract = {
             "strategy_id": strategy_id,
             "stock_code": code,
@@ -159,6 +192,10 @@ class DailyPredictionWriter:
             "contract_source": PREDICTION_CONTRACT_SOURCE,
             "evidence_refs": [],
         }
+        if confidence_refs:
+            contract["evidence_refs"] = confidence_refs
+        if confidence_source:
+            contract["confidence_source"] = confidence_source
         contract_hash = hashlib.sha256(
             json.dumps(contract, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
@@ -171,6 +208,8 @@ class DailyPredictionWriter:
                 "source": "strategy_factory.daily_prediction_writer",
                 "signal": int(signal),
                 "confidence_available": confidence is not None,
+                "confidence_source": confidence_source,
+                "confidence_evidence_refs": confidence_refs,
             },
         }
         saver = getattr(db, "save_strategy_trade_prediction", None)

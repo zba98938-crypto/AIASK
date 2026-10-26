@@ -140,6 +140,61 @@ class IncubationFactoryRunnerAdapter:
             return await verifier.verify(db)
         return {"verified_count": 0, "error": "verifier_method_missing"}
 
+    async def write_daily_predictions(
+        self,
+        db: Any,
+        strategy: dict[str, Any],
+        signal_result: dict[str, Any],
+    ) -> dict[str, Any]:
+        # Keep the prediction view on the same provider boundary as the rest of
+        # the incubation hooks; this reads already-persisted signals and never
+        # runs a second signal generator.
+        from strategy_factory.runtime.provider_adapters import LegacyIncubationProvider
+
+        return await LegacyIncubationProvider(self).write_daily_predictions(
+            db, strategy, signal_result
+        )
+
+    async def score_horizon_predictions(self, db: Any) -> dict[str, Any]:
+        from akshare_mcp.services.incubation_factory.horizon_scorer import HorizonScorer
+
+        return await HorizonScorer().verify_pending(db, persist=True)
+
+    async def run_calibration(self, db: Any) -> dict[str, Any]:
+        from akshare_mcp.services.incubation_factory.calibration import (
+            CalibrationService,
+            Observation,
+        )
+        from akshare_mcp.services.incubation_factory.directional_scorecard import load_scored_predictions
+
+        predictions = await load_scored_predictions(db)
+        observations = [
+            Observation(
+                as_of=item.as_of,
+                horizon=item.horizon or 1,
+                confidence=float(item.confidence),
+                hit=bool(item.direction_hit),
+            )
+            for item in predictions
+            if item.as_of is not None
+            and item.direction_hit is not None
+            and item.confidence is not None
+        ]
+        result = await CalibrationService().try_fit(
+            db,
+            observations=observations,
+            family="default",
+        )
+        result.setdefault("n_observations", len(observations))
+        return result
+
+    async def evaluate_selective_gate(self, db: Any, *, signal_date: Any) -> dict[str, Any]:
+        from strategy_factory.runtime.provider_adapters import LegacyIncubationProvider
+
+        return await LegacyIncubationProvider(self).evaluate_selective_gate(
+            db, signal_date=signal_date
+        )
+
     async def run_accelerator(self, db: Any) -> dict[str, Any]:
         """Run accelerator."""
         if self._accelerator is None:
