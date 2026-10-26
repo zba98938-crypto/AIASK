@@ -448,6 +448,9 @@ def _finalize_backtest_payload(
     volumes: Optional[np.ndarray] = None,
 ) -> None:
     _attach_equity_curve(payload, equity)
+    if bool(dict(params or {}).get("include_daily_equity")):
+        payload["daily_equity"] = [float(value) for value in np.asarray(equity, dtype=np.float64)]
+        payload["daily_equity_start_index"] = 0
     _attach_advanced_metrics(payload, equity, params=params)
     _attach_execution_audit(payload, params=params, closes=closes, volumes=volumes)
     # Compute profit_factor and expectancy from round trips
@@ -765,6 +768,27 @@ def _build_strategy_masks(
 
     return None
 
+
+def _resolve_execution_price(
+    index: int,
+    *,
+    closes: np.ndarray,
+    klines: Optional[List[Dict[str, Any]]],
+    policy: str,
+) -> Optional[float]:
+    """Resolve the actual configured fill price; strict open mode never falls back."""
+    if str(policy or "").strip().lower() == "next_open":
+        if klines is None or index < 0 or index >= len(klines):
+            return None
+        raw = klines[index].get("open")
+        value = _safe_float(raw, 0.0)
+        return float(value) if value > 0 and np.isfinite(value) else None
+    if index < 0 or index >= len(closes):
+        return None
+    value = float(closes[index])
+    return value if value > 0 and np.isfinite(value) else None
+
+
 def _simulate_trades_from_masks(
     closes: np.ndarray,
     volumes: np.ndarray,
@@ -982,12 +1006,42 @@ def _simulate_trades_from_masks(
         )
         return win_rate, avg_hold_days
 
-    for i in range(n - 1):
+    trade_start_index = max(0, int(args.get("trade_start_index") or 0))
+    execution_price_policy = str(args.get("execution_price_policy") or "next_close_legacy").strip().lower()
+    for i in range(trade_start_index, n - 1):
         tradable = True if tradability_mask is None else bool(tradability_mask[i])
-        # Next-bar execution: signal on bar i, execute at bar i+1 close (proxy for next open)
+        # Execute a close-confirmed signal at the configured next-bar price.
         next_tradable = True if tradability_mask is None else bool(tradability_mask[i + 1])
         if entry_mask[i] and shares == 0 and cash > 0 and tradable and next_tradable:
-            exec_price = float(closes[i + 1])
+            exec_price = _resolve_execution_price(
+                i + 1,
+                closes=closes,
+                klines=klines,
+                policy=execution_price_policy,
+            )
+            if exec_price is None:
+                order_attempt_count += 1
+                failed_order_count += 1
+                blocked_reason = "missing_next_session_open"
+                blocked_reason_counts[blocked_reason] = blocked_reason_counts.get(blocked_reason, 0) + 1
+                if return_trades:
+                    fills_detail.append(
+                        {
+                            "index": int(i + 1),
+                            "time": _trade_time(i + 1),
+                            "signal": 1,
+                            "signal_index": int(i),
+                            "signal_time": _trade_time(i),
+                            "requested_shares": None,
+                            "filled_shares": 0,
+                            "rejected_shares": None,
+                            "fill_ratio": 0.0,
+                            "blocked_reason": blocked_reason,
+                            "price_source": "next_session_open",
+                        }
+                    )
+                equity[i] = cash
+                continue
             approx_price = exec_price * (1 + commission_rate + per_side_extra_cost_rate)
             max_entry_notional = max(0.0, (cash + shares * closes[i]) * position_pct)
             affordable_cash = min(cash, max_entry_notional) if max_entry_notional > 0 else cash
@@ -1028,6 +1082,9 @@ def _simulate_trades_from_masks(
                             "rejected_shares": int(fill_info.get("rejected_shares") or 0),
                             "fill_ratio": 0.0,
                             "blocked_reason": blocked_reason,
+                            "price_source": "next_session_open" if execution_price_policy == "next_open" else "next_bar_close_legacy",
+                            "signal_index": int(i),
+                            "signal_time": _trade_time(i),
                         }
                     )
                 equity[i] = cash
@@ -1090,6 +1147,14 @@ def _simulate_trades_from_masks(
                             "fill_ratio": round(int(shares) / max(int(fill_info.get("requested_shares") or shares), 1), 6),
                             "blocked_reason": fill_info.get("blocked_reason"),
                             "partial_fill": bool(fill_info.get("partial_fill")),
+                            "price_source": "next_session_open" if execution_price_policy == "next_open" else "next_bar_close_legacy",
+                            "signal_index": int(i),
+                            "signal_time": _trade_time(i),
+                            "fee_breakdown": {
+                                "commission": float(shares * exec_price * commission_rate),
+                                "sell_tax": 0.0,
+                                "slippage_and_impact": float(shares * exec_price * dynamic_extra_cost_rate),
+                            },
                         }
                     )
 
@@ -1098,7 +1163,36 @@ def _simulate_trades_from_masks(
                 equity[i] = cash + shares * closes[i]
                 continue
             pending_exit = True
-            exec_price = float(closes[i + 1])
+            exec_price = _resolve_execution_price(
+                i + 1,
+                closes=closes,
+                klines=klines,
+                policy=execution_price_policy,
+            )
+            if exec_price is None:
+                order_attempt_count += 1
+                failed_order_count += 1
+                blocked_reason = "missing_next_session_open"
+                blocked_reason_counts[blocked_reason] = blocked_reason_counts.get(blocked_reason, 0) + 1
+                if return_trades:
+                    fills_detail.append(
+                        {
+                            "index": int(i + 1),
+                            "time": _trade_time(i + 1),
+                            "signal": -1,
+                            "action": "exit",
+                            "signal_index": int(i),
+                            "signal_time": _trade_time(i),
+                            "requested_shares": None,
+                            "filled_shares": 0,
+                            "rejected_shares": None,
+                            "fill_ratio": 0.0,
+                            "blocked_reason": blocked_reason,
+                            "price_source": "next_session_open",
+                        }
+                    )
+                equity[i] = cash + shares * closes[i]
+                continue
             requested_exit_shares = shares
             if i in reduce_units_by_index:
                 requested_exit_shares = _round_down_lot(max(1, int(round(float(shares) * float(reduce_units_by_index[i])))), lot_size)
@@ -1141,6 +1235,9 @@ def _simulate_trades_from_masks(
                             "rejected_shares": int(fill_info.get("rejected_shares") or 0),
                             "fill_ratio": 0.0,
                             "blocked_reason": blocked_reason,
+                            "price_source": "next_session_open" if execution_price_policy == "next_open" else "next_bar_close_legacy",
+                            "signal_index": int(i),
+                            "signal_time": _trade_time(i),
                         }
                     )
                 equity[i] = cash + shares * closes[i]
@@ -1208,6 +1305,9 @@ def _simulate_trades_from_masks(
                         "time": trade_time,
                         "price": float(sell_price),
                         "signal": -1,
+                        "signal_index": int(i),
+                        "signal_time": _trade_time(i),
+                        "price_source": "next_session_open" if execution_price_policy == "next_open" else "next_bar_close_legacy",
                         "action": "reduce" if i in reduce_units_by_index else "exit",
                         "reason": exit_reason_by_index.get(i),
                         "requested_shares": int(fill_info.get("requested_shares") or sell_shares),
@@ -1216,6 +1316,11 @@ def _simulate_trades_from_masks(
                         "fill_ratio": round(int(sell_shares) / max(int(fill_info.get("requested_shares") or sell_shares), 1), 6),
                         "blocked_reason": fill_info.get("blocked_reason"),
                         "partial_fill": bool(fill_info.get("partial_fill")),
+                        "fee_breakdown": {
+                            "commission": float(sell_shares * exec_price * commission_rate),
+                            "sell_tax": float(sell_shares * exec_price * sell_tax_rate),
+                            "slippage_and_impact": float(sell_shares * exec_price * dynamic_extra_cost_rate),
+                        },
                     }
                 )
             shares = max(0, shares - sell_shares)
@@ -1228,7 +1333,7 @@ def _simulate_trades_from_masks(
         equity[i] = cash + shares * closes[i]
     equity[n - 1] = cash + shares * float(closes[n - 1])
 
-    if shares > 0:
+    if shares > 0 and bool(args.get("force_liquidate_at_end", True)):
         i = n - 1
         exec_price = float(closes[i])
         fill_info = _resolve_order_fill(

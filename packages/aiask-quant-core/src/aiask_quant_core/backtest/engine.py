@@ -872,6 +872,8 @@ class BacktestEngine:
                 int(params.get("min_trade_lot") or 0) > 1,
                 _safe_float(params.get("market_impact_bps", 0.0), 0.0) > 0,
                 _safe_float(params.get("sell_tax_rate", 0.0), 0.0) > 0,
+                str(params.get("execution_price_policy") or "").strip().lower() == "next_open",
+                int(params.get("trade_start_index") or 0) > 0,
             ]
         )
         advanced_exec_enabled = (slippage_calc is not None) or (tradability_mask is not None) or has_execution_overrides
