@@ -711,12 +711,16 @@ class IncubationFactoryRunner:
         """Settle paper orders created by the natural incubation run."""
         sid = str((strategy or {}).get("id") or "").strip()
         raw_signal_date = (signal_result or {}).get("signal_date")
-        signal_date = date.today()
+        signal_date = None
         if raw_signal_date:
             try:
                 signal_date = date.fromisoformat(str(raw_signal_date)[:10])
-            except Exception:
-                signal_date = date.today()
+            except ValueError:
+                logger.warning("settle: invalid signal_date %r for %s; using synced session", raw_signal_date, sid)
+        if signal_date is None:
+            from .session_date import session_date_or_today
+
+            signal_date = await session_date_or_today(db)
 
         from ..incubation import get_strategy_incubation_service
 

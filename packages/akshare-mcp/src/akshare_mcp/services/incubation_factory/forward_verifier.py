@@ -42,6 +42,7 @@ FORWARD_HORIZONS = _resolve_forward_horizons()
 # 每条信号 evidence 可携带三类 regime 标签，verify 据此分组聚合命中率，
 # 破除 regime-blind（120 天平均）这宗原罪。标签缺失时归入 "unknown"。
 REGIME_DIMENSIONS: tuple[str, ...] = ("trend_regime", "vol_regime", "sentiment_regime")
+_NEUTRAL_DIRECTIONS = frozenset({"neutral", "flat", "hold", "0"})
 _REGIME_UNKNOWN = "unknown"
 
 
@@ -140,9 +141,17 @@ class ForwardVerifier:
             dimension: {} for dimension in REGIME_DIMENSIONS
         }
 
+        # A neutral signal takes no side, so it can neither hit nor miss.  It
+        # used to fall through float('neutral') to the long default and was
+        # scored as a long bet; now it is excluded and counted.
+        excluded_directions = {"neutral": 0, "unrecognized": 0}
         for evidence in evidence_list:
             forward_returns = self._resolve_forward_returns(evidence)
             direction = self._normalize_direction(self._evidence_value(evidence, "direction"))
+            if direction == 0:
+                raw = str(self._evidence_value(evidence, "direction") or "").strip().lower()
+                excluded_directions["neutral" if raw in _NEUTRAL_DIRECTIONS else "unrecognized"] += 1
+                continue
             regime_labels = self._resolve_regime_labels(evidence)
 
             # 主时间窗口
@@ -207,6 +216,7 @@ class ForwardVerifier:
             "primary_horizon": primary_horizon,
             "secondary_horizon": secondary_horizon,
             "primary_effective_n": primary_n,
+            "excluded_directions": excluded_directions,
             "hit_rate_by_regime": hit_rate_by_regime,
             "secondary_effective_n": secondary_n,
             "primary_hit_rate": round(primary_hit_rate, 4),
@@ -325,7 +335,10 @@ class ForwardVerifier:
         return dict(raw or {}) if isinstance(raw, dict) else {}
 
     def _normalize_direction(self, direction: Any) -> int:
-        """标准化信号方向。"""
+        """标准化信号方向：1 多 / -1 空 / 0 不参与命中统计（中性或无法识别）。
+
+        缺失方向沿用历史默认（做多）。
+        """
         if direction is None:
             return 1
         text = str(direction).strip().lower()
@@ -333,10 +346,15 @@ class ForwardVerifier:
             return 1
         if text in ("down", "short", "sell", "-1"):
             return -1
-        numeric = _finite_float(direction)
-        if numeric is None:
-            return 1
-        return 1 if numeric >= 0 else -1
+        if text in _NEUTRAL_DIRECTIONS:
+            return 0
+        try:
+            numeric = float(text)
+        except ValueError:
+            return 0
+        if not math.isfinite(numeric) or numeric == 0:
+            return 0
+        return 1 if numeric > 0 else -1
 
     def _resolve_regime_labels(self, evidence: dict[str, Any]) -> dict[str, str]:
         """改动D：从一条 evidence 解析市场状态标签。

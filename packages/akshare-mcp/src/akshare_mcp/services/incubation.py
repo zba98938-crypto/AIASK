@@ -2140,26 +2140,104 @@ class StrategyIncubationService:
                     "SELECT * FROM paper_nav WHERE account_id=$1 ORDER BY nav_date DESC LIMIT 60",
                     account_id,
                 )]
+            order_summary = None
+
+        # Execution evidence is account-scoped, but a strategy's active
+        # incubation accounts can span stages (ensure_account only upgrades
+        # warmup->paper; legacy 2026-07 backfilled trades live on the warmup
+        # account while metrics bind to the paper one). The 2026-10-19 cohort
+        # shipped total_trades=0 for three lsmap strategies whose warmup
+        # accounts held 10 trades each. Aggregate orders/trades across the
+        # strategy's ACTIVE incubation accounts (nav keeps the bound account,
+        # it is the account the engine marks to market), and sign the
+        # aggregation in the metadata so readers can tell the two apart.
+        execution_account_ids = [account_id]
+        # Accounts whose counters actually reached order_summary; differs from
+        # execution_account_ids only when a read failed, which is then named in
+        # execution_aggregation_errors instead of being swallowed.
+        aggregated_account_ids = [account_id]
+        execution_aggregation_errors: list[str] = []
+        if hasattr(db, 'acquire'):
+            try:
+                async with db.acquire() as conn:
+                    rows = await conn.fetch(
+                        """
+                        SELECT a.account_id
+                        FROM strategy_incubation_accounts a
+                        WHERE a.strategy_id = $1 AND a.status = 'active'
+                        ORDER BY a.bound_at
+                        """,
+                        strategy['id'],
+                    )
+                    for row in rows:
+                        value = row['account_id'] if not isinstance(row, dict) else row.get('account_id')
+                        if value and value not in execution_account_ids:
+                            execution_account_ids.append(value)
+            except Exception as exc:
+                execution_aggregation_errors.append(f"list_accounts:{type(exc).__name__}:{exc}")
+
+        if order_summary is None:
+            aggregated_account_ids = list(execution_account_ids)
+            async with db.acquire() as conn:
+                placeholders = ", ".join(f"${i + 1}" for i in range(len(execution_account_ids)))
                 summary = await conn.fetchrow(
-                    """
+                    f"""
                     SELECT
                         COALESCE(SUM(CASE WHEN status IN ('pending','submitted') THEN 1 ELSE 0 END), 0) AS total_orders,
                         COALESCE(SUM(CASE WHEN status = 'filled' THEN 1 ELSE 0 END), 0) AS filled_orders
                     FROM paper_orders
-                    WHERE account_id=$1
+                    WHERE account_id IN ({placeholders})
                     """,
-                    account_id,
+                    *execution_account_ids,
                 )
                 trade_summary = await conn.fetchrow(
-                    "SELECT COALESCE(COUNT(*), 0) AS total_trades, COALESCE(SUM(amount), 0) AS trade_amount FROM paper_trades WHERE account_id=$1",
-                    account_id,
+                    f"""
+                    SELECT COUNT(*) AS total_trades, COALESCE(SUM(amount), 0) AS trade_amount
+                    FROM paper_trades
+                    WHERE account_id IN ({placeholders})
+                    """,
+                    *execution_account_ids,
                 )
-                order_summary = {
-                    'total_orders': int((summary or {}).get('total_orders') or 0),
-                    'filled_orders': int((summary or {}).get('filled_orders') or 0),
-                    'total_trades': int((trade_summary or {}).get('total_trades') or 0),
-                    'trade_amount': float((trade_summary or {}).get('trade_amount') or 0.0),
-                }
+            order_summary = {
+                'total_orders': int((summary or {}).get('total_orders') or 0),
+                'filled_orders': int((summary or {}).get('filled_orders') or 0),
+                'total_trades': int((trade_summary or {}).get('total_trades') or 0),
+                'trade_amount': float((trade_summary or {}).get('trade_amount') or 0.0),
+            }
+        elif len(execution_account_ids) > 1:
+            # Primary path already read the bound account only; fold the other
+            # active accounts into the execution counters without disturbing
+            # the nav source.
+            extra = execution_account_ids[1:]
+            try:
+                if hasattr(db, 'acquire'):
+                    async with db.acquire() as conn:
+                        placeholders = ", ".join(f"${i + 1}" for i in range(len(extra)))
+                        extra_orders = await conn.fetchrow(
+                            f"""
+                            SELECT
+                                COALESCE(SUM(CASE WHEN status IN ('pending','submitted') THEN 1 ELSE 0 END), 0) AS total_orders,
+                                COALESCE(SUM(CASE WHEN status = 'filled' THEN 1 ELSE 0 END), 0) AS filled_orders
+                            FROM paper_orders
+                            WHERE account_id IN ({placeholders})
+                            """,
+                            *extra,
+                        )
+                        extra_trades = await conn.fetchrow(
+                            f"""
+                            SELECT COUNT(*) AS total_trades, COALESCE(SUM(amount), 0) AS trade_amount
+                            FROM paper_trades
+                            WHERE account_id IN ({placeholders})
+                            """,
+                            *extra,
+                        )
+                    order_summary['total_orders'] = int(order_summary.get('total_orders') or 0) + int((extra_orders or {}).get('total_orders') or 0)
+                    order_summary['filled_orders'] = int(order_summary.get('filled_orders') or 0) + int((extra_orders or {}).get('filled_orders') or 0)
+                    order_summary['total_trades'] = int(order_summary.get('total_trades') or 0) + int((extra_trades or {}).get('total_trades') or 0)
+                    order_summary['trade_amount'] = float(order_summary.get('trade_amount') or 0.0) + float((extra_trades or {}).get('trade_amount') or 0.0)
+                    aggregated_account_ids.extend(extra)
+            except Exception as exc:
+                execution_aggregation_errors.append(f"fold_accounts:{type(exc).__name__}:{exc}")
 
         latest_nav = nav_rows[0] if nav_rows else None
         total_value = float((latest_nav or {}).get('total_value') or account.get('total_value') or account.get('initial_capital') or DEFAULT_INCUBATION_CAPITAL)
@@ -2255,6 +2333,9 @@ class StrategyIncubationService:
                 'execution_quality': execution_quality,
                 'binding_created': bool(binding.get('created')),
                 'open_risk_count': open_risk_count,
+                'execution_accounts': aggregated_account_ids,
+                'execution_accounts_active': execution_account_ids,
+                'execution_aggregation_errors': execution_aggregation_errors,
             },
         })
         update_account_status_method = _get_async_db_method(db, 'update_paper_account_status')

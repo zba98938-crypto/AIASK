@@ -95,7 +95,11 @@ class MetricsRecorder:
         if not sid:
             return None
 
-        today = metric_date or date.today()
+        if metric_date is None:
+            from .session_date import session_date_or_today
+
+            metric_date = await session_date_or_today(db)
+        today = metric_date
 
         # 获取孵化账户信息
         account = None

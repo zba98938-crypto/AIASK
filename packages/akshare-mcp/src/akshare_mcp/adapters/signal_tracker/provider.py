@@ -26,6 +26,12 @@ class AKShareSignalTrackerProvider:
         await db.initialize()
         return db
 
+    async def resolve_session_date(self, db: Any) -> dict[str, Any]:
+        """Newest synced ``kline_1d`` session; used when no ``as_of`` is given."""
+        from ...services.incubation_factory.session_date import resolve_session_date
+
+        return await resolve_session_date(db)
+
     def get_default_universe(self) -> list[dict[str, Any]]:
         """Return default strategy universe.
 
@@ -129,8 +135,16 @@ class AKShareSignalTrackerProvider:
         self,
         db: Any,
         strategies: list[dict[str, Any]],
+        *,
+        as_of: date | None = None,
     ) -> dict[str, Any]:
-        """Sync incubation orders."""
+        """Sync incubation orders.
+
+        ``as_of`` aligns the date with the orchestrator request; the legacy
+        SignalTracker service does not take one, so it is accepted for
+        interface parity and intentionally not forwarded.
+        """
+        del as_of
         sync = getattr(self._tracker, "_sync_incubation_orders", None)
         if callable(sync):
             return await sync(db, strategies)
@@ -140,8 +154,11 @@ class AKShareSignalTrackerProvider:
         self,
         db: Any,
         strategies: list[dict[str, Any]],
+        *,
+        as_of: date | None = None,
     ) -> dict[str, Any]:
-        """Sync incubation NAV snapshots."""
+        """Sync incubation NAV snapshots (``as_of`` accepted for interface parity)."""
+        del as_of
         sync = getattr(self._tracker, "_sync_incubation_nav_snapshots", None)
         if callable(sync):
             return await sync(db, strategies)
@@ -151,8 +168,11 @@ class AKShareSignalTrackerProvider:
         self,
         db: Any,
         strategies: list[dict[str, Any]],
+        *,
+        as_of: date | None = None,
     ) -> dict[str, Any]:
-        """Sync incubation metrics."""
+        """Sync incubation metrics (``as_of`` accepted for interface parity)."""
+        del as_of
         sync = getattr(self._tracker, "_sync_incubation_metrics", None)
         if callable(sync):
             return await sync(db, strategies)

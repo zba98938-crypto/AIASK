@@ -9,6 +9,8 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional
 
 import numpy as np
+from aiask_quant_core.market_session import SOURCE_SYNCED as SESSION_SOURCE_SYNCED
+from aiask_quant_core.market_session import resolve_session_date
 
 from ..domain.constants import FACTORY_RESEARCH_FACTORS, resolve_event_runtime_mode
 from .runtime import get_strategy_factory_package
@@ -1129,6 +1131,19 @@ class DataCollector:
     async def collect(self, db) -> dict:
         factory_pkg = get_strategy_factory_package()
         snapshot: Dict[str, Any] = {"date": str(date.today())}
+        # ``date`` stays the collection-day key (snapshot storage and the
+        # fear/greed reuse lookup key on it).  Predictions derived from this
+        # snapshot take ``prediction_as_of`` instead: the newest synced market
+        # session.  A Saturday run otherwise labelled 657 predictions
+        # 2026-10-24, a session absent from kline_1d.
+        session = await resolve_session_date(db)
+        if session.get("source") == SESSION_SOURCE_SYNCED:
+            snapshot["prediction_as_of"] = session["date"].isoformat()
+        snapshot["market_session"] = {
+            "date": session["date"].isoformat(),
+            "source": session.get("source"),
+            "latest_bar_date": session["latest_bar_date"].isoformat() if session.get("latest_bar_date") else None,
+        }
         collected_at = self._iso_now()
         sources: Dict[str, dict] = {}
         failure_reasons: List[dict] = []

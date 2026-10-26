@@ -50,7 +50,13 @@ class SignalGenerator:
         if not sid:
             return self._empty_result(sid)
 
-        today = signal_date or date.today()
+        # Unspecified date → newest synced session, never the wall clock
+        # (a Saturday run once wrote 1,921 signals dated a non-session).
+        if signal_date is None:
+            from .session_date import session_date_or_today
+
+            signal_date = await session_date_or_today(db)
+        today = signal_date
 
         # 使用已有的 StrategyIncubationService.sync_signals_to_orders
         # 它内部会：
@@ -127,7 +133,11 @@ class SignalGenerator:
         Returns:
             批量生成结果摘要
         """
-        today = signal_date or date.today()
+        if signal_date is None:
+            from .session_date import session_date_or_today
+
+            signal_date = await session_date_or_today(db)
+        today = signal_date
         total_signals = 0
         total_orders = 0
         generated_count = 0

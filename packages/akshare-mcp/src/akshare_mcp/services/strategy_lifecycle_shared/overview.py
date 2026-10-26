@@ -241,6 +241,75 @@ def _execution_signature_is_empty(signature: dict[str, Any]) -> bool:
     )
 
 
+# NAV<0.90 is the incubation scorecard's risk de-escalation line, reused as the
+# promotion floor rather than introducing a new threshold.
+PAPER_NAV_PROMOTION_FLOOR = 0.90
+
+
+async def _load_latest_paper_evidence(db, strategy_id: str) -> dict[str, Any]:
+    """Latest paper NAV/MDD from ``strategy_incubation_metrics``.
+
+    ``status`` separates "this host has no metrics store" (``not_supported``),
+    "no metrics row yet" (``missing``) and "the read failed" (``error``) so the
+    gate below can refuse promotion on a failed read instead of waving it
+    through as if the evidence were clean.
+    """
+    if not hasattr(db, "acquire"):
+        return {"status": "not_supported", "nav": None, "max_drawdown": None}
+    try:
+        async with db.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                SELECT m.max_drawdown, m.nav
+                FROM strategy_incubation_metrics m
+                WHERE m.strategy_id = $1
+                ORDER BY m.metric_date DESC, m.id DESC
+                LIMIT 1
+                """,
+                strategy_id,
+            )
+    except Exception as exc:
+        logger.warning("paper promotion evidence read failed for %s: %s: %s", strategy_id, type(exc).__name__, exc)
+        return {"status": "error", "nav": None, "max_drawdown": None, "error": f"{type(exc).__name__}: {exc}"}
+    if row is None:
+        return {"status": "missing", "nav": None, "max_drawdown": None}
+    return {
+        "status": "ok",
+        "nav": _safe_float(row.get("nav")),
+        "max_drawdown": _safe_float(row.get("max_drawdown")),
+    }
+
+
+def apply_paper_promotion_gate(
+    promotion_ready: bool,
+    blockers: list[str],
+    paper_evidence: dict[str, Any],
+) -> bool:
+    """Veto promotion on the strategy's own paper trail.
+
+    The 2026-10-19 cohort promoted three lsmap strategies at NAV 0.781 / MDD 22%
+    because the Sharpe/MDD checks read ``strategy_metrics`` (backtest period),
+    which those strategies had no rows in.  Only a still-promotable strategy is
+    vetoed here; reasons are appended to ``blockers`` (mutated in place).
+    """
+    if not promotion_ready:
+        return False
+    reasons: list[str] = []
+    status = paper_evidence.get("status")
+    if status == "error":
+        reasons.append("paper_evidence_unavailable")
+    paper_mdd = paper_evidence.get("max_drawdown")
+    paper_nav = paper_evidence.get("nav")
+    if paper_mdd is not None and paper_mdd > PROMOTION_THRESHOLDS["mdd_max"]:
+        reasons.append(
+            f"paper_nav_mdd_exceeds_promotion_ceiling: {paper_mdd:.1%} > {PROMOTION_THRESHOLDS['mdd_max']:.0%}"
+        )
+    if paper_nav is not None and paper_nav < PAPER_NAV_PROMOTION_FLOOR:
+        reasons.append(f"paper_nav_below_promotion_floor: {paper_nav:.3f} < {PAPER_NAV_PROMOTION_FLOOR:.3f}")
+    blockers.extend(reason for reason in reasons if reason not in blockers)
+    return not reasons
+
+
 async def build_incubation_overview(
     db,
     strategy: dict,
@@ -888,6 +957,20 @@ async def build_incubation_overview(
         and risk_hard_gate_status == "passed"
         and not blockers
     )
+    # P0-3 follow-up (2026-10-23): a positive signal LCB alone must not carry a
+    # losing paper account into promotion. The 2026-10-19 cohort promoted three
+    # lsmap strategies at NAV 0.781 / MDD 22% because ``sharpe``/``mdd`` above
+    # are read from ``strategy_metrics`` (backtest period), which these
+    # strategies have no rows in — so the Sharpe/MDD checks silently ran on 0.
+    # The live execution evidence is the strategy's own paper trail in
+    # ``strategy_incubation_metrics``; gate promotion on it directly.
+    paper_evidence = await _load_latest_paper_evidence(db, strategy_id)
+    promotion_ready = apply_paper_promotion_gate(promotion_ready, blockers, paper_evidence)
+    if promotion_ready and mdd > PROMOTION_THRESHOLDS["mdd_max"]:
+        promotion_ready = False
+        reason = f"strategy_metrics_mdd_exceeds_promotion_ceiling: {mdd:.1%} > {PROMOTION_THRESHOLDS['mdd_max']:.0%}"
+        if reason not in blockers:
+            blockers.append(reason)
     # INVERT-DESIGN P3 改动B：晋升额外要求"跨主要 regime 都有正 skill"（默认 OFF，零变化）。
     cross_regime_skill = evaluate_cross_regime_skill(signal_stats.get("hit_rate_by_regime"))
     if _promotion_cross_regime_enabled() and promotion_ready and not cross_regime_skill["passed"]:

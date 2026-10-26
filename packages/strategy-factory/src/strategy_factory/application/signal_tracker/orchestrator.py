@@ -81,9 +81,28 @@ class SignalTrackerOrchestrator:
                         len(reclaimed),
                     )
 
+        # Without an explicit as_of, label the cycle with the newest synced
+        # session from the provider, not the wall clock: a Saturday run once
+        # wrote signals for 2026-10-24, a session absent from kline_1d.
+        session_source = "explicit" if as_of is not None else "wall_clock_no_resolver"
+        if as_of is None:
+            resolver = getattr(self._provider, "resolve_session_date", None)
+            if callable(resolver):
+                try:
+                    resolved = dict(await resolver(db) or {})
+                    if isinstance(resolved.get("date"), date):
+                        as_of = resolved["date"]
+                        session_source = str(resolved.get("source") or "provider")
+                except Exception:
+                    logger.warning(
+                        "SignalTracker: session date resolution failed; falling back to wall clock",
+                        exc_info=True,
+                    )
+                    session_source = "wall_clock_resolver_failed"
         today = as_of or date.today()
         start = datetime.now()
         trace_id = uuid4().hex[:12]
+        logger.info("SignalTracker: cycle as_of=%s (source=%s)", today, session_source)
 
         # Initialize task run record
         task_run = (
@@ -363,7 +382,11 @@ class SignalTrackerOrchestrator:
             "phase_g_lifecycle_scan",
             self._provider.run_lifecycle_scan(db, strategies),
         ) or {}
-        result.transitions = int(lifecycle_result.get("transitions") or 0)
+        # The lifecycle scan reports per-strategy transition records (a list);
+        # the akshare provider passes them through as the raw list, while the
+        # strategy-factory provider pre-aggregates to an int. Normalize both.
+        transitions_raw = lifecycle_result.get("transitions") or 0
+        result.transitions = len(transitions_raw) if isinstance(transitions_raw, (list, tuple)) else int(transitions_raw)
 
         # Phase H: Vector registry reconciliation
         logger.info("SignalTracker [%s] Phase H: Vector registry reconciliation", trace_id)
