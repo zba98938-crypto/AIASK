@@ -1,0 +1,967 @@
+<title>预测命中率 85% 方案</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --bg:#f6f8f8; --surface:#ffffff; --surface-2:#edf2f2; --fg:#18212a; --muted:#5a6873;
+  --line:#d5dee1; --accent:#0d6f68; --accent-soft:#e0f1ee; --warn:#9a5b12; --warn-soft:#f8eddc;
+  --danger:#a32b2b; --danger-soft:#f8e8e6; --ok:#1c6b3c; --ok-soft:#e3f2e8; --code-bg:#eef3f4;
+  --shadow:0 1px 2px rgba(24,33,42,.06),0 8px 24px rgba(24,33,42,.05);
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1417; --surface:#151c20; --surface-2:#1b252a; --fg:#e4ebee; --muted:#93a3ad;
+    --line:#2a363c; --accent:#4fc6bb; --accent-soft:#10302e; --warn:#e0a458; --warn-soft:#2e2416;
+    --danger:#e78b8b; --danger-soft:#351d1d; --ok:#74c69d; --ok-soft:#14291f; --code-bg:#1a2429;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1417; --surface:#151c20; --surface-2:#1b252a; --fg:#e4ebee; --muted:#93a3ad;
+  --line:#2a363c; --accent:#4fc6bb; --accent-soft:#10302e; --warn:#e0a458; --warn-soft:#2e2416;
+  --danger:#e78b8b; --danger-soft:#351d1d; --ok:#74c69d; --ok-soft:#14291f; --code-bg:#1a2429;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px rgba(0,0,0,.3);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:"IBM Plex Sans","PingFang SC","Hiragino Sans GB","Noto Sans SC","Microsoft YaHei",system-ui,sans-serif;
+  font-size:15.5px; line-height:1.72;
+  padding-left:max(16px, env(safe-area-inset-left, 0px));
+  padding-right:max(16px, env(safe-area-inset-right, 0px));
+  padding-block:0 72px;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:980px; margin:0 auto}
+code,pre,.mono{font-family:"IBM Plex Mono","SFMono-Regular",Menlo,Consolas,monospace}
+header{padding:40px 0 20px; border-bottom:1px solid var(--line)}
+.eyebrow{font-family:"IBM Plex Mono",monospace; font-size:12px; letter-spacing:.12em; text-transform:uppercase; color:var(--accent); margin:0 0 10px}
+h1{font-size:clamp(28px,4.4vw,40px); line-height:1.2; margin:0 0 12px; letter-spacing:-.01em; text-wrap:balance}
+.lede{font-size:17px; color:var(--muted); max-width:68ch; margin:0}
+.meta{display:flex; flex-wrap:wrap; gap:8px 20px; margin-top:18px; font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums}
+.meta b{color:var(--fg); font-weight:600}
+nav.toc{display:flex; flex-wrap:wrap; gap:6px; padding:18px 0 6px}
+nav.toc a{font-size:13px; text-decoration:none; color:var(--fg); background:var(--surface); border:1px solid var(--line); border-radius:999px; padding:4px 11px}
+nav.toc a:hover{border-color:var(--accent); color:var(--accent)}
+section{padding-top:44px}
+h2{font-size:23px; margin:0 0 6px; letter-spacing:-.005em; display:flex; align-items:baseline; gap:12px}
+h2 .num{font-family:"IBM Plex Mono",monospace; font-size:13px; color:var(--accent); font-weight:500}
+.sub{color:var(--muted); margin:0 0 20px; max-width:72ch}
+h3{font-size:17px; margin:28px 0 8px}
+h4{font-size:14.5px; margin:20px 0 6px; color:var(--muted); font-weight:600; letter-spacing:.02em}
+p{max-width:74ch; margin:0 0 12px}
+ul,ol{max-width:74ch; padding-left:22px; margin:0 0 14px}
+li{margin:3px 0}
+.sep{height:1px; background:var(--line); margin:0}
+.card{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:18px 20px; box-shadow:var(--shadow)}
+.grid{display:grid; gap:14px}
+.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}
+@media (max-width:760px){.g3,.g2{grid-template-columns:1fr}}
+.stat .k{font-family:"IBM Plex Mono",monospace; font-size:11.5px; letter-spacing:.08em; color:var(--muted); text-transform:uppercase}
+.stat .v{font-size:30px; font-weight:600; line-height:1.15; margin:4px 0 2px; font-variant-numeric:tabular-nums}
+.stat .d{font-size:13px; color:var(--muted)}
+.bad{color:var(--danger)} .good{color:var(--ok)} .warnc{color:var(--warn)} .acc{color:var(--accent)}
+.tag{display:inline-block; font-size:11.5px; font-family:"IBM Plex Mono",monospace; padding:1px 8px; border-radius:999px; border:1px solid var(--line); color:var(--muted); white-space:nowrap}
+.tag.new{color:var(--accent); border-color:var(--accent); background:var(--accent-soft)}
+.tag.research{color:var(--warn); border-color:var(--warn); background:var(--warn-soft); border-style:dashed}
+.tag.bad{color:var(--danger); border-color:var(--danger); background:var(--danger-soft)}
+.tag.ok{color:var(--ok); border-color:var(--ok); background:var(--ok-soft)}
+table{width:100%; border-collapse:collapse; font-size:13.5px; font-variant-numeric:tabular-nums}
+th{text-align:left; font-weight:600; font-size:12px; letter-spacing:.05em; color:var(--muted); text-transform:uppercase; border-bottom:1px solid var(--line); padding:8px 10px}
+td{padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top}
+tr:last-child td{border-bottom:0}
+.tablewrap{overflow-x:auto; border:1px solid var(--line); border-radius:10px; background:var(--surface); box-shadow:var(--shadow)}
+td code, p code, li code{background:var(--code-bg); border-radius:4px; padding:1px 5px; font-size:12.5px}
+pre{background:var(--code-bg); border:1px solid var(--line); border-radius:10px; padding:14px 16px; overflow-x:auto; font-size:12.5px; line-height:1.55; margin:10px 0 16px}
+pre .cm{color:var(--muted)}
+.fig{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:16px; margin:14px 0 6px; overflow-x:auto; box-shadow:var(--shadow)}
+.fig svg{display:block; width:100%; min-width:680px; height:auto}
+.figcap{font-size:12.5px; color:var(--muted); margin:8px 2px 22px; max-width:78ch}
+.d-title{font-family:"IBM Plex Sans","PingFang SC",sans-serif; font-size:13px; font-weight:600; fill:var(--fg)}
+.d-sub{font-family:"IBM Plex Mono",monospace; font-size:10.5px; fill:var(--muted)}
+.d-mono{font-family:"IBM Plex Mono",monospace; font-size:11px; fill:var(--fg)}
+.d-note{font-family:"IBM Plex Mono",monospace; font-size:10.5px; fill:var(--muted)}
+.d-box{fill:var(--surface); stroke:var(--line); stroke-width:1.2}
+.d-box2{fill:var(--surface-2); stroke:var(--line); stroke-width:1.2}
+.d-new{fill:var(--accent-soft); stroke:var(--accent); stroke-width:1.4}
+.d-res{fill:var(--warn-soft); stroke:var(--warn); stroke-width:1.3; stroke-dasharray:5 4}
+.d-bad{fill:var(--danger-soft); stroke:var(--danger); stroke-width:1.2}
+.d-ok{fill:var(--ok-soft); stroke:var(--ok); stroke-width:1.2}
+.d-line{stroke:var(--muted); stroke-width:1.2; fill:none}
+.d-line-new{stroke:var(--accent); stroke-width:1.6; fill:none}
+.d-line-dash{stroke:var(--warn); stroke-width:1.4; fill:none; stroke-dasharray:5 4}
+.band{fill:var(--surface-2); opacity:.55}
+.axis{stroke:var(--line); stroke-width:1}
+.gridl{stroke:var(--line); stroke-width:.8; stroke-dasharray:2 3}
+.lbl{font-family:"IBM Plex Mono",monospace; font-size:11px; fill:var(--muted)}
+.lbl-fg{font-family:"IBM Plex Mono",monospace; font-size:11.5px; fill:var(--fg)}
+.callout{border-left:3px solid var(--accent); background:var(--accent-soft); border-radius:0 10px 10px 0; padding:14px 18px; margin:14px 0 18px; max-width:none}
+.callout.warn{border-left-color:var(--warn); background:var(--warn-soft)}
+.callout.bad{border-left-color:var(--danger); background:var(--danger-soft)}
+.callout p{margin:0 0 6px; font-size:14px}
+.callout p:last-child{margin:0}
+.kv{display:grid; grid-template-columns:minmax(120px,180px) 1fr; gap:6px 18px; font-size:13.5px}
+.kv dt{color:var(--muted)} .kv dd{margin:0; font-variant-numeric:tabular-nums}
+.wp{display:grid; grid-template-columns:minmax(0,1fr); gap:10px; border:1px solid var(--line); border-radius:12px; background:var(--surface); padding:18px 20px; box-shadow:var(--shadow)}
+.wp h3{margin:0}
+.wp .row{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+.wp .body{font-size:14px; color:var(--fg); max-width:none}
+.wp .body p{margin:0 0 8px; max-width:none}
+.wp .files{font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--muted); word-break:break-word}
+ol.steps{counter-reset:s; list-style:none; padding-left:0; max-width:none}
+ol.steps li{counter-increment:s; position:relative; padding:0 0 0 38px; margin:0 0 14px}
+ol.steps li::before{content:counter(s,decimal-leading-zero); position:absolute; left:0; top:2px; font-family:"IBM Plex Mono",monospace; font-size:12px; color:var(--accent); border:1px solid var(--line); border-radius:6px; padding:1px 6px; background:var(--surface)}
+.small{font-size:12.5px; color:var(--muted)}
+footer{margin-top:56px; padding-top:18px; border-top:1px solid var(--line); font-size:12.5px; color:var(--muted)}
+@media (max-width:520px){
+  body{font-size:14.5px}
+  .fig{padding:10px}
+  .fig svg{min-width:620px}
+}
+</style>
+
+<div class="wrap">
+<header>
+  <p class="eyebrow">AIASK · Strategy Factory · 开发方案 v2</p>
+  <h1>预测命中率 85% 方案</h1>
+  <p class="lede">在模拟盘中把「股票走势方向预测命中率 ≥85%」做成可测量、可校准、可审计、不可绕过的工程目标。本方案逐项列出需求、现状证据、架构、流程、数据关系、代码落点、周期与验收标准。</p>
+  <div class="meta">
+    <span>基线日期 <b>2026-10-21</b></span>
+    <span>适用范围 <b>A 股日频 · 只多/现金 · 收盘信号 → 下一交易时段执行</b></span>
+    <span>数据源 <b>akshare_mcp.sqlite3（只读核验）</b></span>
+    <span>不包含 <b>实盘授权 · 券商接入 · 收益承诺</b></span>
+  </div>
+  <nav class="toc">
+    <a href="#req">1 需求</a><a href="#data">2 现状数据</a><a href="#arch">3 架构</a><a href="#flow">4 流程</a>
+    <a href="#model">5 数据关系</a><a href="#code">6 代码证据</a><a href="#wp">7 工作包</a><a href="#plan">8 开发周期</a>
+    <a href="#accept">9 验收</a><a href="#risk">10 风险</a>
+  </nav>
+</header>
+
+<!-- ============ 1 需求 ============ -->
+<section id="req">
+  <h2><span class="num">01</span>实际需求：把 85% 变成可判定的契约</h2>
+  <p class="sub">需求原文：在模拟盘模拟交易时，预测股票走势达到 85% 以上的命中率。本文不改写这个目标，而是把它拆成四条可交付契约——因为「85% 命中」只有在口径、样本、计算方式全部冻结后才是一个可验证的主张。</p>
+
+  <div class="grid g3">
+    <div class="card stat"><div class="k">目标指标</div><div class="v acc">≥85%</div><div class="d">模拟盘方向命中率（扣成本、独立样本）</div></div>
+    <div class="card stat"><div class="k">当前实测</div><div class="v bad">32.8%</div><div class="d">61/186 可判分预测（2026-10-21 复算）</div></div>
+    <div class="card stat"><div class="k">全量信号基线</div><div class="v warnc">45.6–47.9%</div><div class="d">P(前向收益&gt;0)，1d–20d 窗口</div></div>
+  </div>
+
+  <h3>四条契约</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th style="width:70px">编号</th><th style="width:120px">契约</th><th>内容</th><th style="width:210px">当前状态</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">R1</td><td>可测量</td><td>模拟盘必须给出逐预测的「预测 → 结算」判分：按 horizon 净收益方向、扣双边成本、T+1、缺数据记 null 并带原因码。</td><td><span class="tag bad">不可用</span> 1,572 条 outcome 中 88% 为 null，0 行 <code>score_status=ok</code></td></tr>
+      <tr><td class="mono">R2</td><td>可达成</td><td>必须有具频率含义的概率来源（校准后的 confidence），而不是规则公式常数。</td><td><span class="tag bad">缺失</span> 8,932 条预测中 3,519 条 confidence 恰为 <code>0.675807</code>；<code>calibrated_confidence</code> 仅 1/231 行有值</td></tr>
+      <tr><td class="mono">R3</td><td>可选择</td><td>只在高置信时出手（选择性交易），低置信记录 abstain；否则全量命中率天花板由市场决定。</td><td><span class="tag bad">缺失</span> paper bridge 发单不读任何 confidence</td></tr>
+      <tr><td class="mono">R4</td><td>可审计</td><td>判据预注册、样本独立归并、记录与 candidate hash 绑定、任一输入变更即失效、不达标不降门槛。</td><td><span class="tag ok">已具备骨架</span> 门禁开关被硬编码关闭（仅诊断）；证书机制 v1 已实现</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>目标的可判定定义</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th style="width:150px">项</th><th>定义（冻结，改动需升 gate 版本）</th></tr></thead>
+    <tbody>
+      <tr><td>指标</td><td><code>directional_hit_rate</code> = 独立可判分预测中「净收益方向命中」数 ÷ 独立可判分预测总数</td></tr>
+      <tr><td>命中口径</td><td>自 <code>prediction_as_of</code> 次一交易时段起算，horizon 末点的<b>净收益</b>（扣双边成本 0.2–0.3%）方向与预测方向一致；持平带 0.2%（沿用现有 <code>flat_threshold_pct</code>）</td></tr>
+      <tr><td>独立性</td><td>独立样本单元 = <code>(stock_code, prediction_as_of)</code> 时间块；同一标的多策略/重叠 horizon 只计 1 个样本；跨块自相关用 block bootstrap 处理</td></tr>
+      <tr><td>达标条件</td><td>n ≥ 200 个独立样本 <b>且</b> Wilson 95% 下界 &gt; 0.80 <b>且</b> Brier 优于 0.5 常数基线 <b>且</b> 覆盖 ≥2 个市场状态</td></tr>
+      <tr><td>不达标</td><td>报告实测命中率 + LCB + 距达标差值 + 下一里程碑；<b>不降低阈值、不用点估计冒充达标</b></td></tr>
+      <tr><td>并行判据</td><td>命中率达标的同时必须满足 profit factor ≥1.5、净收益 LCB&gt;0（防止「高胜率、烂盈亏比」）</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout warn">
+    <p><b>必须先对齐的预期：</b>85% 不是「把所有信号调准」，而是「只在少数高置信时出手」的结果。全量规则信号在 1d–20d 的方向命中率实测 45.6–47.9%，日级方向业界最优也在 55–65%。因此本方案的核心是新增<b>校准层</b>与<b>选择性出手门禁</b>，而不是修改规则参数。</p>
+  </div>
+</section>
+
+<!-- ============ 2 现状数据 ============ -->
+<section id="data">
+  <h2><span class="num">02</span>现状数据：预测 → 判分 → 可用的漏斗</h2>
+  <p class="sub">全部为本机运行库 <code>~/.aiask/data/db/akshare_mcp.sqlite3</code> 的只读复算结果。漏斗显示：真正能进入判分的样本只有 2.1%，这是 85% 目标的第一道结构性问题。</p>
+
+  <div class="fig">
+    <svg viewBox="0 0 960 330" role="img" aria-label="预测判分漏斗：8932 条预测、1572 条结果、186 条可判分、61 条命中">
+      <defs><marker id="fa" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker></defs>
+      <text x="20" y="24" class="d-title">判分漏斗（线性宽度；极小值设最小可见宽度）</text>
+      <g>
+        <text x="20" y="66" class="d-mono">预测</text><text x="20" y="84" class="d-sub">strategy_trade_predictions</text>
+        <rect x="210" y="52" width="700" height="34" rx="5" class="d-box2"/>
+        <text x="600" y="75" class="d-title" style="font-size:13px">8,932</text>
+        <text x="925" y="75" class="d-sub" text-anchor="end">100%</text>
+      </g>
+      <g>
+        <text x="20" y="126" class="d-mono">结果行</text><text x="20" y="144" class="d-sub">… _outcomes</text>
+        <rect x="210" y="112" width="124" height="34" rx="5" class="d-box2"/>
+        <text x="344" y="135" class="d-mono">1,572</text>
+        <text x="925" y="135" class="d-sub" text-anchor="end">17.6%</text>
+      </g>
+      <g>
+        <text x="20" y="186" class="d-mono">可判分</text><text x="20" y="204" class="d-sub">direction_hit ≠ null</text>
+        <rect x="210" y="172" width="14" height="34" rx="5" class="d-bad"/>
+        <text x="240" y="195" class="d-mono bad">186</text>
+        <text x="925" y="195" class="d-sub" text-anchor="end">2.1%</text>
+      </g>
+      <g>
+        <text x="20" y="246" class="d-mono">方向命中</text><text x="20" y="264" class="d-sub">61 / 186 = 32.8%</text>
+        <rect x="210" y="232" width="14" height="34" rx="5" class="d-ok"/>
+        <text x="240" y="255" class="d-mono ok">61</text>
+        <text x="925" y="255" class="d-sub" text-anchor="end">0.7%</text>
+      </g>
+      <line x1="20" y1="292" x2="940" y2="292" class="axis"/>
+      <text x="20" y="314" class="d-sub">阻断原因：intraday_missing 786 · daily_bar_missing 600 · partial_daily_only 186（且 0 行 score_status=ok）</text>
+    </svg>
+  </div>
+  <p class="figcap">图 1 · 判分漏斗。注意 186 条可判分记录并不是 186 个独立样本：其中同一标的/日期块存在重叠，正式记分卡要按 <code>(stock_code, prediction_as_of)</code> 归并后再计算。</p>
+
+  <div class="fig">
+    <svg viewBox="0 0 960 300" role="img" aria-label="各 horizon 前向收益为正的比例，均围绕 50%，目标线 85%">
+      <defs></defs>
+      <text x="20" y="24" class="d-title">各 horizon 的 P(前向收益 &gt; 0)</text>
+      <text x="20" y="42" class="d-sub">signal_forward_returns 全量复算；n 见柱下标注</text>
+      <line x1="70" y1="250" x2="930" y2="250" class="axis"/>
+      <line x1="70" y1="70" x2="930" y2="70" class="gridl"/>
+      <line x1="70" y1="130" x2="930" y2="130" class="gridl"/>
+      <line x1="70" y1="190" x2="930" y2="190" class="gridl"/>
+      <text x="58" y="254" class="lbl" text-anchor="end">0%</text>
+      <text x="58" y="194" class="lbl" text-anchor="end">25%</text>
+      <text x="58" y="134" class="lbl" text-anchor="end">50%</text>
+      <text x="58" y="74" class="lbl" text-anchor="end">75%</text>
+      <line x1="70" y1="118" x2="930" y2="118" stroke="var(--muted)" stroke-width="1" stroke-dasharray="4 4"/>
+      <text x="934" y="122" class="lbl">50%</text>
+      <line x1="70" y1="46" x2="930" y2="46" stroke="var(--danger)" stroke-width="1.4" stroke-dasharray="6 4"/>
+      <text x="934" y="50" class="lbl" style="fill:var(--danger)">85% 目标</text>
+      <!-- bars: value% -> y = 250 - v*2.4 ; 46.7->138, 47.9->135, 46.1->139, 45.6->141, 26.9->185 -->
+      <rect x="110" y="138" width="86" height="112" rx="3" class="d-box2"/>
+      <rect x="260" y="135" width="86" height="115" rx="3" class="d-box2"/>
+      <rect x="410" y="139" width="86" height="111" rx="3" class="d-box2"/>
+      <rect x="560" y="141" width="86" height="109" rx="3" class="d-box2"/>
+      <rect x="710" y="185" width="86" height="65" rx="3" class="d-bad"/>
+      <text x="153" y="130" class="lbl-fg" text-anchor="middle">46.7%</text>
+      <text x="303" y="127" class="lbl-fg" text-anchor="middle">47.9%</text>
+      <text x="453" y="131" class="lbl-fg" text-anchor="middle">46.1%</text>
+      <text x="603" y="133" class="lbl-fg" text-anchor="middle">45.6%</text>
+      <text x="753" y="177" class="lbl-fg bad" text-anchor="middle">26.9%</text>
+      <text x="153" y="270" class="lbl" text-anchor="middle">1d · n=6,831</text>
+      <text x="303" y="270" class="lbl" text-anchor="middle">5d · n=6,822</text>
+      <text x="453" y="270" class="lbl" text-anchor="middle">10d · n=6,822</text>
+      <text x="603" y="270" class="lbl" text-anchor="middle">20d · n=6,822</text>
+      <text x="753" y="270" class="lbl" text-anchor="middle">30d · n=402</text>
+      <text x="20" y="292" class="d-sub">30d 样本不足且均值 −2.67%，不可用于判据；其余窗口全部低于 50% 基线。</text>
+    </svg>
+  </div>
+  <p class="figcap">图 2 · 前向收益方向基线。当前所有信号族的「全量方向命中」都在抛硬币附近，85% 只能来自选择性出手，不可能来自整体调参。</p>
+
+  <h3>关键计数（全部实测）</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>观测</th><th style="width:130px">数值</th><th>含义</th></tr></thead>
+    <tbody>
+      <tr><td>预测总数 / 涉及策略数</td><td class="mono">8,932 / 8,932</td><td>每个策略仅 1 条预测，<code>contract_source</code> 全为 <code>derived_from_legacy_contract</code></td></tr>
+      <tr><td>预测方向分布</td><td class="mono">up 4,269 · down 3,823 · neutral 840</td><td>neutral 不能计为方向命中样本</td></tr>
+      <tr><td>confidence 取值</td><td class="mono">3,519 条 = 0.675807</td><td>规则公式输出，无频率含义；主带 0.52–0.75</td></tr>
+      <tr><td>可判分 outcome</td><td class="mono">186 / 1,572</td><td>0 行 <code>score_status=ok</code>；786 行 intraday_missing、600 行 daily_bar_missing</td></tr>
+      <tr><td>已闭合纸面 round-trip</td><td class="mono">61</td><td>0 个账户 ≥30 笔；paper_nav 单账户最多 13 天</td></tr>
+      <tr><td>校准字段填充</td><td class="mono">1 / 231</td><td><code>calibrated_confidence</code> 几乎为空；<code>proxy_only</code> 172 行</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ 3 架构 ============ -->
+<section id="arch">
+  <h2><span class="num">03</span>系统架构：四层新增组件挂在现有骨架上</h2>
+  <p class="sub">灰色为已有组件，青色为新增，琥珀虚线为条件启动的研究支线（决策门通过后才投入）。组件职责与包归属见下方模块表。</p>
+
+  <div class="fig">
+    <svg viewBox="0 0 1000 700" role="img" aria-label="系统架构图：数据层、生成层、判分层、校准层、交易层、记分卡层，以及研究支线">
+      <defs>
+        <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+        <marker id="arn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker>
+        <marker id="ard" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--warn)"/></marker>
+      </defs>
+
+      <!-- legend -->
+      <g>
+        <rect x="700" y="14" width="14" height="14" rx="3" class="d-box"/>
+        <text x="722" y="26" class="d-sub">已有</text>
+        <rect x="772" y="14" width="14" height="14" rx="3" class="d-new"/>
+        <text x="794" y="26" class="d-sub">新增</text>
+        <rect x="846" y="14" width="14" height="14" rx="3" class="d-res"/>
+        <text x="868" y="26" class="d-sub">研究支线</text>
+      </g>
+
+      <!-- Band labels -->
+      <g>
+        <text x="18" y="52" class="d-note">数据</text>
+        <text x="18" y="148" class="d-note">生成</text>
+        <text x="18" y="258" class="d-note">判分</text>
+        <text x="18" y="368" class="d-note">校准</text>
+        <text x="18" y="478" class="d-note">交易</text>
+        <text x="18" y="588" class="d-note">记分</text>
+      </g>
+
+      <!-- Row 1 data -->
+      <rect x="70" y="28" width="280" height="52" rx="8" class="d-box2"/>
+      <text x="84" y="50" class="d-title">kline_1d</text><text x="84" y="68" class="d-sub">日线 OHLCV · 收盘后确认</text>
+      <rect x="366" y="28" width="270" height="52" rx="8" class="d-box2"/>
+      <text x="380" y="50" class="d-title">分钟 bar</text><text x="380" y="68" class="d-sub">日内回放（当前缺口 intradady_missing）</text>
+      <rect x="652" y="28" width="290" height="52" rx="8" class="d-box2"/>
+      <text x="666" y="50" class="d-title">signal_forward_returns</text><text x="666" y="68" class="d-sub">1/5/10/20/30d 前向收益 27,699 行</text>
+
+      <!-- Row 2 generation -->
+      <rect x="70" y="124" width="250" height="56" rx="8" class="d-box"/>
+      <text x="84" y="146" class="d-title">LLM 候选生成</text><text x="84" y="164" class="d-sub">research/runner.py</text>
+      <rect x="336" y="124" width="250" height="56" rx="8" class="d-box"/>
+      <text x="350" y="146" class="d-title">规则 confidence</text><text x="350" y="164" class="d-sub">0.45 fallback · 0.6758 常量</text>
+      <rect x="602" y="124" width="340" height="56" rx="8" class="d-box"/>
+      <text x="616" y="146" class="d-title">strategy_trade_predictions</text><text x="616" y="164" class="d-sub">direction · horizon · contract_hash · 8,932 行</text>
+      <line x1="320" y1="152" x2="334" y2="152" class="d-line" marker-end="url(#ar)"/>
+      <line x1="586" y1="152" x2="600" y2="152" class="d-line" marker-end="url(#ar)"/>
+
+      <!-- Row 3 scoring -->
+      <rect x="70" y="228" width="400" height="62" rx="8" class="d-new"/>
+      <text x="84" y="250" class="d-title">WP-A HorizonScorer <tspan class="d-sub">· 新增</tspan></text>
+      <text x="84" y="270" class="d-sub">按 horizon 判净收益方向 · 扣成本 · T+1 · 持平带 0.2%</text>
+      <rect x="530" y="228" width="412" height="62" rx="8" class="d-box"/>
+      <text x="544" y="250" class="d-title">strategy_trade_prediction_outcomes</text>
+      <text x="544" y="270" class="d-sub">direction_hit · score_version · data_quality_status</text>
+      <line x1="470" y1="259" x2="528" y2="259" class="d-line" marker-end="url(#ar)"/>
+      <line x1="250" y1="80" x2="250" y2="122" class="d-line" marker-end="url(#ar)"/>
+      <line x1="780" y1="180" x2="780" y2="226" class="d-line" marker-end="url(#ar)"/>
+
+      <!-- Row 4 calibration + research -->
+      <rect x="70" y="336" width="400" height="62" rx="8" class="d-new"/>
+      <text x="84" y="358" class="d-title">WP-B 校准层 <tspan class="d-sub">· 新增</tspan></text>
+      <text x="84" y="378" class="d-sub">Platt / isotonic · 时间序切分 · 封存 holdout · Brier</text>
+      <rect x="530" y="336" width="412" height="62" rx="8" class="d-new"/>
+      <text x="544" y="358" class="d-title">calibration_models <tspan class="d-sub">· 新表</tspan></text>
+      <text x="544" y="378" class="d-sub">model_hash · fit_end · brier_holdout · status</text>
+      <line x1="470" y1="367" x2="528" y2="367" class="d-line-new" marker-end="url(#arn)"/>
+      <line x1="780" y1="290" x2="780" y2="334" class="d-line" marker-end="url(#ar)"/>
+
+      <!-- Research branch -->
+      <rect x="700" y="410" width="270" height="118" rx="8" class="d-res"/>
+      <text x="714" y="432" class="d-title">WP-E 学习型方向模型 <tspan class="d-sub">· 研究</tspan></text>
+      <text x="714" y="452" class="d-sub">特征工程 · 点时数据 · purged 时序</text>
+      <text x="714" y="470" class="d-sub">GB 二分类 → P(方向对)</text>
+      <text x="714" y="488" class="d-sub">OOS 通过后才接入校准层</text>
+      <text x="714" y="512" class="d-sub" style="fill:var(--warn)">决策门：校准曲线 ≥65% 才启动</text>
+      <path d="M700,469 C600,469 560,420 472,390" class="d-line-dash" marker-end="url(#ard)"/>
+
+      <!-- Row 5 trading -->
+      <rect x="70" y="446" width="400" height="62" rx="8" class="d-new"/>
+      <text x="84" y="468" class="d-title">WP-C 选择性出手门禁 <tspan class="d-sub">· 新增</tspan></text>
+      <text x="84" y="488" class="d-sub">calibrated ≥ 0.85 才发单；否则 abstain 入库</text>
+      <rect x="530" y="446" width="412" height="62" rx="8" class="d-box"/>
+      <text x="544" y="468" class="d-title">paper_trading_bridge → paper_trades / nav</text>
+      <text x="544" y="488" class="d-sub">next_session_open · T+1 · position_id 配对</text>
+      <line x1="470" y1="477" x2="528" y2="477" class="d-line" marker-end="url(#ar)"/>
+      <line x1="270" y1="398" x2="270" y2="444" class="d-line-new" marker-end="url(#arn)"/>
+
+      <!-- Row 6 scorecard -->
+      <rect x="70" y="556" width="400" height="62" rx="8" class="d-new"/>
+      <text x="84" y="578" class="d-title">WP-D 方向记分卡 <tspan class="d-sub">· 扩展 hit_rate_reporter</tspan></text>
+      <text x="84" y="598" class="d-sub">n · hit_rate · Wilson LCB · Brier · abstain · regime</text>
+      <rect x="530" y="556" width="412" height="62" rx="8" class="d-box"/>
+      <text x="544" y="578" class="d-title">gate v2 + tradeability certificate</text>
+      <text x="544" y="598" class="d-sub">预注册阈值 · 哈希绑定 · 过期失效</text>
+      <line x1="470" y1="587" x2="528" y2="587" class="d-line" marker-end="url(#ar)"/>
+      <line x1="270" y1="508" x2="270" y2="554" class="d-line" marker-end="url(#ar)"/>
+      <line x1="736" y1="508" x2="736" y2="554" class="d-line" marker-end="url(#ar)"/>
+      <line x1="780" y1="290" x2="780" y2="446" class="d-line" marker-end="url(#ar)" opacity=".35"/>
+
+      <text x="70" y="660" class="d-sub">读端：factory_tradeability_certificates 返回同一证书与证据引用；本方案不触发任何自动晋级或实盘动作。</text>
+    </svg>
+  </div>
+  <p class="figcap">图 3 · 组件架构。判分层与校准层是本次新增的核心；交易层复用现有 paper bridge 的发单/成交/净值链路，只在发单前插入 WP-C 门禁。</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th style="width:190px">组件</th><th style="width:110px">包</th><th>职责</th><th style="width:90px">状态</th></tr></thead>
+    <tbody>
+      <tr><td>候选生成与预测写入</td><td class="mono">strategy-factory</td><td>LLM 生成候选、构造预测契约、写 <code>strategy_trade_predictions</code></td><td><span class="tag">已有</span></td></tr>
+      <tr><td>日级判分器</td><td class="mono">akshare-mcp</td><td><code>_daily_outcome</code> 当日 open→close 判分、0.2% 持平带</td><td><span class="tag">已有</span></td></tr>
+      <tr><td>WP-A 多 horizon 判分</td><td class="mono">akshare-mcp</td><td>按 horizon 取 T+1..T+k 净收益方向，扣成本，缺数 null</td><td><span class="tag new">新增</span></td></tr>
+      <tr><td>WP-B 校准层</td><td class="mono">aiask-quant-core</td><td>Platt/isotonic 拟合、封存验证、Brier 门禁、模型版本化</td><td><span class="tag new">新增</span></td></tr>
+      <tr><td>WP-C 选择性门禁</td><td class="mono">strategy-factory</td><td>发单前读校准分，低于阈值 abstain；记录动作</td><td><span class="tag new">新增</span></td></tr>
+      <tr><td>WP-D 记分卡</td><td class="mono">akshare-mcp + strategy-factory</td><td>聚合 n / LCB / Brier / regime / abstain；产出里程�碑</td><td><span class="tag new">新增</span></td></tr>
+      <tr><td>WP-E 学习模型</td><td class="mono">strategy-factory + quant-core</td><td>二分类方向概率，时间外 OOS，接入校准层</td><td><span class="tag research">研究</span></td></tr>
+      <tr><td>纸面账本</td><td class="mono">strategy-factory</td><td>发单、成交、费用、NAV、round-trip 配对</td><td><span class="tag">已有</span></td></tr>
+      <tr><td>可交易性证书</td><td class="mono">strategy-factory</td><td>gate v1 证书、哈希失效、只读读取端</td><td><span class="tag">已有</span></td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ 4 流程 ============ -->
+<section id="flow">
+  <h2><span class="num">04</span>端到端流程：一个预测从生成到结算</h2>
+  <p class="sub">从 T 日收盘生成预测，到 T+k 日结算判分，再到记分卡与门禁决策。每一步都写明数据、判定条件与失败路径（fail-closed）。</p>
+
+  <div class="fig">
+    <svg viewBox="0 0 1000 900" role="img" aria-label="端到端流程图：生成、门禁、纸面成交、判分、记分卡、达标决策">
+      <defs>
+        <marker id="bf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+        <marker id="bfn" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--accent)"/></marker>
+        <marker id="bfd" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--danger)"/></marker>
+      </defs>
+
+      <!-- step 1 -->
+      <rect x="120" y="24" width="420" height="58" rx="9" class="d-box"/>
+      <text x="136" y="47" class="d-title">T+0 收盘后：生成信号与预测</text>
+      <text x="136" y="67" class="d-sub">写 strategy_trade_predictions（direction · horizon · confidence）</text>
+
+      <!-- step 2 -->
+      <rect x="120" y="122" width="420" height="58" rx="9" class="d-new"/>
+      <text x="136" y="145" class="d-title">T+1 开盘前：回填校准分</text>
+      <text x="136" y="165" class="d-sub">WP-B 输出 calibrated_confidence + model_hash</text>
+      <line x1="330" y1="82" x2="330" y2="120" class="d-line" marker-end="url(#bf)"/>
+
+      <!-- decision -->
+      <polygon points="330,214 470,286 330,358 190,286" class="d-box2"/>
+      <text x="330" y="276" class="d-title" text-anchor="middle">calibrated</text>
+      <text x="330" y="294" class="d-title" text-anchor="middle">≥ 0.85 ?</text>
+      <line x1="330" y1="180" x2="330" y2="212" class="d-line" marker-end="url(#bf)"/>
+
+      <!-- yes branch -->
+      <rect x="560" y="238" width="390" height="96" rx="9" class="d-ok"/>
+      <text x="576" y="262" class="d-title">WP-C 发纸面单（next_session_open）</text>
+      <text x="576" y="282" class="d-sub">T+1 不允许卖出 · 100 股整手 · 费用入账</text>
+      <text x="576" y="300" class="d-sub">写 prediction_executions(action=ordered, order_id)</text>
+      <text x="576" y="318" class="d-sub">paper_trades.position_id 关联预测</text>
+      <line x1="470" y1="286" x2="558" y2="286" class="d-line" marker-end="url(#bf)"/>
+      <text x="492" y="278" class="lbl" style="fill:var(--ok)">是</text>
+
+      <!-- no branch -->
+      <rect x="560" y="380" width="390" height="70" rx="9" class="d-bad"/>
+      <text x="576" y="404" class="d-title">abstain：不出手，但记录</text>
+      <text x="576" y="424" class="d-sub">prediction_executions(action=abstained, reason)</text>
+      <text x="576" y="440" class="d-sub">计入分母，选择性偏差可审计</text>
+      <path d="M400,330 L470,310 L470,415 L558,415" class="d-line" marker-end="url(#bf)"/>
+      <text x="482" y="356" class="lbl" style="fill:var(--danger)">否</text>
+
+      <!-- horizon wait -->
+      <rect x="120" y="430" width="420" height="58" rx="9" class="d-box"/>
+      <text x="136" y="453" class="d-title">T+k 收盘后：horizon 到期</text>
+      <text x="136" y="473" class="d-sub">仅用已收盘 bar；信号日期由数据推导，不用墙钟</text>
+      <path d="M660,334 L660,372 L520,372 L520,459 L542,459" class="d-line" marker-end="url(#bf)" opacity="0"/>
+      <path d="M660,334 C660,380 540,400 330,428" class="d-line" marker-end="url(#bf)"/>
+
+      <!-- scoring -->
+      <rect x="120" y="526" width="420" height="66" rx="9" class="d-new"/>
+      <text x="136" y="549" class="d-title">WP-A HorizonScorer 判分</text>
+      <text x="136" y="569" class="d-sub">净收益 = 末端收盘 − 入场开盘 − 双边成本</text>
+      <text x="136" y="585" class="d-sub">方向命中：up &gt; +0.2% / down &lt; −0.2% / flat 带内</text>
+      <line x1="330" y1="488" x2="330" y2="524" class="d-line" marker-end="url(#bf)"/>
+
+      <!-- bar complete decision -->
+      <polygon points="330,632 460,690 330,748 200,690" class="d-box2"/>
+      <text x="330" y="680" class="d-title" text-anchor="middle">bar 完整？</text>
+      <text x="330" y="698" class="d-sub" text-anchor="middle">停牌 / 缺 bar / 未闭环</text>
+      <line x1="330" y1="592" x2="330" y2="630" class="d-line" marker-end="url(#bf)"/>
+
+      <!-- null branch -->
+      <rect x="560" y="654" width="390" height="72" rx="9" class="d-bad"/>
+      <text x="576" y="678" class="d-title">direction_hit = null + 原因码</text>
+      <text x="576" y="698" class="d-sub">horizon_incomplete / daily_bar_missing</text>
+      <text x="576" y="716" class="d-sub">不填 0、不假设成交；保持可审计</text>
+      <line x1="460" y1="690" x2="558" y2="690" class="d-line" marker-end="url(#bf)"/>
+      <text x="486" y="682" class="lbl" style="fill:var(--danger)">否</text>
+
+      <!-- hit branch -->
+      <rect x="120" y="776" width="420" height="58" rx="9" class="d-box"/>
+      <text x="136" y="799" class="d-title">写 outcome（direction_hit = true/false）</text>
+      <text x="136" y="819" class="d-sub">score_version=horizon_v1 · 幂等 (prediction_id, version)</text>
+      <line x1="330" y1="748" x2="330" y2="774" class="d-line" marker-end="url(#bf)"/>
+      <text x="340" y="766" class="lbl" style="fill:var(--ok)">是</text>
+
+      <!-- right pipeline: scorecard -->
+      <rect x="560" y="776" width="390" height="58" rx="9" class="d-new"/>
+      <text x="576" y="799" class="d-title">WP-D 记分卡 → gate v2 决策</text>
+      <text x="576" y="819" class="d-sub">n≥200 ∧ LCB&gt;0.80 ∧ Brier 胜基线 ∧ ≥2 regimes</text>
+      <line x1="540" y1="805" x2="558" y2="805" class="d-line" marker-end="url(#bf)"/>
+      <line x1="470" y1="805" x2="558" y2="805" class="d-line" marker-end="url(#bf)" opacity="0"/>
+      <path d="M330,834 L330,868 L560,868 L560,836" class="d-line" fill="none" marker-end="url(#bf)" opacity="0"/>
+    </svg>
+  </div>
+  <p class="figcap">图 4 · 单预测生命周期。关键约束：abstain 必须入库（否则选择性偏差不可见）；缺 bar 一律 null + 原因码；判分幂等，重跑不新增。</p>
+
+  <h3>每日调度时序</h3>
+  <ol class="steps">
+    <li><b>07:30 纸面周期</b>（现有 scheduler）：加载 incubating 策略 → 对每个目标标的独立取 120 根已收盘 bar → 生成信号。</li>
+    <li><b>开工前校准回填</b>（WP-B）：对当日所有预测套用最新封存模型，写 <code>calibrated_confidence</code>；无模型 → 保持 null。</li>
+    <li><b>出手判定</b>（WP-C）：<code>calibrated_confidence ≥ 0.85</code> 才调用 <code>_place_paper_order</code>；否则写 abstain 动作记录，<b>不发单</b>。</li>
+    <li><b>成交与净值</b>（现有）：下一交易时段开盘价成交，T+1 约束、整手、费用入账；收盘后写 NAV 快照。</li>
+    <li><b>到期判分</b>（WP-A）：扫描 horizon 已到的预测，按 T+1..T+k 净收益写 outcome。</li>
+    <li><b>记分卡</b>（WP-D）：按 <code>(stock_code, prediction_as_of)</code> 归并独立样本，输出 n / hit_rate / Wilson LCB / Brier / regime 覆盖 / abstain 率 / 距 n=200 差值。</li>
+  </ol>
+</section>
+
+<!-- ============ 5 数据关系 ============ -->
+<section id="model">
+  <h2><span class="num">05</span>数据模型与关系</h2>
+  <p class="sub">复用现有表，只新增 2 张表与 2 个列（不新增 user_id，不引入新的身份维度，符合单机单用户规则）。主键与外键关系如下。</p>
+
+  <div class="fig">
+    <svg viewBox="0 0 1000 760" role="img" aria-label="数据关系图：策略、预测、结果、行情、证据、校准模型、执行动作、纸面账本、证书">
+      <defs>
+        <marker id="er1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+      </defs>
+
+      <!-- strategies -->
+      <rect x="20" y="24" width="250" height="150" rx="8" class="d-box"/>
+      <rect x="20" y="24" width="250" height="30" rx="8" class="d-box2"/>
+      <text x="34" y="44" class="d-title">strategies</text>
+      <text x="34" y="72" class="d-sub">id  PK</text>
+      <text x="34" y="90" class="d-sub">strategy_type</text>
+      <text x="34" y="108" class="d-sub">params (JSON)</text>
+      <text x="34" y="126" class="d-sub">status / incubation_stage</text>
+      <text x="34" y="144" class="d-sub">candidate_contract_hash</text>
+      <text x="34" y="162" class="d-sub">tested_object_hash</text>
+
+      <!-- predictions -->
+      <rect x="310" y="24" width="300" height="196" rx="8" class="d-box"/>
+      <rect x="310" y="24" width="300" height="30" rx="8" class="d-box2"/>
+      <text x="324" y="44" class="d-title">strategy_trade_predictions</text>
+      <text x="324" y="72" class="d-sub">prediction_id  PK</text>
+      <text x="324" y="90" class="d-sub">strategy_id  FK → strategies.id</text>
+      <text x="324" y="108" class="d-sub">stock_code · prediction_as_of</text>
+      <text x="324" y="126" class="d-sub">target_trading_date · horizon</text>
+      <text x="324" y="144" class="d-sub">direction · confidence</text>
+      <text x="324" y="162" class="d-sub" style="fill:var(--accent)">＋ calibrated_confidence　（新列）</text>
+      <text x="324" y="180" class="d-sub" style="fill:var(--accent)">＋ calibration_model_hash（新列）</text>
+      <text x="324" y="198" class="d-sub">contract_hash · contract_json</text>
+
+      <!-- outcomes -->
+      <rect x="650" y="24" width="330" height="196" rx="8" class="d-box"/>
+      <rect x="650" y="24" width="330" height="30" rx="8" class="d-box2"/>
+      <text x="664" y="44" class="d-title">strategy_trade_prediction_outcomes</text>
+      <text x="664" y="72" class="d-sub">outcome_id  PK</text>
+      <text x="664" y="90" class="d-sub">prediction_id  FK → predictions</text>
+      <text x="664" y="108" class="d-sub">score_version · score_status</text>
+      <text x="664" y="126" class="d-sub">trade_prediction_score</text>
+      <text x="664" y="144" class="d-sub">outcome_json（direction_hit 等）</text>
+      <text x="664" y="162" class="d-sub">data_quality_status</text>
+      <text x="664" y="180" class="d-sub">actual_trading_date</text>
+
+      <!-- kline -->
+      <rect x="20" y="240" width="250" height="140" rx="8" class="d-box2"/>
+      <rect x="20" y="240" width="250" height="30" rx="8" class="d-box2"/>
+      <text x="34" y="260" class="d-title">kline_1d</text>
+      <text x="34" y="288" class="d-sub">code · time (+08:00)</text>
+      <text x="34" y="306" class="d-sub">open / high / low / close</text>
+      <text x="34" y="324" class="d-sub">volume / amount</text>
+      <text x="34" y="342" class="d-sub">唯一键 (code, time)</text>
+      <text x="34" y="360" class="d-sub">判分按交易日对齐</text>
+
+      <!-- forward returns -->
+      <rect x="310" y="240" width="300" height="140" rx="8" class="d-box2"/>
+      <rect x="310" y="240" width="300" height="30" rx="8" class="d-box2"/>
+      <text x="324" y="260" class="d-title">signal_forward_returns</text>
+      <text x="324" y="288" class="d-sub">id PK · signal_id FK</text>
+      <text x="324" y="306" class="d-sub">forward_days (1/5/10/20/30)</text>
+      <text x="324" y="324" class="d-sub">actual_return</text>
+      <text x="324" y="342" class="d-sub">calculated_at</text>
+      <text x="324" y="360" class="d-sub">重叠窗口需归并，不作独立样本</text>
+
+      <!-- signal evidence -->
+      <rect x="650" y="240" width="330" height="140" rx="8" class="d-box2"/>
+      <rect x="650" y="240" width="330" height="30" rx="8" class="d-box2"/>
+      <text x="664" y="260" class="d-title">strategy_signal_evidence</text>
+      <text x="664" y="288" class="d-sub">signal_id · strategy_id · code</text>
+      <text x="664" y="306" class="d-sub">raw_confidence（231 行中 1 行有值）</text>
+      <text x="664" y="324" class="d-sub" style="fill:var(--accent)">calibrated_confidence（回填目标）</text>
+      <text x="664" y="342" class="d-sub">proxy_only · direction · horizon_days</text>
+      <text x="664" y="360" class="d-sub">payload (JSON evidence)</text>
+
+      <!-- calibration models (new) -->
+      <rect x="20" y="440" width="250" height="150" rx="8" class="d-new"/>
+      <rect x="20" y="440" width="250" height="30" rx="8" class="d-new"/>
+      <text x="34" y="460" class="d-title">calibration_models <tspan class="d-sub">新</tspan></text>
+      <text x="34" y="488" class="d-sub">model_hash PK</text>
+      <text x="34" y="506" class="d-sub">strategy_family · method</text>
+      <text x="34" y="524" class="d-sub">feature_version</text>
+      <text x="34" y="542" class="d-sub">fit_start · fit_end（封存点）</text>
+      <text x="34" y="560" class="d-sub">n_train · n_holdout</text>
+      <text x="34" y="578" class="d-sub">brier_holdout · brier_baseline · status</text>
+
+      <!-- executions (new) -->
+      <rect x="310" y="440" width="300" height="150" rx="8" class="d-new"/>
+      <rect x="310" y="440" width="300" height="30" rx="8" class="d-new"/>
+      <text x="324" y="460" class="d-title">prediction_executions <tspan class="d-sub">新</tspan></text>
+      <text x="324" y="488" class="d-sub">id PK · prediction_id FK</text>
+      <text x="324" y="506" class="d-sub">action: ordered | abstained</text>
+      <text x="324" y="524" class="d-sub">reason（abstain 原因码）</text>
+      <text x="324" y="542" class="d-sub">calibrated_confidence 快照</text>
+      <text x="324" y="560" class="d-sub">paper_order_id FK（可空）</text>
+      <text x="324" y="578" class="d-sub">created_at</text>
+
+      <!-- paper -->
+      <rect x="650" y="440" width="330" height="150" rx="8" class="d-box2"/>
+      <rect x="650" y="440" width="330" height="30" rx="8" class="d-box2"/>
+      <text x="664" y="460" class="d-title">paper_accounts / paper_trades / paper_nav</text>
+      <text x="664" y="488" class="d-sub">account_id · strategy_id</text>
+      <text x="664" y="506" class="d-sub">trade: trade_type · price · quantity</text>
+      <text x="664" y="524" class="d-sub">commission · trade_time · position_id</text>
+      <text x="664" y="542" class="d-sub">signal_id · source_order_id</text>
+      <text x="664" y="560" class="d-sub">nav: nav_date · total_value</text>
+      <text x="664" y="578" class="d-sub">round-trip = position_id 配对</text>
+
+      <!-- certificate -->
+      <rect x="310" y="630" width="670" height="96" rx="8" class="d-box"/>
+      <rect x="310" y="630" width="670" height="30" rx="8" class="d-box2"/>
+      <text x="324" y="650" class="d-title">tradeability_certificate（run artifact · 只读读取端）</text>
+      <text x="324" y="678" class="d-sub">certificate_hash · tested_object_hash · execution_contract_hash · data_snapshot_hash · gate_version</text>
+      <text x="324" y="696" class="d-sub">directional_scorecard 引用（n · hit_rate · LCB · brier · regime）· status · reason_codes · expires_at</text>
+      <text x="324" y="714" class="d-sub">任一证据/参数/模型/数据变更 → 证书 stale，必须重建</text>
+
+      <!-- relations -->
+      <line x1="270" y1="99" x2="308" y2="99" class="d-line" marker-end="url(#er1)"/>
+      <text x="276" y="92" class="d-sub">1 : N</text>
+      <line x1="610" y1="122" x2="648" y2="122" class="d-line" marker-end="url(#er1)"/>
+      <text x="614" y="115" class="d-sub">1 : N</text>
+      <line x1="460" y1="220" x2="460" y2="238" class="d-line" marker-end="url(#er1)"/>
+      <text x="466" y="234" class="d-sub">判分读取</text>
+      <line x1="145" y1="380" x2="145" y2="438" class="d-line" marker-end="url(#er1)"/>
+      <text x="151" y="414" class="d-sub">校准分派生于 outcomes</text>
+      <path d="M360,220 L360,438" class="d-line" marker-end="url(#er1)" stroke-dasharray="4 3"/>
+      <text x="366" y="332" class="d-sub">ordered/abstained</text>
+      <path d="M145,590 C145,610 260,610 310,640" class="d-line" marker-end="url(#er1)"/>
+      <path d="M460,590 L460,628" class="d-line" marker-end="url(#er1)"/>
+      <path d="M780,380 C780,420 900,470 900,628" class="d-line" marker-end="url(#er1)"/>
+      <path d="M960,517 C985,540 985,600 960,628" class="d-line" marker-end="url(#er1)" opacity="0"/>
+    </svg>
+  </div>
+  <p class="figcap">图 5 · 数据关系（ER）。灰色为现有表，青色为新增表/列。校准模型通过 <code>model_hash</code> 回填预测；执行动作表把「出手 / 不出手」都变成可审计样本；证书引用记分卡，任何输入变化都会使证书失效。</p>
+
+  <h3>新增 schema（DDL 片段）</h3>
+<pre><code><span class="cm">-- 1) 预测表增加校准列（ALTER TABLE ADD COLUMN IF NOT EXISTS，沿用现有 DDL 模式）</span>
+ALTER TABLE strategy_trade_predictions ADD COLUMN IF NOT EXISTS calibrated_confidence REAL;
+ALTER TABLE strategy_trade_predictions ADD COLUMN IF NOT EXISTS calibration_model_hash TEXT;
+
+<span class="cm">-- 2) 校准模型注册表</span>
+CREATE TABLE IF NOT EXISTS calibration_models (
+    model_hash       TEXT PRIMARY KEY,
+    strategy_family  TEXT NOT NULL,
+    method           TEXT NOT NULL,          <span class="cm">-- platt | isotonic</span>
+    feature_version  TEXT NOT NULL,
+    fit_start        TEXT NOT NULL,
+    fit_end          TEXT NOT NULL,
+    n_train          INTEGER NOT NULL,
+    n_holdout        INTEGER NOT NULL,
+    brier_holdout    REAL,
+    brier_baseline   REAL NOT NULL,          <span class="cm">-- 0.25（p=0.5 常数基线的 Brier）</span>
+    status           TEXT NOT NULL,          <span class="cm">-- active | rejected | retired</span>
+    created_at       TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+<span class="cm">-- 3) 执行动作表（ordered 与 abstained 都是样本）</span>
+CREATE TABLE IF NOT EXISTS prediction_executions (
+    id                     TEXT PRIMARY KEY,
+    prediction_id          TEXT NOT NULL,
+    action                 TEXT NOT NULL CHECK (action IN ('ordered','abstained')),
+    reason                 TEXT,
+    calibrated_confidence  REAL,
+    calibration_model_hash TEXT,
+    paper_order_id         TEXT,
+    created_at             TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_prediction_executions_prediction
+    ON prediction_executions(prediction_id);</code></pre>
+</section>
+
+<!-- ============ 6 代码证据 ============ -->
+<section id="code">
+  <h2><span class="num">06</span>代码证据：现状判断的每一行出处</h2>
+  <p class="sub">下表是本方案对「已有什么、缺什么」的事实依据，全部来自当前工作树，路径相对仓库根目录。</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th style="width:300px">位置</th><th>内容</th><th style="width:90px">状态</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">akshare-mcp/.../trade_prediction_verifier.py:257</td><td><code>_daily_outcome</code>：目标日 open→close，持平带 0.2%，风险代理分权重 0.55/0.25/0.20</td><td><span class="tag">已有</span></td></tr>
+      <tr><td class="mono">akshare-mcp/.../trade_prediction_verifier.py:439</td><td><code>IntradayReplayService</code>：日内回放判分；实测 0 行进入 scored</td><td><span class="tag">骨架</span></td></tr>
+      <tr><td class="mono">akshare-mcp/.../hit_rate_reporter.py:54</td><td>命中率仪表盘：整体 / 按族 / 按阶段 / regime 矩阵 / 趋势</td><td><span class="tag">已有</span></td></tr>
+      <tr><td class="mono">akshare-mcp/.../forward_verifier.py:407</td><td><code>_compute_skill_lcb</code>：Wilson 下界 − 0.5 随机基线（n&lt;5 返回 0）</td><td><span class="tag ok">可复用</span></td></tr>
+      <tr><td class="mono">strategy-factory/.../trade_prediction_promotion_gate.py:15</td><td><code>min_sample_n=30</code>、<code>min_score_lcb_95=0.55</code>、score_version v2</td><td><span class="tag">已有</span></td></tr>
+      <tr><td class="mono">strategy-factory/.../_runtime_toggles.py:229</td><td>预测晋升门禁开关被硬编码 <code>return False</code>（仅诊断，不阻断）</td><td><span class="tag bad">关闭</span></td></tr>
+      <tr><td class="mono">strategy-factory/.../research/runner.py:545</td><td>confidence 兜底 0.45，<code>confidence_source=target_injection_diagnostic_fallback</code></td><td><span class="tag bad">非概率</span></td></tr>
+      <tr><td class="mono">quant-core/.../storage/sqlite/strategy_trade_prediction.py:145</td><td><code>save_strategy_trade_prediction</code>；:331 写 outcome；:486 汇总；:564 矩阵聚合</td><td><span class="tag ok">可复用</span></td></tr>
+      <tr><td class="mono">strategy-factory/.../infrastructure/factory_schema_ddl.py:238</td><td>预测 / 结果表 DDL 与索引（<code>CREATE TABLE IF NOT EXISTS</code> 模式）</td><td><span class="tag ok">可复用</span></td></tr>
+      <tr><td class="mono">strategy-factory/.../research/paper_trading_bridge.py:352</td><td><code>run_daily_signals</code>：逐标的已收盘 bar 信号、候选哈希绑定、幂等 key</td><td><span class="tag ok">可复用</span></td></tr>
+      <tr><td class="mono">strategy-factory/.../application/tradeability_gate.py:32</td><td><code>TRADEABILITY_THRESHOLDS</code> 冻结阈值、gate v1、证书构建与失效校验</td><td><span class="tag ok">扩展点</span></td></tr>
+      <tr><td class="mono">strategy-factory/.../research/paper_trading_bridge.py:506</td><td><code>evaluate_promotion</code>：60 有效交易日、30 round-trip、阈值实际执行</td><td><span class="tag ok">已实现</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout">
+    <p><b>测量口径说明：</b>本方案所有「当前实测」数字均为只读 SQL 复算：可判分率 = <code>direction_hit IS NOT NULL</code> 的行数 ÷ outcome 总行数；命中率 = <code>direction_hit=1</code> ÷ 可判分行数；前向收益基线 = <code>signal_forward_returns.actual_return&gt;0</code> 的比例。</p>
+  </div>
+</section>
+
+<!-- ============ 7 工作包 ============ -->
+<section id="wp">
+  <h2><span class="num">07</span>工作包：接口、改动文件、测试</h2>
+  <p class="sub">按依赖顺序排列。WP-A 与 WP-B 可并行开工；WP-C 依赖 WP-B；WP-D 依赖 A/C；WP-E 是条件启动的研究支线。</p>
+
+  <div class="grid" style="gap:16px">
+    <div class="wp">
+      <div class="row"><h3>WP-A · 多 horizon 判分器</h3><span class="tag new">新增</span><span class="tag">1.5 周</span></div>
+      <div class="body">
+        <p><b>目标：</b>把 88% 的 null 判分变成可判分，并让 5d/10d/15d/20d 的预测有对应的净收益方向判分。</p>
+        <p><b>接口：</b></p>
+      </div>
+<pre><code><span class="cm"># akshare_mcp/services/incubation_factory/horizon_scorer.py</span>
+class HorizonScorer:
+    def score(self, prediction: dict, bars: list[dict], *,
+              cost_rate: float = 0.0025) -> dict:
+        """返回 outcome dict；缺 bar → direction_hit=None + reason。"""
+
+SCORE_VERSION = "trade_prediction_score_horizon_v1"</code></pre>
+      <div class="body">
+        <p><b>改动：</b>新增 <code>horizon_scorer.py</code>；<code>trade_prediction_verifier.py</code> 的 <code>verify_pending</code> 按 horizon 路由；存储层汇总按新 <code>score_version</code> 分组。</p>
+        <p><b>规则：</b>入场 = <code>as_of</code> 后第 1 个交易日开盘；结算 = 第 k 个交易日收盘；跳过停牌日并记录；净收益扣除双边成本；方向命中用 0.2% 持平带；<code>neutral</code> 不计方向样本。</p>
+      </div>
+      <div class="files">测试：packages/akshare-mcp/tests/test_horizon_scorer.py（命中/不命中/null 三分支；停牌跳过；成本扣除；幂等）</div>
+    </div>
+
+    <div class="wp">
+      <div class="row"><h3>WP-B · 校准层</h3><span class="tag new">新增</span><span class="tag">2 周</span></div>
+      <div class="body">
+        <p><b>目标：</b>把「规则 confidence」映射成有频率含义的 <code>calibrated_confidence</code>，并用封存 holdout 证明映射有效。</p>
+        <p><b>接口：</b></p>
+      </div>
+<pre><code><span class="cm"># aiask_quant_core/calibration.py</span>
+def fit_platt(features: np.ndarray, hits: np.ndarray, *,
+              fit_end: str) -> dict        <span class="cm"># {"model":..., "model_hash":..., "brier":...}</span>
+def fit_isotonic(features, hits, *, fit_end: str) -> dict
+def brier_score(probs, hits) -> float
+def reliability_curve(probs, hits, bins: int = 10) -> list[dict]
+
+class CalibrationService:
+    async def fit_family(self, db, family: str) -> dict
+    async def apply(self, db, predictions: list[dict]) -> list[dict]</code></pre>
+      <div class="body">
+        <p><b>规则：</b>按时间切分（<code>fit_end</code> 之前训练、之后封存）；holdout Brier 必须优于 0.5 常数基线（0.25）才允许 <code>status=active</code>；样本不足（&lt;100 独立块）拒绝拟合；模型注册进 <code>calibration_models</code>，预测回填 <code>calibrated_confidence</code> 与 <code>calibration_model_hash</code>；无 active 模型时保持 null。</p>
+        <p><b>特征：</b>原始 confidence、horizon、strategy_family、市场状态、信号强度分位——全部在预测时刻可得，禁止使用目标日 bar。</p>
+      </div>
+      <div class="files">测试：packages/aiask-quant-core/tests/test_calibration.py（已知概率源恢复；跨封存点拒绝；样本不足拒绝；Brier 基线门禁；模型哈希失效）</div>
+    </div>
+
+    <div class="wp">
+      <div class="row"><h3>WP-C · 选择性出手门禁</h3><span class="tag new">新增</span><span class="tag">1.5 周</span></div>
+      <div class="body">
+        <p><b>目标：</b>只在高置信时发纸面单，低置信一律 abstain 并入库；任何校准缺失都 fail-closed。</p>
+        <p><b>接口：</b></p>
+      </div>
+<pre><code><span class="cm"># strategy_factory/application/research/selective_gate.py</span>
+MIN_CALIBRATED_CONFIDENCE = 0.85
+
+async def decide(prediction: dict) -> dict:
+    """{"action":"ordered"|"abstained","reason":str|None}"""
+
+<span class="cm"># paper_trading_bridge.run_daily_signals 中，发单前调用</span></code></pre>
+      <div class="body">
+        <p><b>改动：</b>新增 <code>selective_gate.py</code>；<code>paper_trading_bridge.py</code> 发单前读取预测与校准分；scheduler 统计 <code>abstain_count</code>；新增 <code>prediction_executions</code> 写入。</p>
+        <p><b>失败路径：</b>无预测 → <code>prediction_missing</code>；无校准模型 → <code>calibration_unavailable</code>；低于阈值 → <code>below_threshold</code>；全部写 abstain，不发单。</p>
+      </div>
+      <div class="files">测试：packages/strategy-factory/tests/test_selective_gate.py（边界 0.85、缺失即 abstain、幂等、与 paper 单绑定）</div>
+    </div>
+
+    <div class="wp">
+      <div class="row"><h3>WP-D · 方向记分卡与 gate v2</h3><span class="tag new">新增</span><span class="tag">1 周</span></div>
+      <div class="body">
+        <p><b>目标：</b>把命中率、样本量、置信区间、校准质量、状态覆盖与 abstain 率做成一张可复核记分卡，并接入预注册门禁。</p>
+        <p><b>接口：</b></p>
+      </div>
+<pre><code><span class="cm"># akshare_mcp/services/incubation_factory/directional_scorecard.py</span>
+def summarize_directional(outcomes: list[dict], *, block_key=("stock_code","prediction_as_of")) -> dict:
+    """n_independent, hits, hit_rate, wilson_lcb95, brier, regimes, abstain_rate"""
+
+<span class="cm"># TRADEABILITY_THRESHOLDS（gate v2，升版本）</span>
+"directional_hit_rate_lcb95_min": 0.80,
+"directional_min_independent_predictions": 200,
+"directional_min_regime_coverage": 2,
+"selective_trading_min_calibrated_confidence": 0.85,</code></pre>
+      <div class="body">
+        <p><b>改动：</b>新增记分卡模块；<code>hit_rate_reporter.py</code> 挂 <code>directional_hit_scorecard</code> 段；<code>trade_prediction_promotion_gate.py</code> 增 <code>directional_v1</code> 聚合路径；新增 <code>check_hitrate_milestones.py</code>（<code>check_*.py</code> 命名，避免被 pytest 当单测收集）。</p>
+      </div>
+      <div class="files">测试：packages/akshare-mcp/tests/test_directional_scorecard.py（独立样本归并、Wilson LCB、regime 覆盖、abstain 率）</div>
+    </div>
+
+    <div class="wp">
+      <div class="row"><h3>WP-E · 学习型方向模型</h3><span class="tag research">研究 · 决策门后启动</span><span class="tag">4–6 周</span></div>
+      <div class="body">
+        <p><b>启动条件：</b>WP-B 完成后，若校准曲线在 <code>calibrated ≥ 0.85</code> 段实测命中率 ≥65%，才继续投入；否则报告「85% 不可达」并停止。</p>
+        <p><b>内容：</b>特征工程（量价形态、财务、事件，全部点时可得）→ 梯度提升二分类 → 时间外 OOS（purged k-fold + embargo，复用 <code>validation.py</code>）→ 概率输出进入 WP-B 校准 → WP-C 门禁。</p>
+        <p><b>硬约束：</b>OOS 样本不足、计算失败、特征含未来数据 → 一律 fail-closed，不产出可用模型。</p>
+      </div>
+      <div class="files">测试：packages/strategy-factory/tests/test_direction_model_oos.py + 泄漏注入负向测试</div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 8 周期 ============ -->
+<section id="plan">
+  <h2><span class="num">08</span>开发周期</h2>
+  <p class="sub">工程 4.5 周串行完成，W5–W6 决策门，WP-E 条件启动。真正决定 85% 能否达成的是证据积累期：n=200 个独立判分必须由真实交易日堆出来。</p>
+
+  <div class="fig">
+    <svg viewBox="0 0 1000 430" role="img" aria-label="开发周期甘特图：WP-A 到 WP-E、决策门、证据积累">
+      <defs>
+        <marker id="g1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="var(--muted)"/></marker>
+      </defs>
+      <!-- grid -->
+      <g>
+        <line x1="170" y1="50" x2="170" y2="380" class="axis"/>
+        <line x1="170" y1="380" x2="970" y2="380" class="axis"/>
+        <line x1="330" y1="50" x2="330" y2="380" class="gridl"/>
+        <line x1="490" y1="50" x2="490" y2="380" class="gridl"/>
+        <line x1="650" y1="50" x2="650" y2="380" class="gridl"/>
+        <line x1="810" y1="50" x2="810" y2="380" class="gridl"/>
+        <text x="250" y="42" class="lbl" text-anchor="middle">W1–W2 · 10/22–11/04</text>
+        <text x="410" y="42" class="lbl" text-anchor="middle">W3–W4 · 11/05–11/18</text>
+        <text x="570" y="42" class="lbl" text-anchor="middle">W5 · 11/19–11/25</text>
+        <text x="730" y="42" class="lbl" text-anchor="middle">W6 · 11/26–12/02</text>
+        <text x="890" y="42" class="lbl" text-anchor="middle">W7+ · 12/03 起</text>
+      </g>
+      <!-- rows -->
+      <text x="20" y="80" class="d-mono">WP-A 判分器</text>
+      <rect x="170" y="64" width="160" height="24" rx="5" class="d-new"/>
+      <text x="178" y="81" class="d-sub">1.5 周</text>
+
+      <text x="20" y="120" class="d-mono">WP-B 校准层</text>
+      <rect x="250" y="104" width="200" height="24" rx="5" class="d-new"/>
+      <text x="258" y="121" class="d-sub">2 周（可与 A 并行）</text>
+
+      <text x="20" y="160" class="d-mono">WP-C 出手门禁</text>
+      <rect x="450" y="144" width="160" height="24" rx="5" class="d-new"/>
+      <text x="458" y="161" class="d-sub">1.5 周</text>
+
+      <text x="20" y="200" class="d-mono">WP-D 记分卡</text>
+      <rect x="610" y="184" width="130" height="24" rx="5" class="d-new"/>
+      <text x="618" y="201" class="d-sub">1 周</text>
+
+      <text x="20" y="240" class="d-mono">决策门</text>
+      <polygon points="650,228 690,248 650,268 610,248" class="d-res"/>
+      <text x="700" y="252" class="d-sub">校准曲线 ≥65% 才启动 WP-E</text>
+
+      <text x="20" y="280" class="d-mono">WP-E 学习模型</text>
+      <rect x="690" y="264" width="220" height="24" rx="5" class="d-res"/>
+      <text x="698" y="281" class="d-sub">4–6 周（条件）</text>
+
+      <text x="20" y="320" class="d-mono">证据积累</text>
+      <rect x="450" y="304" width="460" height="24" rx="5" class="d-ok"/>
+      <text x="458" y="321" class="d-sub">≥60 交易日 · n≥200 独立判分 · ≥2 regimes</text>
+
+      <text x="20" y="360" class="d-mono">验收</text>
+      <rect x="910" y="344" width="56" height="24" rx="5" class="d-box2"/>
+      <text x="916" y="361" class="d-sub">重评</text>
+      <line x1="910" y1="328" x2="910" y2="342" class="d-line" marker-end="url(#g1)"/>
+      <text x="20" y="406" class="d-sub">工程里程碑：11/04 判分可用 → 11/18 校准可回填 → 12/02 门禁上线 → 之后进入按交易日的证据积累。</text>
+    </svg>
+  </div>
+  <p class="figcap">图 6 · 开发周期。甘特为计划值；证据积累期长度取决于每日可判分预测数与选择率，不能由工程周期保证。</p>
+
+  <div class="tablewrap"><table>
+    <thead><tr><th style="width:120px">阶段</th><th style="width:170px">日期</th><th>退出条件</th></tr></thead>
+    <tbody>
+      <tr><td>WP-A</td><td class="mono">10/22 – 11/04</td><td>可判分率从 11.8%（outcome 口径）提升到 &gt;70%；null 仅剩真实数据缺口</td></tr>
+      <tr><td>WP-B</td><td class="mono">10/30 – 11/18</td><td><code>calibration_models</code> 可注册、可回填；holdout Brier 门禁跑通</td></tr>
+      <tr><td>WP-C</td><td class="mono">11/12 – 11/25</td><td>低置信 abstain 行为全绿；paper 单只在高置信时出现</td></tr>
+      <tr><td>WP-D</td><td class="mono">11/19 – 12/02</td><td>记分卡上线；gate v2 阈值冻结并写入证书</td></tr>
+      <tr><td>决策门</td><td class="mono">12/02 – 12/09</td><td>校准曲线报告；≥65% → 启动 WP-E；否则报告不可达</td></tr>
+      <tr><td>WP-E</td><td class="mono">12/09 – 01/20</td><td>OOS 方向模型 + 校准通过门禁（条件启动）</td></tr>
+      <tr><td>证据积累</td><td class="mono">11/25 起持续</td><td>n≥200 独立判分、LCB&gt;0.80、Brier 胜基线、≥2 regimes</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============ 9 验收 ============ -->
+<section id="accept">
+  <h2><span class="num">09</span>验收方案</h2>
+  <p class="sub">工程验收按工作包独立执行；统计验收只在证据齐备时判定。所有行为断言调用真实函数或真实 SQLite 临时库，禁止源码字符串匹配。</p>
+
+  <h3>统计验收矩阵</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th>判据</th><th style="width:170px">阈值</th><th>证据来源</th><th style="width:110px">判定</th></tr></thead>
+    <tbody>
+      <tr><td>方向命中率</td><td class="mono">Wilson 95% LCB &gt; 0.80</td><td>directional scorecard，扣成本、独立块归并</td><td><span class="tag ok">硬门槛</span></td></tr>
+      <tr><td>独立样本量</td><td class="mono">n ≥ 200</td><td>按 (stock_code, prediction_as_of) 归并</td><td><span class="tag ok">硬门槛</span></td></tr>
+      <tr><td>校准质量</td><td class="mono">Brier &lt; 0.25（0.5 基线）</td><td>封存 holdout 区间</td><td><span class="tag ok">硬门槛</span></td></tr>
+      <tr><td>市场状态覆盖</td><td class="mono">≥ 2 个 regime</td><td>hit_rate_matrix 的 regime 维度</td><td><span class="tag ok">硬门槛</span></td></tr>
+      <tr><td>经济性</td><td class="mono">PF ≥ 1.5 · 净收益 LCB &gt; 0</td><td>paper round-trip 净 PnL</td><td><span class="tag ok">并行判据</span></td></tr>
+      <tr><td>不达标处理</td><td class="mono">不降阈值</td><td>报告实测值 + 差值 + 下一里程碑</td><td><span class="tag bad">fail-closed</span></td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>行为控制</h3>
+  <div class="tablewrap"><table>
+    <thead><tr><th style="width:80px">类型</th><th>控制项</th><th>期望行为</th></tr></thead>
+    <tbody>
+      <tr><td><span class="tag ok">正向</span></td><td>合成数据：已知 0.9 方向概率的预测流（n=220）</td><td>记分卡给出 hit_rate≈0.9、LCB&gt;0.85；gate v2 判定通过并生成证书</td></tr>
+      <tr><td><span class="tag ok">正向</span></td><td>校准器输入已知概率源</td><td>可靠性曲线贴近对角线；Brier 显著低于 0.25</td></tr>
+      <tr><td><span class="tag ok">正向</span></td><td>高置信（真实 85%）信号进入纸面</td><td>全部 ordered，无 abstain</td></tr>
+      <tr><td><span class="tag bad">负向</span></td><td>同标的同日期多个重叠预测</td><td>归并后 n 不变，不重复计数</td></tr>
+      <tr><td><span class="tag bad">负向</span></td><td>校准模型使用封存点之后的数据</td><td>模型拒绝上线（status=rejected）</td></tr>
+      <tr><td><span class="tag bad">负向</span></td><td>无校准模型/校准分缺失</td><td>WP-C 一律 abstain，不发纸面单</td></tr>
+      <tr><td><span class="tag bad">负向</span></td><td>停牌/缺 bar/未闭环</td><td>direction_hit=null + 原因码，不填 0/1</td></tr>
+      <tr><td><span class="tag bad">负向</span></td><td>旧 gate v1 证书在 v2 上线后被读取</td><td><code>certificate_stale_gate_version</code>，拒绝承认</td></tr>
+      <tr><td><span class="tag bad">负向</span></td><td>点估计 0.85 但 LCB &lt; 0.80</td><td>不判定达标，报告样本不足</td></tr>
+      <tr><td><span class="tag bad">负向</span></td><td>abstain 未入库直接丢弃</td><td>测试失败：选择性偏差不可审计</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>回归命令</h3>
+<pre><code>cd packages/akshare-mcp      &amp;&amp; /opt/miniconda3/envs/aiask/bin/python -m pytest -q
+cd packages/aiask-quant-core &amp;&amp; /opt/miniconda3/envs/aiask/bin/python -m pytest -q
+cd packages/strategy-factory &amp;&amp; /opt/miniconda3/envs/aiask/bin/python -m pytest -q
+
+<span class="cm"># 真实库只读核验（禁止写库）</span>
+/opt/miniconda3/envs/aiask/bin/python scripts/check_hitrate_milestones.py --read-only</code></pre>
+
+  <h3>里程碑</h3>
+  <ul>
+    <li><b>M0（工程完成）</b>：三包全绿；记分卡可运行；证书可生成且可失效。</li>
+    <li><b>M1（n=50）</b>：报告首批实测命中率与 LCB；确认数据缺口只剩真实停牌。</li>
+    <li><b>M2（n=100）</b>：校准曲线稳定性检查；regime 覆盖是否达到 2 个。</li>
+    <li><b>M3（n=200）</b>：正式判定 85% 判据；通过则推进状态，不通过则报告差距与下一里程碑。</li>
+    <li><b>M4（决策门）</b>：决定是否投入 WP-E；不满足条件时明确记录「不可达」结论。</li>
+  </ul>
+</section>
+
+<!-- ============ 10 风险 ============ -->
+<section id="risk">
+  <h2><span class="num">10</span>风险与诚实声明</h2>
+  <div class="grid g2">
+    <div class="card">
+      <h4>统计风险</h4>
+      <p class="small">多重检验：8,932 个策略里挑高命中率，PBO/DSR 失败率极高；因此所有判据必须绑定同一候选身份并做多重检验校正。重叠窗口与同标的多策略会制造虚假样本。</p>
+    </div>
+    <div class="card">
+      <h4>数据风险</h4>
+      <p class="small">88% null 主要来自缺分钟 bar 与目标日未到；补数据是独立工作包，不能用估算填充。判分日由数据推导，不用墙钟。</p>
+    </div>
+    <div class="card">
+      <h4>样本饥饿</h4>
+      <p class="small">选择性交易下手数骤降；n=200 独立判分可能需要数月。期间「0 交易」是正常状态，不是故障。</p>
+    </div>
+    <div class="card">
+      <h4>高胜率陷阱</h4>
+      <p class="small">高胜率常伴随烂盈亏比；因此命中率必须与 PF≥1.5、净收益 LCB&gt;0 并行判定，单看命中率会被骗。</p>
+    </div>
+  </div>
+
+  <div class="callout bad" style="margin-top:20px">
+    <p><b>诚实声明：</b>本方案不承诺 85% 一定可达。它承诺的是：如果证据达到 85%，系统会以不可绕过的方式判定并记录；如果达不到，系统会给出实测值、置信区间、缺口原因与下一次重评所需的数据里程碑。任何声称「保证 85%」的系统都在隐瞒分布。</p>
+    <p>本方案不启用真实资金交易，不接入券商，不构成任何收益承诺或实盘授权。</p>
+  </div>
+</section>
+
+<footer>
+  <p>依据：<code>docs/STRATEGY_TRADEABILITY_STANDARD.md</code> · <code>docs/PREDICTION_HITRATE_85_PLAN.md</code> · 运行库只读复算 2026-10-21 · 所有阈值改动需升 gate 版本并留下独立校准证据。</p>
+</footer>
+</div>
