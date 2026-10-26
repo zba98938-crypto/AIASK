@@ -72,15 +72,19 @@ def _configure_env() -> Path:
     ensure_runtime_dirs()
     os.environ.setdefault("PYTHONIOENCODING", "utf-8")
     # Prefer direct public endpoints; system proxy on this host often breaks Eastmoney.
-    for key in (
-        "HTTP_PROXY",
-        "HTTPS_PROXY",
-        "http_proxy",
-        "https_proxy",
-        "ALL_PROXY",
-        "all_proxy",
-    ):
-        os.environ.pop(key, None)
+    # Exception: when FREE_DATA_DAILY_TRUST_ENV is set, the machine's only egress
+    # IS the proxy (sandboxed terminals), so keep it for both this script's
+    # sessions and the library code that honors env proxies.
+    if os.getenv("FREE_DATA_DAILY_TRUST_ENV", "").strip().lower() not in {"1", "true", "yes", "on"}:
+        for key in (
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "http_proxy",
+            "https_proxy",
+            "ALL_PROXY",
+            "all_proxy",
+        ):
+            os.environ.pop(key, None)
     db_path = default_sqlite_path()
     os.environ.setdefault("AIASK_SQLITE_PATH", str(db_path))
     os.environ.setdefault("AKSHARE_MCP_SQLITE_PATH", str(db_path))
@@ -116,11 +120,29 @@ def _sina_symbol(code: str) -> str:
     return "sz" + text
 
 
-def _fetch_sina_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any]]:
+def _new_session() -> "requests.Session":
+    """Session for outbound kline fetches.
+
+    Default is direct egress (``trust_env = False``), which is what the channel
+    chain's agreement measurements assume. On machines whose only outbound
+    path is an HTTP(S) proxy (sandboxed terminals, CI), set
+    ``FREE_DATA_DAILY_TRUST_ENV=1`` to route through the proxy instead. The
+    agreement gates are transport-agnostic: they guard the written bars, not
+    how they arrived.
+    """
     import requests
 
     session = requests.Session()
+    if os.getenv("FREE_DATA_DAILY_TRUST_ENV", "").strip().lower() in {"1", "true", "yes", "on"}:
+        return session
     session.trust_env = False
+    return session
+
+
+def _fetch_sina_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any]]:
+    import requests
+
+    session = _new_session()
     url = (
         "https://money.finance.sina.com.cn/quotes_service/api/"
         "json_v2.php/CN_MarketData.getKLineData"
@@ -229,10 +251,7 @@ def _tencent_symbol(code: str) -> str:
 def _fetch_eastmoney_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any]]:
     """East money daily bars, unadjusted, with 手 converted to 股."""
 
-    import requests
-
-    session = requests.Session()
-    session.trust_env = False
+    session = _new_session()
     response = session.get(
         "https://push2his.eastmoney.com/api/qt/stock/kline/get",
         params={
@@ -279,8 +298,7 @@ def _fetch_tencent_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any
     import requests
 
     symbol = _tencent_symbol(code)
-    session = requests.Session()
-    session.trust_env = False
+    session = _new_session()
     response = session.get(
         "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get",
         params={"param": f"{symbol},day,,,{int(datalen)},"},

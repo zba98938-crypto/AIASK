@@ -50,6 +50,15 @@ def fake_pytdx(monkeypatch):
 
 def test_the_hq_client_is_built_without_a_heartbeat_thread(monkeypatch, fake_pytdx) -> None:
     source = tdx_local.TdxLocalSource()
+    # ``TdxLocalSource`` is a singleton whose env-derived flags are read once at
+    # first construction. Other tests in the suite set ``TDX_LOCAL_ONLY=1`` or
+    # trigger a real connect failure (which starts the 30 s cooldown), so
+    # without this reset the client is never constructed and the assertion
+    # below would pass or fail depending on test order rather than behaviour.
+    monkeypatch.setattr(source, "_local_only", False, raising=False)
+    monkeypatch.setattr(source, "_hq_api", None, raising=False)
+    monkeypatch.setattr(source, "_hq_server", None, raising=False)
+    monkeypatch.setattr(source, "_last_hq_failure_at", 0.0, raising=False)
     monkeypatch.setattr(source, "_servers", [("127.0.0.1", 7709)], raising=False)
 
     api = source._ensure_hq()
