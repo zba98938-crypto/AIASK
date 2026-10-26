@@ -43,3 +43,10 @@ tmp/
 .env
 .env.*
 !.env.example
+
+# Sandboxed-runner state. .aiask-local holds a multi-GB snapshot of the runtime
+# DB; scripts_local_bootstrap redirects runners to it via a machine-specific
+# path. Neither is authoritative (see docs/DATA_SOURCES.md §10).
+.aiask-local/
+scripts_local_bootstrap/
+.learnings/
