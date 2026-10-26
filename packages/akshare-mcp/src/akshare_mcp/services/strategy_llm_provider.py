@@ -53,6 +53,8 @@ class StrategyLLMConfig:
     compatibility_cooldown_sec: float = 120.0
     max_concurrency: int = 3
     strict: bool = False
+    # 网关思考等级(OpenAI 兼容网关的 reasoning_effort):off/空 时不发送该参数。
+    reasoning_effort: str = ""
 
     @classmethod
     def from_env(cls) -> "StrategyLLMConfig":
@@ -125,6 +127,7 @@ class StrategyLLMConfig:
             compatibility_minimal_streak=max(1, min(8, int(os.getenv("STRATEGY_LLM_COMPATIBILITY_MINIMAL_STREAK", "3") or 3))),
             max_concurrency=max(1, min(16, int(os.getenv("STRATEGY_LLM_MAX_CONCURRENCY", "3") or 3))),
             strict=str(os.getenv("STRATEGY_LLM_STRICT_MODE", "")).strip().lower() in {"1", "true", "yes", "on"},
+            reasoning_effort=str(os.getenv("STRATEGY_LLM_REASONING_EFFORT", "") or "").strip().lower(),
         )
 
 from ._strategy_llm_provider_normalize import _StrategyLLMProviderNormalizeMixin

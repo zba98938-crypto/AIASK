@@ -58,6 +58,8 @@ class FactorLLMConfig:
     smoke_check_ttl_sec: float = 300.0
     max_concurrency: int = 3
     strict: bool = False
+    # 网关思考等级(OpenAI 兼容网关的 reasoning_effort):空/未设置时不发送该参数。
+    reasoning_effort: str = ""
 
     @classmethod
     def from_env(cls) -> "FactorLLMConfig":
@@ -171,6 +173,11 @@ class FactorLLMConfig:
                 min(8, _env_int("FACTOR_LLM_MAX_CONCURRENCY", fallback="STRATEGY_LLM_MAX_CONCURRENCY", default=3)),
             ),
             strict=_env_bool("FACTOR_LLM_STRICT_MODE", fallback="STRATEGY_LLM_STRICT_MODE", default=False),
+            # 网关思考等级:跟随 STRATEGY_LLM_REASONING_EFFORT(空 = 不发送)。
+            reasoning_effort=_env_text(
+                "FACTOR_LLM_REASONING_EFFORT",
+                fallback="STRATEGY_LLM_REASONING_EFFORT",
+            ).lower(),
         )
 
 
@@ -1194,6 +1201,11 @@ class FactorLLMProvider:
                 {"role": "user", "content": user_prompt},
             ],
         }
+        # 网关思考等级：STRATEGY_LLM_REASONING_EFFORT=max 时发送 reasoning_effort。
+        # 空/off 不发，旧网关行为不变（实测 ai.anna.tf 接受 max 并返回 reasoning_content）。
+        _reasoning_effort = str(getattr(self.config, "reasoning_effort", "") or "").strip().lower()
+        if _reasoning_effort and _reasoning_effort not in {"off", "none", "disabled"}:
+            request_payload["reasoning_effort"] = _reasoning_effort
 
         last_error: Optional[FactorLLMRequestError] = None
         compatibility_metrics = self._active_compatibility_failure()

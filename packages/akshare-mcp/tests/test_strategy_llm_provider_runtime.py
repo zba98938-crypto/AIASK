@@ -643,3 +643,63 @@ def test_runtime_cooldown_fallbacks_are_lenient_for_partial_config() -> None:
         assert 0 < provider._compatibility_cooldown_until - time.monotonic() <= 120.0
     finally:
         asyncio.run(provider.close())
+
+
+def test_strategy_llm_sends_reasoning_effort_when_configured() -> None:
+    """STRATEGY_LLM_REASONING_EFFORT 配置后，call_stage payload 必须带上 reasoning_effort。"""
+    captured_payloads: list[dict] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured_payloads.append(json.loads(request.content.decode("utf-8")))
+        return _chat_response('{"confirmations":[{"code":"000001","score":0.7,"confirmed":true}]}')
+
+    provider = _provider_with_handler(handler, stage_retry_count=0)
+    provider.config = SimpleNamespace(
+        **{**vars(provider.config), "reasoning_effort": "max"},
+    )
+
+    async def _run() -> dict:
+        try:
+            _pin_mock_client_to_current_loop(provider)
+            return await provider.call_stage(
+                stage_id="market_confirmation",
+                input_data={"topic": "test"},
+                system_prompt="Return JSON.",
+            )
+        finally:
+            await provider.close()
+
+    result = asyncio.run(_run())
+    assert result["confirmations"][0]["code"] == "000001"
+    assert len(captured_payloads) == 1
+    assert captured_payloads[0]["reasoning_effort"] == "max"
+    # 请求体其余字段不受影响
+    assert captured_payloads[0]["model"] == "test-model"
+    assert captured_payloads[0]["response_format"] == {"type": "json_object"}
+
+
+def test_strategy_llm_omits_reasoning_effort_when_unset() -> None:
+    """未配置（默认空串）时 payload 不得携带 reasoning_effort —— 旧网关行为不变。"""
+    captured_payloads: list[dict] = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        captured_payloads.append(json.loads(request.content.decode("utf-8")))
+        return _chat_response('{"confirmations":[{"code":"000001","score":0.7,"confirmed":true}]}')
+
+    provider = _provider_with_handler(handler, stage_retry_count=0)
+
+    async def _run() -> dict:
+        try:
+            _pin_mock_client_to_current_loop(provider)
+            return await provider.call_stage(
+                stage_id="market_confirmation",
+                input_data={"topic": "test"},
+                system_prompt="Return JSON.",
+            )
+        finally:
+            await provider.close()
+
+    result = asyncio.run(_run())
+    assert result["confirmations"][0]["code"] == "000001"
+    assert len(captured_payloads) == 1
+    assert "reasoning_effort" not in captured_payloads[0]

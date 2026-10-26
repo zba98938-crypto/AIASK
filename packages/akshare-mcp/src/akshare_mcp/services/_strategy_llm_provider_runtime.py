@@ -73,6 +73,10 @@ class StrategyLLMConfig:
     compatibility_cooldown_sec: float = 120.0
     max_concurrency: int = 3
     strict: bool = False
+    # 网关思考等级(OpenAI 兼容网关的 reasoning_effort):off 时不发送该参数。
+    # 实测 ai.anna.tf 接受 "max"(思考开最高),响应里带 reasoning_content,
+    # 由 _append_text_fragments 既有收集路径消化,JSON 提取不受影响。
+    reasoning_effort: str = ""
 
     @classmethod
     def from_env(cls) -> "StrategyLLMConfig":
@@ -123,6 +127,7 @@ class StrategyLLMConfig:
             compatibility_cooldown_sec=max(0.0, float(os.getenv("STRATEGY_LLM_COMPATIBILITY_COOLDOWN_SEC", "120") or 120)),
             max_concurrency=max(1, min(16, int(os.getenv("STRATEGY_LLM_MAX_CONCURRENCY", "3") or 3))),
             strict=str(os.getenv("STRATEGY_LLM_STRICT_MODE", "")).strip().lower() in {"1", "true", "yes", "on"},
+            reasoning_effort=str(os.getenv("STRATEGY_LLM_REASONING_EFFORT", "") or "").strip().lower(),
         )
 
 class _StrategyLLMProviderRuntimeMixin:
@@ -448,6 +453,13 @@ class _StrategyLLMProviderRuntimeMixin:
                     continue
             _flush()
             return events
+
+        def _reasoning_extras(self) -> dict:
+            """网关思考等级参数。off/空/未设置返回 {}（不发送额外字段，旧网关行为不变）。"""
+            effort = str(getattr(self.config, "reasoning_effort", "") or "").strip().lower()
+            if effort in {"", "off", "none", "disabled"}:
+                return {}
+            return {"reasoning_effort": effort}
 
         def _should_retry_with_stream(self, exc: StrategyLLMProviderCompatibilityError) -> bool:
             metrics = dict(getattr(exc, "metrics", {}) or {})
@@ -1132,6 +1144,7 @@ class _StrategyLLMProviderRuntimeMixin:
                     "max_tokens": max_tokens,
                     "response_format": {"type": "json_object"},
                     "stream": False,
+                    **self._reasoning_extras(),
                     "messages": [
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": user_prompt},
@@ -1492,6 +1505,7 @@ class _StrategyLLMProviderRuntimeMixin:
                 "max_tokens": max(128, max_tokens),
                 "response_format": _response_format,
                 "stream": False,
+                **self._reasoning_extras(),
                 "messages": [
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
