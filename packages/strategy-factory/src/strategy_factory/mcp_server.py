@@ -16,6 +16,7 @@ from .mcp_control import (
     factory_run_detail,
     factory_runs,
     factory_status,
+    factory_tradeability_certificates,
     list_factories,
 )
 
@@ -55,6 +56,11 @@ async def factory_run_read(run_id: str) -> dict[str, Any]:
     return await factory_run_detail(run_id)
 
 
+@mcp.tool(description="Read immutable tradeability certificates persisted for one factory run.", structured_output=True, meta=READ_ONLY_META)
+async def factory_tradeability_certificates_read(run_id: str) -> dict[str, Any]:
+    return await factory_tradeability_certificates(run_id)
+
+
 @mcp.tool(description="Read database, runner, and optional sidecar readiness for the factories.", structured_output=True, meta=READ_ONLY_META)
 async def factory_readiness_read(factory: str = "") -> dict[str, Any]:
     return await factory_readiness(factory or None)
@@ -78,6 +84,11 @@ async def factory_status_resource(factory: str) -> dict[str, Any]:
 @mcp.resource("resource://factory-runs/{run_id}", mime_type="application/json")
 async def factory_run_resource(run_id: str) -> dict[str, Any]:
     return await factory_run_detail(run_id)
+
+
+@mcp.resource("resource://factory-runs/{run_id}/tradeability-certificates", mime_type="application/json")
+async def factory_tradeability_certificates_resource(run_id: str) -> dict[str, Any]:
+    return await factory_tradeability_certificates(run_id)
 
 
 async def _run() -> None:

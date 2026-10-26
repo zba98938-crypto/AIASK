@@ -21,6 +21,7 @@ from .factory_execution import (
 )
 from .compact_contracts import compact_backtest_report, compact_quality_gate_report
 from .governance_plane_contract import build_governance_plane_artifact
+from .tradeability_gate import build_a_share_tradeability_profile, build_tradeability_certificate
 from .research.runner import ResearchPlaneRunner
 from .services.candidate_pipeline import CandidatePipeline
 from .cycle_pipeline import FactoryCyclePipeline, FactoryStageResult
@@ -1148,6 +1149,77 @@ class FactoryCycleRunner:
             results["submit_result"] = submit_result
             results["governance_plane"] = dict(pipeline_run.governance_plane or {})
 
+            # Legacy quality/backtest/submission gates remain candidate screens.
+            # These certificates are separate and hash-bound; an LLM, legacy
+            # backtest pass, or successful submission cannot grant certification.
+            snapshot_binding = snapshot.get("tradeability_data_snapshot")
+            if not isinstance(snapshot_binding, dict):
+                snapshot_binding = {}
+            tradeability_certificates: list[dict[str, Any]] = []
+            raw_backtest_evidence_count = 0
+            raw_paper_evidence_count = 0
+            for candidate in candidates:
+                if isinstance(candidate.get("tradeability_backtest_evidence"), dict):
+                    raw_backtest_evidence_count += 1
+                if isinstance(candidate.get("tradeability_paper_evidence"), dict):
+                    raw_paper_evidence_count += 1
+                profile = candidate.get("tradeability_profile")
+                if not isinstance(profile, dict):
+                    profile = build_a_share_tradeability_profile(candidate)
+                certificate = build_tradeability_certificate(
+                    candidate,
+                    profile=profile,
+                    data_snapshot=snapshot_binding,
+                    backtest_evidence=(
+                        candidate.get("tradeability_backtest_evidence")
+                        if isinstance(candidate.get("tradeability_backtest_evidence"), dict)
+                        else None
+                    ),
+                    paper_evidence=(
+                        candidate.get("tradeability_paper_evidence")
+                        if isinstance(candidate.get("tradeability_paper_evidence"), dict)
+                        else None
+                    ),
+                    issued_at=scheduler._now().isoformat(),
+                )
+                tradeability_certificates.append(certificate)
+            results["tradeability_certificates"] = tradeability_certificates
+            tradeability_status_counts: dict[str, int] = {}
+            for certificate in tradeability_certificates:
+                status = str(certificate.get("status") or "research_only")
+                tradeability_status_counts[status] = tradeability_status_counts.get(status, 0) + 1
+            results["tradeability_certification"] = {
+                "certificate_count": len(tradeability_certificates),
+                "status_counts": tradeability_status_counts,
+                "reason_counts": {
+                    reason: sum(
+                        1
+                        for certificate in tradeability_certificates
+                        if reason in list(certificate.get("reason_codes") or [])
+                    )
+                    for reason in sorted(
+                        {
+                            reason
+                            for certificate in tradeability_certificates
+                            for reason in list(certificate.get("reason_codes") or [])
+                        }
+                    )
+                },
+                "raw_backtest_evidence_count": raw_backtest_evidence_count,
+                "raw_paper_evidence_count": raw_paper_evidence_count,
+                "data_snapshot_bound": bool(
+                    snapshot_binding.get("snapshot_hash") or snapshot_binding.get("content_hash")
+                ),
+                "evidence_generation": "candidate_payload_only",
+                "backtest_candidate_count": tradeability_status_counts.get("backtest_candidate", 0),
+                "paper_trial_count": tradeability_status_counts.get("paper_trial", 0),
+                "paper_validated_count": tradeability_status_counts.get("paper_validated", 0),
+                "rejected_count": tradeability_status_counts.get("rejected", 0),
+                "legacy_backtest_or_submission_pass_is_certification": False,
+                "certificate_only_no_strategy_promotion": True,
+                "live_trading_enabled": False,
+            }
+
             eliminator = factory_pkg.EliminationChecker()
             eliminated = await eliminator.check(db, snapshot.get("fg_level", "neutral"))
             results["stages"]["elimination"] = scheduler._with_stage_meta(
@@ -1205,6 +1277,9 @@ class FactoryCycleRunner:
                 submission_audit_summary=submission_audit_summary,
                 vector_summary=vector_summary,
                 elapsed=elapsed,
+            )
+            results["summary"]["tradeability_certification"] = dict(
+                results.get("tradeability_certification") or {}
             )
             results["research_window"] = build_research_window_status(results["summary"])
             results["summary"]["research_window"] = dict(results.get("research_window") or {})

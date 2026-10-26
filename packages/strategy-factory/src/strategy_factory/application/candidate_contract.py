@@ -1407,6 +1407,15 @@ def build_factory_backtest_assumptions(candidate: Optional[Mapping[str, Any]]) -
     portfolio_spec = dict(contract.get("portfolio_spec") or {})
     validation_profile = dict(contract.get("validation_profile") or {})
     economic_semantics = dict(contract.get("economic_semantics") or {})
+    tradeability_profile = _as_dict(candidate_contract_value(candidate, "tradeability_profile", {}))
+    profile_execution = _as_dict(tradeability_profile.get("execution"))
+    profile_price_policy = _string(profile_execution.get("price_policy"))
+    execution_price_policy = (
+        "next_open"
+        if profile_price_policy == "next_session_open"
+        else _string(execution_assumptions.get("execution_price_policy") or "next_close_legacy")
+        or "next_close_legacy"
+    )
     target_symbols = list((contract.get("targeting") or {}).get("target_symbols") or [])
     target_weight_scheme = _string(
         portfolio_spec.get("target_weight_scheme")
@@ -1427,6 +1436,7 @@ def build_factory_backtest_assumptions(candidate: Optional[Mapping[str, Any]]) -
             _safe_float(economic_semantics.get("market_impact_bps"), 0.0),
         ),
         arrival_price_policy=_string(execution_assumptions.get("arrival_price_policy") or "next_open_proxy") or "next_open_proxy",
+        execution_price_policy=execution_price_policy,
         implementation_shortfall_proxy=_safe_float(execution_assumptions.get("implementation_shortfall_proxy"), 0.0),
         tradability_filter=_safe_bool(execution_assumptions.get("tradability_filter"), True),
         slippage_model=_string(execution_assumptions.get("slippage_model") or "fixed") or "fixed",

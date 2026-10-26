@@ -28,6 +28,7 @@ READ_ONLY_TOOLS = {
     "factory_run_read",
     "factory_runs_read",
     "factory_status_read",
+    "factory_tradeability_certificates_read",
 }
 
 # tests/ -> strategy-factory/ -> packages/ -> <aiask root>

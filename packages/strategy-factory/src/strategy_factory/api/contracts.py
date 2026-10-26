@@ -177,6 +177,7 @@ def normalize_execution_assumptions(
             or "fixed"
         ) or "fixed",
         "market_impact_bps": market_impact_bps,
+        "execution_price_policy": _string(execution.get("execution_price_policy") or "next_close_legacy") or "next_close_legacy",
         "tradability_filter": _safe_bool(
             execution.get("tradability_filter"),
             cost_base_case.get("tradability_filter")
@@ -383,6 +384,7 @@ class FactoryBacktestAssumptions:
     slippage_bps: float = 0.0
     market_impact_bps: float = 0.0
     arrival_price_policy: str = "next_open_proxy"
+    execution_price_policy: str = "next_close_legacy"
     implementation_shortfall_proxy: float = 0.0
     tradability_filter: bool = True
     slippage_model: str = "fixed"
@@ -414,6 +416,7 @@ class FactoryBacktestAssumptions:
             "slippage": float(self.slippage_bps) / 10000.0,
             "market_impact_bps": float(self.market_impact_bps),
             "arrival_price_policy": str(self.arrival_price_policy or "next_open_proxy"),
+            "execution_price_policy": str(self.execution_price_policy or "next_close_legacy"),
             "implementation_shortfall_proxy": float(self.implementation_shortfall_proxy),
             "tradability_filter": bool(self.tradability_filter),
             "slippage_model": str(self.slippage_model or "fixed"),
@@ -442,6 +445,7 @@ class FactoryBacktestAssumptions:
             "slippage_bps": float(self.slippage_bps),
             "market_impact_bps": float(self.market_impact_bps),
             "arrival_price_policy": str(self.arrival_price_policy or "next_open_proxy"),
+            "execution_price_policy": str(self.execution_price_policy or "next_close_legacy"),
             "implementation_shortfall_proxy": float(self.implementation_shortfall_proxy),
             "tradability_filter": bool(self.tradability_filter),
             "slippage_model": str(self.slippage_model or "fixed"),

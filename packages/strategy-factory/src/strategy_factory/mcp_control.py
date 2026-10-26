@@ -399,6 +399,58 @@ async def factory_run_detail(run_id: str) -> dict[str, Any]:
     }
 
 
+async def factory_tradeability_certificates(run_id: str) -> dict[str, Any]:
+    """Read persisted tradeability certificates without changing certification."""
+    resolved = str(run_id or "").strip()
+    if not resolved:
+        raise ValueError("run_id is required")
+    db = get_db()
+    await db.initialize()
+    list_artifacts = getattr(db, "list_strategy_factory_run_artifacts", None)
+    if not callable(list_artifacts):
+        return {
+            "object": "aiask.factory.tradeability_certificates",
+            "run_id": resolved,
+            "certificates": [],
+            "available": False,
+            "reason": "tradeability_artifact_storage_unavailable",
+            "read_only": True,
+            "certificate_only_no_strategy_promotion": True,
+            "live_trading_enabled": False,
+        }
+    rows = await list_artifacts(resolved)
+    certificates: list[dict[str, Any]] = []
+    for row in list(rows or []):
+        item = dict(row or {})
+        if str(item.get("artifact_type") or "") != "tradeability_certificate":
+            continue
+        payload = item.get("payload_json")
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except (TypeError, ValueError):
+                payload = None
+        if isinstance(payload, dict):
+            certificates.append(
+                {
+                    "artifact_version": item.get("artifact_version"),
+                    "payload_hash": item.get("payload_hash"),
+                    "storage_mode": item.get("storage_mode"),
+                    "certificate": payload,
+                }
+            )
+    return {
+        "object": "aiask.factory.tradeability_certificates",
+        "run_id": resolved,
+        "count": len(certificates),
+        "certificates": certificates,
+        "available": True,
+        "read_only": True,
+        "certificate_only_no_strategy_promotion": True,
+        "live_trading_enabled": False,
+    }
+
+
 async def factory_status(factory: str) -> dict[str, Any]:
     resolved = normalize_factory_name(factory).value
     db = get_db()

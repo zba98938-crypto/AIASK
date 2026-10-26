@@ -31,6 +31,7 @@ class FactoryArtifactType(str, Enum):
     EVIDENCE_ARTIFACT = "evidence_artifact"
     QUALITY_GATE = "quality_gate"
     BACKTEST_REPORT = "backtest_report"
+    TRADEABILITY_CERTIFICATE = "tradeability_certificate"
     SUBMISSION_AUDIT = "submission_audit"
     SHADOW_DIFF = "shadow_diff"
 
@@ -44,6 +45,7 @@ _ARTIFACT_TYPE_ORDER = (
     FactoryArtifactType.EVIDENCE_ARTIFACT,
     FactoryArtifactType.QUALITY_GATE,
     FactoryArtifactType.BACKTEST_REPORT,
+    FactoryArtifactType.TRADEABILITY_CERTIFICATE,
     FactoryArtifactType.SUBMISSION_AUDIT,
     FactoryArtifactType.SHADOW_DIFF,
 )
@@ -196,6 +198,9 @@ def build_run_artifacts(result: Mapping[str, Any] | None) -> list[dict[str, Any]
         FactoryArtifactType.SHADOW_DIFF,
         dict(raw.get("parity_result") or {}),
     )
+    for certificate in list(raw.get("tradeability_certificates") or []):
+        if isinstance(certificate, Mapping):
+            _append(FactoryArtifactType.TRADEABILITY_CERTIFICATE, dict(certificate))
 
     ordered_types = {artifact_type.value: index for index, artifact_type in enumerate(_ARTIFACT_TYPE_ORDER)}
     artifacts.sort(key=lambda item: ordered_types.get(str(item.get("artifact_type") or ""), 999))

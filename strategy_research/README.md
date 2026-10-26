@@ -2,6 +2,16 @@
 
 本文件夹是「四工厂 24 小时长跑 + 证据库提炼」的交付物。
 
+## 可交易性状态（2026-10-21 起生效）
+
+本目录全部策略为**历史研究假设，未经可交易性认证**。
+依据 `docs/STRATEGY_TRADEABILITY_STANDARD.md`：认证状态机为
+`research_only / backtest_candidate / paper_trial / paper_validated / rejected / expired`，
+LLM 生成的候选不能授予认证。当前纸面证据（paper_nav 无账户 ≥30 天）远低于
+`paper_validated` 门槛（60 有效交易日 + 30 已闭合 round-trip），因此本目录
+所有策略的实际认证等级为 **`research_only`**，不构成交易建议或实盘依据。
+随 07:30 每日纸面周期积累证据后，由 `build_tradeability_certificate()` 自动判定升级。
+
 ## 工厂长跑状态（启动时证据）
 
 - 四工厂 supervisor（`run_three_factories.py`）启动于 2026-10-20 09:23（本地），
