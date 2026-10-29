@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import re
+import sys
 from pathlib import Path
 from typing import Any
 import logging
@@ -67,11 +68,35 @@ def _truthy(value: str | None) -> bool:
     return str(value or "").strip().lower() in {"1", "true", "yes", "on"}
 
 
+def project_env_switched_off() -> bool:
+    """``AIASK_LOAD_PROJECT_ENV=0``: load no .env unless the caller passes ``explicit_path``.
+
+    Shared with akshare_mcp and strategy_factory. A path named through
+    ``AIASK_AGENT_ENV_FILE`` / ``AIASK_ENV_FILE`` is not an exception, and the
+    agent-level ``AIASK_AGENT_LOAD_PROJECT_ENV=1`` does not override it.
+    """
+    switch = str(os.getenv("AIASK_LOAD_PROJECT_ENV", "")).strip().lower()
+    return switch in {"0", "false", "no", "off"}
+
+
 def _disabled() -> bool:
+    if project_env_switched_off():
+        return True
     explicit = str(os.getenv("AIASK_AGENT_LOAD_PROJECT_ENV", "")).strip().lower()
     if explicit in {"0", "false", "no", "off"}:
         return True
     return _truthy(os.getenv("AIASK_AGENT_DISABLE_PROJECT_ENV"))
+
+
+def implicit_env_discovery_disabled() -> bool:
+    """True when ``.env`` files must not be found by guessing (project root / cwd).
+
+    Off when the switch is off, or when the hermetic test-session marker is in
+    ``sys.modules`` (it survives tests that clear ``os.environ``).
+    """
+    if project_env_switched_off():
+        return True
+    return "aiask_hermetic_test_session" in sys.modules
 
 
 def _llm_env_file_priority_disabled() -> bool:
@@ -154,10 +179,15 @@ def _dedupe(paths: list[tuple[Path, str]]) -> list[tuple[Path, str]]:
 
 
 def project_env_candidates(explicit_path: str | None = None) -> list[tuple[Path, str]]:
-    configured_path = explicit_path or os.getenv("AIASK_AGENT_ENV_FILE", "").strip() or os.getenv("AIASK_ENV_FILE", "").strip()
+    if project_env_switched_off():
+        configured_path = explicit_path or ""
+    else:
+        configured_path = explicit_path or os.getenv("AIASK_AGENT_ENV_FILE", "").strip() or os.getenv("AIASK_ENV_FILE", "").strip()
     candidates: list[tuple[Path, str]] = []
     if configured_path:
         candidates.append((Path(configured_path), "explicit"))
+    if implicit_env_discovery_disabled():
+        return _dedupe(candidates)
     root = discover_project_root()
     if root is not None:
         candidates.append((root / ".env", "project_root"))
@@ -218,6 +248,9 @@ def writable_project_env_path(explicit_path: str | None = None) -> tuple[Path, s
             return env_path, source
     if candidates:
         return candidates[0]
+    if implicit_env_discovery_disabled():
+        # Nothing was named and guessing is off: there is no file to write.
+        return Path(os.devnull), "discovery_disabled"
     root = discover_project_root()
     if root is not None:
         return root / ".env", "project_root"
@@ -232,6 +265,12 @@ def update_project_env_values(
 ) -> dict[str, Any]:
     """Persist selected environment variables without returning secret values."""
     env_path, source = writable_project_env_path(explicit_path=explicit_path)
+    if source == "discovery_disabled":
+        raise ValueError(
+            "no .env file can be written: AIASK_LOAD_PROJECT_ENV=0 or the test session "
+            "turned guessing off; name the file with AIASK_AGENT_ENV_FILE and leave "
+            "AIASK_LOAD_PROJECT_ENV unset"
+        )
     normalized: dict[str, str] = {}
     for key, value in dict(updates or {}).items():
         name = str(key or "").strip().upper()

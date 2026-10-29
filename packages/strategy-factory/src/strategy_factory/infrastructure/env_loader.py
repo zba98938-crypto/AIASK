@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 import logging
 
@@ -51,19 +52,44 @@ def _is_llm_env_key(key: str) -> bool:
     return bool(name and (name in LLM_ENV_KEYS or any(name.startswith(prefix) for prefix in LLM_ENV_PREFIXES)))
 
 
+def project_env_switched_off() -> bool:
+    """``AIASK_LOAD_PROJECT_ENV=0``: load no .env unless the caller passes ``explicit_path``.
+
+    Same contract as ``akshare_mcp.env_loader``: a path named through
+    ``STRATEGY_FACTORY_ENV_FILE`` / ``AIASK_ENV_FILE`` is not an exception.
+    """
+    switch = str(os.getenv("AIASK_LOAD_PROJECT_ENV", "")).strip().lower()
+    return switch in {"0", "false", "no", "off"}
+
+
+def implicit_env_discovery_disabled() -> bool:
+    """True when ``.env`` files must not be found by guessing (cwd / repo root).
+
+    Off when the switch is off, or when the hermetic test-session marker is in
+    ``sys.modules`` (it survives tests that clear ``os.environ``).
+    """
+    if project_env_switched_off():
+        return True
+    return "aiask_hermetic_test_session" in sys.modules
+
+
 def _project_root_candidates(explicit_path: str | None = None) -> list[Path]:
-    configured = explicit_path or os.getenv("STRATEGY_FACTORY_ENV_FILE", "").strip() or os.getenv("AIASK_ENV_FILE", "").strip()
+    if project_env_switched_off():
+        configured = explicit_path or ""
+    else:
+        configured = explicit_path or os.getenv("STRATEGY_FACTORY_ENV_FILE", "").strip() or os.getenv("AIASK_ENV_FILE", "").strip()
     candidates: list[Path] = []
     if configured:
         candidates.append(Path(configured))
-    for start in (Path.cwd(), Path(__file__).resolve()):
-        path = start if start.is_dir() else start.parent
-        for candidate in (path, *path.parents):
-            env_path = candidate / ".env"
-            if env_path.exists() and (candidate / "packages").is_dir():
-                candidates.append(env_path)
-                break
-    candidates.append(Path.cwd() / ".env")
+    if not implicit_env_discovery_disabled():
+        for start in (Path.cwd(), Path(__file__).resolve()):
+            path = start if start.is_dir() else start.parent
+            for candidate in (path, *path.parents):
+                env_path = candidate / ".env"
+                if env_path.exists() and (candidate / "packages").is_dir():
+                    candidates.append(env_path)
+                    break
+        candidates.append(Path.cwd() / ".env")
     result: list[Path] = []
     seen: set[str] = set()
     for path in candidates:

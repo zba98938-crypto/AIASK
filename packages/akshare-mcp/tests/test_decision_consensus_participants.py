@@ -74,15 +74,61 @@ class TestAllContractedToolsAreQueried:
         entry = _by_tool(envelope).get("get_unified_decision")
         assert entry is not None, "get_unified_decision is documented but not queried"
 
-    async def test_a_three_tool_agreement_is_reachable(self) -> None:
-        # The whole point of the tool. With two voters it was not.
+    async def test_a_three_tool_agreement_is_reachable(self, monkeypatch) -> None:
+        # The whole point of the tool. With two voters it was not. The voters
+        # are stubbed so the verdict does not depend on what a live database
+        # happens to hold; the aggregation under test is the real one.
+        _stub_voters(monkeypatch, buy="buy", context="buy", diagnosis="buy", unified="buy")
         envelope = await _consensus()
-        if not envelope.get("success"):
-            pytest.skip("consensus unavailable locally")
+        assert envelope.get("success"), envelope.get("error")
+        data = envelope["data"]
         available = [d for d in _by_tool(envelope).values() if d.get("available")]
         assert len(available) >= 3, (
             f"only {len(available)} tools voted; the >=3 same-direction rule cannot be met"
         )
+        # With every voter stubbed, every contracted voter must take part: a
+        # participant that silently drops out still leaves three that "agree".
+        assert {d["tool"] for d in available} == _CONTRACT_TOOLS
+        assert data["cross_tool_consensus"] == "agree"
+        assert data["actionable_recommendation"] == "buy"
+        assert len(data["tools_agree"]) >= 3
+
+    async def test_three_of_four_still_agree(self, monkeypatch) -> None:
+        _stub_voters(monkeypatch, buy="buy", context="buy", diagnosis="buy", unified="sell")
+        data = (await _consensus())["data"]
+        assert data["cross_tool_consensus"] == "agree"
+        assert data["agreement_ratio"] == 0.75
+        assert data["tools_split"] == ["get_unified_decision"]
+
+    async def test_four_different_directions_do_not_produce_an_action(self, monkeypatch) -> None:
+        _stub_voters(monkeypatch, buy="buy", context="sell", diagnosis="hold", unified="watch")
+        data = (await _consensus())["data"]
+        assert data["cross_tool_consensus"] == "divergent"
+        assert data["actionable_recommendation"] == "no_action"
+
+
+def _stub_voters(monkeypatch, *, buy: str, context: str, diagnosis: str, unified: str) -> None:
+    """Replace the four voters with fixed answers; keep the real consensus code."""
+    from akshare_mcp import utils as utils_mod
+    from akshare_mcp.tools import _decision_buy, _decision_context, decision
+    from akshare_mcp.tools import decision_consensus as consensus_mod
+    from akshare_mcp.tools.semantic import diagnosis as diagnosis_mod
+
+    def answer(action: str):
+        async def _vote(*_args, **_kwargs):
+            return {"success": True, "data": {"recommendation": action, "score": 60, "reason": "stub"}}
+
+        return _vote
+
+    async def _resolve(code, *_args, **_kwargs):
+        return str(code)
+
+    monkeypatch.setattr(consensus_mod, "resolve_existing_security_code_async", _resolve)
+    monkeypatch.setattr(utils_mod, "resolve_existing_security_code_async", _resolve, raising=False)
+    monkeypatch.setattr(_decision_buy, "should_i_buy", answer(buy))
+    monkeypatch.setattr(_decision_context, "build_stock_context", answer(context))
+    monkeypatch.setattr(diagnosis_mod, "smart_stock_diagnosis", answer(diagnosis))
+    monkeypatch.setattr(decision, "get_unified_decision_summary", answer(unified))
 
 
 @pytest.mark.asyncio

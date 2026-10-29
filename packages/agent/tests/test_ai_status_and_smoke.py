@@ -202,6 +202,8 @@ def test_ai_config_exposes_and_saves_prompt_cache_policy(tmp_path, monkeypatch) 
     monkeypatch.setenv("AIASK_AGENT_PROMPT_CACHE_ENABLED", "1")
     monkeypatch.setenv("AIASK_AGENT_PROMPT_CACHE_RECENT_MESSAGES", "3")
     monkeypatch.setenv("AIASK_AGENT_ENV_FILE", str(tmp_path / ".env"))
+    # The test session sets AIASK_LOAD_PROJECT_ENV=0, under which a named file is ignored.
+    monkeypatch.delenv("AIASK_LOAD_PROJECT_ENV", raising=False)
     runtime = AgentRuntime(model_client=MockModelClient(), session_store=AgentSessionStore(tmp_path / "state.sqlite3"))
     client = TestClient(create_app(runtime=runtime))
 

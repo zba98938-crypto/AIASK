@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import Iterable, Optional
 import logging
@@ -65,12 +66,39 @@ def is_llm_env_key(key: str) -> bool:
     return name in LLM_ENV_KEYS or any(name.startswith(prefix) for prefix in LLM_ENV_PREFIXES)
 
 
+def project_env_switched_off() -> bool:
+    """``AIASK_LOAD_PROJECT_ENV=0``: load no .env unless the caller passes ``explicit_path``.
+
+    A path named through ``AKSHARE_MCP_ENV`` is not an exception; only an
+    argument is.
+    """
+    switch = str(os.getenv("AIASK_LOAD_PROJECT_ENV", "")).strip().lower()
+    return switch in {"0", "false", "no", "off"}
+
+
+def implicit_env_discovery_disabled() -> bool:
+    """True when ``.env`` files must not be found by guessing (cwd / repo root).
+
+    Off when the switch is off, and inside a test session: the hermetic test
+    runtime registers ``aiask_hermetic_test_session`` in ``sys.modules``, which
+    unlike an environment variable survives tests that clear ``os.environ``.
+    """
+    if project_env_switched_off():
+        return True
+    return "aiask_hermetic_test_session" in sys.modules
+
+
 def get_mcp_env_candidates(explicit_path: Optional[str] = None) -> list[Path]:
-    env_from_var = explicit_path or os.getenv('AKSHARE_MCP_ENV', '').strip()
-    candidates = [
-        Path.cwd() / '.env',
-        Path(__file__).resolve().parents[4] / '.env',  # 项目根目录
-    ]
+    if project_env_switched_off():
+        env_from_var = explicit_path or ''
+    else:
+        env_from_var = explicit_path or os.getenv('AKSHARE_MCP_ENV', '').strip()
+    candidates: list[Path] = []
+    if not implicit_env_discovery_disabled():
+        candidates = [
+            Path.cwd() / '.env',
+            Path(__file__).resolve().parents[4] / '.env',  # 项目根目录
+        ]
     if env_from_var:
         candidates.insert(0, Path(env_from_var))
     seen: set[str] = set()

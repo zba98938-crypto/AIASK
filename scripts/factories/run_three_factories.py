@@ -206,6 +206,12 @@ def _elapsed(started_at: datetime | None) -> int:
 
 
 def _load_dotenv(env: dict[str, str]) -> None:
+    # AIASK_LOAD_PROJECT_ENV=0 (or the hermetic test-session marker) turns off
+    # guessing the repo .env; same contract as akshare_mcp.env_loader.
+    if str(os.getenv("AIASK_LOAD_PROJECT_ENV", "")).strip().lower() in {"0", "false", "no", "off"} or (
+        "aiask_hermetic_test_session" in sys.modules
+    ):
+        return
     env_path = PROJECT_ROOT / ".env"
     if not env_path.exists():
         return

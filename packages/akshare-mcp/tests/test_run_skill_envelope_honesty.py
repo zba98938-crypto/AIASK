@@ -125,29 +125,76 @@ class TestCleanRunStaysClean:
         assert "skill_steps_failed" in joined
 
 
+async def _call_run_skill(skill_id: str) -> dict:
+    # run_skill is registered as a closure on an MCP app, not a module
+    # attribute, so drive it the way a client does. A bare app with only the
+    # skills tools avoids importing akshare_mcp.server (which loads .env and
+    # registers every tool) for a test about the envelope.
+    import json
+
+    try:
+        from mcp.server.fastmcp import FastMCP
+    except ModuleNotFoundError:  # MCP 2.x, same fallback as akshare_mcp.server
+        from mcp.server.mcpserver import MCPServer as FastMCP
+
+    app = FastMCP("run-skill-envelope-probe")
+    skills_mod.register(app)
+    raw = await app.call_tool("run_skill", {"skill_id": skill_id})
+    return json.loads(raw.content[0].text)
+
+
+@pytest.fixture
+def skills_home(tmp_path, monkeypatch):
+    """A HOME whose ~/.codex/skills holds one real skill, and no repo-local root.
+
+    The registry reads ``Path.home() / ".codex" / "skills"``. Without a
+    fixture the result depends on the developer machine, which is why this
+    test used to assert a formula instead of a value.
+    """
+    from akshare_mcp.tools import skills_registry
+
+    home = tmp_path / "home"
+    skill_dir = home / ".codex" / "skills" / "akshare-fee-costs"
+    skill_dir.mkdir(parents=True)
+    (skill_dir / "SKILL.md").write_text(
+        "---\nname: akshare-fee-costs\ndescription: fixture skill for the envelope test\n---\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("HOME", str(home))
+    monkeypatch.setattr(skills_registry, "_find_repo_skills_root", lambda: None)
+    return home
+
+
 @pytest.mark.asyncio
 class TestLiveOrchestration:
-    async def test_a_real_skill_run_keeps_status_and_envelope_consistent(self) -> None:
-        # run_skill is registered as a closure on the MCP app, not a module
-        # attribute, so drive it the way a client does.
-        import json
-        import os
+    # Why run_skill reports execution_status="completed" with no registry: the
+    # registry only supplies metadata. akshare-fee-costs also comes from
+    # _SKILL_CONTRACTS and runs on the built-in orchestrator either way, so the
+    # orchestrator's "completed" is true. The missing registry is reported on
+    # its own term (fallback_used + skills_registry_unavailable). The envelope
+    # was right; the old test's "completed implies fallback_used=False" was not.
 
-        os.environ.setdefault("AKSHARE_MCP_STARTUP_PROFILE", "tool-only")
-        from akshare_mcp import server as server_mod
+    async def test_registry_present_and_steps_clean_is_not_a_fallback(self, skills_home) -> None:
+        result = await _call_run_skill("akshare-fee-costs")
+        assert result["success"] is True, result.get("error")
+        data = result["data"]
+        assert data["source"] == "codex_registry"
+        assert data["execution_status"] == "completed"
+        assert data["failed_steps"] == []
+        assert result["fallback_used"] is False
+        assert result.get("fallback_reason") is None
 
-        raw = await server_mod.mcp.call_tool("run_skill", {"skill_id": "akshare-fee-costs"})
-        result = json.loads(raw.content[0].text)
-        if not result.get("success"):
-            pytest.skip(f"skill unavailable locally: {result.get('error')}")
-
-        data = result.get("data") or {}
-        status = data.get("execution_status")
-        failed = data.get("failed_steps") or []
-        # Whatever the orchestrator concluded, the envelope must agree with it.
-        if status == "completed" and not failed:
-            assert result["fallback_used"] is False
-        else:
-            assert result["fallback_used"] is True
-            joined = " ".join(str(r) for r in (result.get("fallback_reason") or []))
-            assert "skill_steps_failed" in joined or "skill_task_unsupported" in joined
+    async def test_registry_missing_is_reported_even_when_steps_succeed(self, skills_home, monkeypatch) -> None:
+        empty_home = skills_home.parent / "empty-home"
+        empty_home.mkdir()
+        monkeypatch.setenv("HOME", str(empty_home))
+        result = await _call_run_skill("akshare-fee-costs")
+        assert result["success"] is True, result.get("error")
+        data = result["data"]
+        assert data["source"] == "fallback_demo"
+        assert data["execution_status"] == "completed"
+        assert data["failed_steps"] == []
+        assert result["fallback_used"] is True
+        reasons = result.get("fallback_reason") or []
+        assert "skills_registry_unavailable" in reasons
+        assert not any(str(r).startswith("skill_steps_failed") for r in reasons)

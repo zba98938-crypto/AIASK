@@ -111,6 +111,8 @@ def test_desktop_settings_status_uses_project_env_llm_config(tmp_path, monkeypat
     )
     monkeypatch.setenv("AIASK_AGENT_LOAD_PROJECT_ENV", "1")
     monkeypatch.setenv("AIASK_AGENT_ENV_FILE", str(project_env))
+    # The test session sets AIASK_LOAD_PROJECT_ENV=0, under which a named file is ignored.
+    monkeypatch.delenv("AIASK_LOAD_PROJECT_ENV", raising=False)
     for key in ("AIASK_AGENT_MODEL_PROVIDER", "AIASK_AGENT_MODEL", "OPENAI_BASE_URL", "OPENAI_API_KEY"):
         monkeypatch.delenv(key, raising=False)
     client = _client(tmp_path, monkeypatch)
@@ -152,6 +154,8 @@ def test_desktop_settings_status_project_env_llm_overrides_process_env(tmp_path,
     )
     monkeypatch.setenv("AIASK_AGENT_LOAD_PROJECT_ENV", "1")
     monkeypatch.setenv("AIASK_AGENT_ENV_FILE", str(project_env))
+    # The test session sets AIASK_LOAD_PROJECT_ENV=0, under which a named file is ignored.
+    monkeypatch.delenv("AIASK_LOAD_PROJECT_ENV", raising=False)
     monkeypatch.setenv("AIASK_AGENT_MODEL_PROVIDER", "mock")
     monkeypatch.setenv("AIASK_AGENT_MODEL", "process-model")
     monkeypatch.setenv("AIASK_AGENT_VISION_MODEL", "process-vision-model")
@@ -186,6 +190,8 @@ def test_ai_config_can_be_saved_from_desktop_and_redacts_secret(tmp_path, monkey
     project_env.write_text("AIASK_AGENT_MODEL_PROVIDER=mock\nAIASK_AGENT_MODEL=mock-local\n", encoding="utf-8")
     monkeypatch.setenv("AIASK_AGENT_LOAD_PROJECT_ENV", "1")
     monkeypatch.setenv("AIASK_AGENT_ENV_FILE", str(project_env))
+    # The test session sets AIASK_LOAD_PROJECT_ENV=0, under which a named file is ignored.
+    monkeypatch.delenv("AIASK_LOAD_PROJECT_ENV", raising=False)
     client = _client(tmp_path, monkeypatch)
 
     config = client.get("/v1/ai/config", headers={"Authorization": "Bearer secret"})

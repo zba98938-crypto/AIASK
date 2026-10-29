@@ -28,7 +28,12 @@ os.environ["STRATEGY_FACTORY_TASK_BOARD_PATH"] = str(default_task_board_path())
 
 # 加载 .env
 env_file = PROJECT_ROOT / ".env"
-if env_file.exists():
+# AIASK_LOAD_PROJECT_ENV=0 (or the hermetic test-session marker) turns off
+# guessing the repo .env; same contract as akshare_mcp.env_loader.
+_env_discovery_off = str(os.getenv("AIASK_LOAD_PROJECT_ENV", "")).strip().lower() in {"0", "false", "no", "off"} or (
+    "aiask_hermetic_test_session" in sys.modules
+)
+if env_file.exists() and not _env_discovery_off:
     with open(env_file, encoding="utf-8") as f:
         for line in f:
             line = line.strip()

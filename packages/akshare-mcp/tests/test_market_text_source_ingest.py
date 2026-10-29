@@ -23,6 +23,8 @@ def _write_embedding_env(tmp_path, monkeypatch, db_name: str) -> None:
         encoding="utf-8",
     )
     monkeypatch.setenv("AKSHARE_MCP_ENV", str(env_file))
+    # The test session sets AIASK_LOAD_PROJECT_ENV=0, under which a named file is ignored.
+    monkeypatch.delenv("AIASK_LOAD_PROJECT_ENV", raising=False)
     db_path = str(tmp_path / f"{db_name}.sqlite3")
     monkeypatch.setenv("AKSHARE_MCP_SQLITE_PATH", db_path)
     monkeypatch.setenv("AIASK_SQLITE_PATH", db_path)

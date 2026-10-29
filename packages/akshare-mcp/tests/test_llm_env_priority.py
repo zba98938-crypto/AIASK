@@ -27,6 +27,8 @@ def test_mcp_llm_env_file_overrides_process_env_without_overriding_non_llm(tmp_p
         encoding="utf-8",
     )
     monkeypatch.setenv("AKSHARE_MCP_ENV", str(env_file))
+    # The test session sets AIASK_LOAD_PROJECT_ENV=0, under which a named file is ignored.
+    monkeypatch.delenv("AIASK_LOAD_PROJECT_ENV", raising=False)
     monkeypatch.setenv("STRATEGY_LLM_MODEL", "process-strategy-model")
     monkeypatch.setenv("STRATEGY_LLM_BASE_URL", "https://process-strategy.example.test/v1")
     monkeypatch.setenv("STRATEGY_LLM_API_KEY", "sk-process-strategy")
