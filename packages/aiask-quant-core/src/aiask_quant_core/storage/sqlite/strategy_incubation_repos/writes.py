@@ -12,6 +12,10 @@ from ._base import (
 )
 
 
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 class _IncWritesMixin:
     async def save_paper_order(self, order: dict) -> dict:
         payload = dict(order or {})
@@ -459,7 +463,7 @@ class _IncWritesMixin:
             payload["price_path_audit_status"] = "missing_kline_source"
             return payload
         start_date = entry_ts.date().isoformat() if isinstance(entry_ts, datetime) else str(entry_ts)
-        resolved_end_ts = exit_ts or datetime.now(timezone.utc)
+        resolved_end_ts = exit_ts or _utc_now()
         end_date = (
             resolved_end_ts.date().isoformat()
             if isinstance(resolved_end_ts, datetime)

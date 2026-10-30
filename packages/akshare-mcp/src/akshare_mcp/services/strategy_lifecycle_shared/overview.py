@@ -258,11 +258,20 @@ async def _load_latest_paper_evidence(db, strategy_id: str) -> dict[str, Any]:
         return {"status": "not_supported", "nav": None, "max_drawdown": None}
     try:
         async with db.acquire() as conn:
+            exclusions_present = bool(await conn.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_evidence_exclusions')"
+            ))
+            exclusion_filter = (
+                "AND (m.account_id IS NULL OR NOT EXISTS ("
+                "SELECT 1 FROM paper_evidence_exclusions e WHERE e.account_id = m.account_id))"
+                if exclusions_present else ""
+            )
             row = await conn.fetchrow(
-                """
+                f"""
                 SELECT m.max_drawdown, m.nav
                 FROM strategy_incubation_metrics m
                 WHERE m.strategy_id = $1
+                  {exclusion_filter}
                 ORDER BY m.metric_date DESC, m.id DESC
                 LIMIT 1
                 """,
@@ -334,6 +343,10 @@ async def build_incubation_overview(
     signal_stats = await db.get_signal_stats(strategy_id)
     signal_stats_signature = _signal_stats_cache_signature(signal_stats)
     execution_state_signature = await _execution_state_cache_signature(db, strategy_id)
+    from aiask_quant_core.market_session import resolve_session_date
+
+    market_session = await resolve_session_date(db)
+    evidence_date = market_session["date"].isoformat()
     if not force_recompute:
         get_latest_closure_snapshot = getattr(db, "get_latest_strategy_closure_snapshot", None)
         if callable(get_latest_closure_snapshot):
@@ -348,7 +361,7 @@ async def build_incubation_overview(
             cached_payload = dict((cached_snapshot or {}).get("snapshot") or {})
             if (
                 cached_payload
-                and _string((cached_snapshot or {}).get("as_of")) == date.today().isoformat()
+                and _string((cached_snapshot or {}).get("as_of")) == evidence_date
                 and _string(cached_metadata.get("strategy_status")) == _string(strategy.get("status"))
                 and _string(cached_metadata.get("quality_report_updated_at")) == _string(quality_report_updated_at)
                 and _string(cached_metadata.get("execution_audit_snapshot_id"))
@@ -364,7 +377,14 @@ async def build_incubation_overview(
                     )
                 )
             ):
-                cached_payload["as_of"] = _string(cached_payload.get("as_of")) or _string((cached_snapshot or {}).get("as_of")) or date.today().isoformat()
+                cached_payload["as_of"] = _string(cached_payload.get("as_of")) or _string((cached_snapshot or {}).get("as_of")) or evidence_date
+                cached_payload["market_session"] = {
+                    "date": evidence_date,
+                    "source": market_session.get("source"),
+                    "latest_bar_date": str(market_session.get("latest_bar_date"))
+                    if market_session.get("latest_bar_date") else None,
+                    "coverage": market_session.get("coverage"),
+                }
                 cached_payload["recomputed"] = False
                 cached_payload["cached"] = True
                 cached_payload["closure_snapshot_id"] = (cached_snapshot or {}).get("snapshot_id")
@@ -751,7 +771,7 @@ async def build_incubation_overview(
     latest_nonzero_signal_date = _coerce_date(
         latest_snapshot_metadata.get("latest_nonzero_signal_date")
     )
-    runtime_cycle_seen_today = bool(latest_snapshot_as_of == date.today()) if latest_snapshot_as_of else False
+    runtime_cycle_seen_today = bool(latest_snapshot_as_of == evidence_date) if latest_snapshot_as_of else False
     risk_hard_gate = _resolve_risk_hard_gate(strategy, max_drawdown=mdd)
     risk_hard_gate_status = _string(risk_hard_gate.get("status")) or "passed"
     risk_hard_gate_reasons = [
@@ -1192,7 +1212,14 @@ async def build_incubation_overview(
         "revision_required": bool(action_plan.get("revision_required")),
         "cleanup_recommended": bool(action_plan.get("cleanup_recommended")),
     }
-    result["as_of"] = date.today().isoformat()
+    result["as_of"] = evidence_date
+    result["market_session"] = {
+        "date": evidence_date,
+        "source": market_session.get("source"),
+        "latest_bar_date": str(market_session.get("latest_bar_date"))
+        if market_session.get("latest_bar_date") else None,
+        "coverage": market_session.get("coverage"),
+    }
     result["recomputed"] = True
     result["cached"] = False
     result["snapshot_source"] = "computed"

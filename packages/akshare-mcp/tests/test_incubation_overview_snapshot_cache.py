@@ -102,3 +102,25 @@ def test_incubation_overview_recomputes_when_signal_stats_signature_changes():
                 {"id": "strategy-cache", "status": "incubating"},
             )
         )
+
+
+class _AheadOfMarketSessionCacheDb(_OverviewCacheDb):
+    async def fetch(self, sql: str, *args):
+        if "MAX(time)" in sql:
+            return [{"latest": "2026-10-23T15:00:00+08:00"}]
+        if "COUNT(*)" in sql:
+            return [{"n": 1200 if args and str(args[0]) == "2026-10-23" else 0}]
+        raise AssertionError(f"unexpected market-session query: {sql}")
+
+    async def get_strategy_metrics(self, strategy_id: str):
+        raise AssertionError("a wall-clock-dated cache must not be served")
+
+
+def test_incubation_overview_does_not_serve_wall_clock_cache_ahead_of_synced_bars():
+    with pytest.raises(AssertionError, match="wall-clock-dated cache"):
+        asyncio.run(
+            build_incubation_overview(
+                _AheadOfMarketSessionCacheDb(),
+                {"id": "strategy-cache", "status": "incubating"},
+            )
+        )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import datetime, timezone
 
 import pytest
 
@@ -20,7 +20,14 @@ class _Repo(_IncWritesMixin):
 
 
 @pytest.mark.asyncio
-async def test_open_position_price_path_audit_uses_current_date_not_entry_time():
+async def test_open_position_price_path_audit_uses_current_date_not_entry_time(monkeypatch):
+    from aiask_quant_core.storage.sqlite.strategy_incubation_repos import writes
+
+    monkeypatch.setattr(
+        writes,
+        "_utc_now",
+        lambda: datetime(2026, 10, 31, 12, 0, tzinfo=timezone.utc),
+    )
     repo = _Repo()
     position = {
         "code": "000001",
@@ -32,7 +39,7 @@ async def test_open_position_price_path_audit_uses_current_date_not_entry_time()
 
     enriched = await repo._enrich_trade_position_price_path(position)
 
-    assert repo.calls == [("000001", "2026-07-16", date.today().isoformat())]
+    assert repo.calls == [("000001", "2026-07-16", "2026-10-31")]
     assert enriched["price_path_audit_status"] == "audited_open_position"
     assert enriched["mfe"] == pytest.approx(0.2)
     assert enriched["mae"] == pytest.approx(-0.02)

@@ -157,6 +157,13 @@ async def test_paper_evidence_reads_latest_metrics_row(adapter):
                 "INSERT INTO strategy_incubation_metrics (strategy_id, metric_date, nav, max_drawdown) VALUES ($1, $2, $3, $4)",
                 "lsmap_x", metric_date, nav, mdd,
             )
+        await conn.execute(
+            "INSERT INTO strategy_incubation_metrics (strategy_id, account_id, metric_date, nav, max_drawdown) "
+            "VALUES ('lsmap_x', 'excluded-account', '2026-10-24', 0.50, 0.50)"
+        )
+        await conn.execute(
+            "INSERT INTO paper_evidence_exclusions (account_id, reason_code) VALUES ('excluded-account', 'unverified_test_artifact')"
+        )
     evidence = await _load_latest_paper_evidence(adapter, "lsmap_x")
     assert evidence == {"status": "ok", "nav": 0.781, "max_drawdown": 0.221}
     assert (await _load_latest_paper_evidence(adapter, "absent"))["status"] == "missing"
@@ -201,6 +208,61 @@ async def test_record_metrics_folds_every_active_account(adapter):
     assert metadata["execution_aggregation_errors"] == []
     assert set(metadata["execution_accounts"]) == {bound, second}
     assert int(metric["total_trades"]) == 5
+
+
+@pytest.mark.asyncio
+async def test_record_metrics_without_date_uses_synced_market_session(adapter):
+    await _bars(adapter, "2026-10-23", 1200)
+    strategy = {"id": "metric-session-default", "name": "metric session", "strategy_type": "momentum", "params": {}}
+    await adapter.save_strategy(
+        {**strategy, "status": "incubating"}
+    )
+
+    metric = await StrategyIncubationService().record_metrics(adapter, strategy)
+    metadata = metric["metadata"]
+    if isinstance(metadata, str):
+        metadata = json.loads(metadata)
+
+    assert str(metric["metric_date"]) == "2026-10-23"
+    assert metadata["market_session"] == {
+        "date": "2026-10-23",
+        "source": sd.SOURCE_SYNCED,
+        "latest_bar_date": "2026-10-23",
+        "coverage": 1200,
+    }
+
+
+@pytest.mark.asyncio
+async def test_record_metrics_does_not_relabel_a_future_nav_as_current(adapter):
+    strategy = {"id": "metric-no-future-nav", "name": "future NAV", "strategy_type": "momentum", "params": {}}
+    await adapter.save_strategy({**strategy, "status": "incubating"})
+    account = (await StrategyIncubationService().ensure_account(adapter, strategy))["account"]
+    await adapter.save_paper_nav(
+        {
+            "account_id": account["id"],
+            "nav_date": date(2026, 10, 24),
+            "total_value": 125000.0,
+            "cash": 50000.0,
+            "market_value": 75000.0,
+            "daily_return": 0.25,
+        }
+    )
+
+    metric = await StrategyIncubationService().record_metrics(
+        adapter, strategy, date(2026, 10, 23)
+    )
+    metadata = metric["metadata"]
+    if isinstance(metadata, str):
+        metadata = json.loads(metadata)
+
+    assert metric["total_value"] is None
+    assert metric["market_value"] is None
+    assert metric["daily_return"] is None
+    assert metadata["valuation"] == {
+        "status": "unmeasurable",
+        "reason_code": "nav_not_measured_for_metric_date",
+        "as_of_date": None,
+    }
 
 
 @pytest.mark.asyncio

@@ -50,6 +50,13 @@ class _ReplayDb:
             rows = rows[-int(limit):]
         return rows
 
+    async def fetch(self, sql: str, *args):
+        if "MAX(time)" in sql:
+            return [{"latest": "2026-04-21T15:00:00+08:00"}]
+        if "COUNT(*)" in sql:
+            return [{"n": 1200 if args and str(args[0]).startswith("2026-04-21") else 0}]
+        raise AssertionError(f"unexpected market-session query: {sql}")
+
 
 class _RecordingReplayService(StrategyIncubationService):
     def __init__(self):
@@ -106,6 +113,21 @@ def test_price_on_or_before_uses_historical_close_before_falling_back():
     assert historical_price == 11.2
     assert latest_price == 13.4
     assert db.calls[0] == ("600000", "2026-04-17", 1)
+
+
+def test_default_replay_end_is_capped_at_latest_synced_market_session():
+    db = _ReplayDb()
+    db.signal_rows.append(
+        {"strategy_id": "strategy-replay", "code": "600000", "signal_date": date(2026, 10, 29), "signal": 1}
+    )
+    dates = asyncio.run(
+        StrategyIncubationService()._resolve_replay_dates(
+            db,
+            {"id": "strategy-replay", "params": {"target_codes": ["600000"]}},
+            include_market_days=False,
+        )
+    )
+    assert dates == [date(2026, 4, 17), date(2026, 4, 21)]
 
 
 def test_ensure_account_is_idempotent_for_same_strategy_and_run():
@@ -191,9 +213,11 @@ async def test_settle_orders_processes_pending_backlog_before_settlement_date(in
     try:
         async def _get_klines(code: str, start_date=None, end_date=None, limit=None):
             rows = [
-                {"date": "2026-06-18", "close": 10.0},
-                {"date": "2026-06-19", "close": 12.0},
+                {"date": "2026-06-18", "open": 9.8, "high": 10.1, "low": 9.7, "close": 10.0, "volume": 1000},
+                {"date": "2026-06-19", "open": 11.5, "high": 12.2, "low": 11.4, "close": 12.0, "volume": 1000},
             ]
+            if start_date:
+                rows = [row for row in rows if row["date"] >= str(start_date)]
             if end_date:
                 rows = [row for row in rows if row["date"] <= str(end_date)]
             if limit is not None:
@@ -284,10 +308,12 @@ async def test_settle_orders_processes_pending_backlog_before_settlement_date(in
 
         assert dict(order)["status"] == "filled"
         assert dict(order)["filled_at"] is not None
-        assert float(dict(trade)["price"]) == 12.0
+        # Decided at the 06-18 close, executed at the 06-19 open (it used to
+        # fill at the 06-19 close, a price that did not exist at decision time).
+        assert float(dict(trade)["price"]) == 11.5
         assert int(dict(trade)["quantity"]) == 100
         assert dict(trade)["position_id"] == "pos-backlog"
-        assert float(dict(nav)["market_value"]) == 1200.0
+        assert float(dict(nav)["market_value"]) == 1200.0  # marked at the 06-19 close
 
         refreshed_overview = await build_incubation_overview(adapter, strategy)
         assert refreshed_overview["cached"] is False

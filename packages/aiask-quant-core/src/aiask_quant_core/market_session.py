@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import time as _time
+import weakref
 from datetime import date, datetime, timedelta
 from typing import Any, Optional
 
@@ -36,7 +37,7 @@ SOURCE_PARTIAL = "kline_1d_partial_latest"
 SOURCE_WALL_CLOCK = "wall_clock_no_bars"
 SOURCE_UNREADABLE = "wall_clock_store_unreadable"
 
-_cache: dict[int, tuple[float, dict[str, Any]]] = {}
+_cache: dict[int, tuple[weakref.ReferenceType[Any], float, dict[str, Any]]] = {}
 
 
 def _day(value: Any) -> Optional[date]:
@@ -88,8 +89,8 @@ async def resolve_session_date(
     key = id(db)
     if use_cache:
         hit = _cache.get(key)
-        if hit is not None and _time.monotonic() - hit[0] < _CACHE_TTL_SEC:
-            return dict(hit[1])
+        if hit is not None and hit[0]() is db and _time.monotonic() - hit[1] < _CACHE_TTL_SEC:
+            return dict(hit[2])
 
     try:
         latest: Optional[date] = None
@@ -112,7 +113,14 @@ async def resolve_session_date(
                 "coverage": None, "error": f"{type(exc).__name__}: {exc}"}
 
     if use_cache:
-        _cache[key] = (_time.monotonic(), dict(result))
+        try:
+            db_ref = weakref.ref(db, lambda _ref, cache_key=key: _cache.pop(cache_key, None))
+        except TypeError:
+            # Some adapter/fake objects do not support weak references; avoiding
+            # cache is safer than keeping an id-only entry that can leak to a
+            # later object after Python reuses the id.
+            return result
+        _cache[key] = (db_ref, _time.monotonic(), dict(result))
     return result
 
 
