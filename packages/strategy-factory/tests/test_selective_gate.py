@@ -149,8 +149,10 @@ async def test_ordered_decision_places_an_order_and_writes_back_its_id() -> None
     )
     assert result["ordered"] == 1
     assert result["orders_placed"] == 1
+    # The order carries the decision day (prediction_as_of 10-15); paper
+    # settlement fills it at the open of the next bar, the 10-16 target.
     assert executor.calls == [
-        {"strategy_id": "s-1", "code": "600519", "signal_date": "2026-10-16",
+        {"strategy_id": "s-1", "code": "600519", "signal_date": "2026-10-15",
          "prediction_id": "tp-1", "direction": "up"}
     ]
     # paper_order_id is bound to the real integer order id, not a string.

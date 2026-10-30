@@ -262,6 +262,29 @@ def test_topn_target_injection_keeps_factor_pool_broad_validation() -> None:
     assert candidate["diagnostic_only"] is True
 
 
+def test_topn_injection_offset_is_reproducible_and_rotates_across_runs() -> None:
+    from strategy_factory.application.research.runner import ResearchPlaneRunner
+
+    topn = {
+        "snapshot_id": "same-snapshot",
+        "run_id": "topn-source-run",
+        "constituents": [{"code": f"600{i:03d}", "rank": i} for i in range(1, 31)],
+    }
+
+    def first_target(factory_run_id: str) -> str:
+        candidates = [{"id": "candidate", "strategy_type": "momentum", "params": {}}]
+        injected, report = ResearchPlaneRunner._inject_topn_targets_into_local_candidates(
+            candidates,
+            topn,
+            {"date": "2026-06-05", "factory_run_id": factory_run_id},
+        )
+        assert report["injected_candidate_count"] == 1
+        return injected[0]["target_symbols"][0]
+
+    assert first_target("run-7") == first_target("run-7")
+    assert len({first_target(f"factory-run-{index}") for index in range(20)}) >= 8
+
+
 def test_apply_resolved_candidate_envelope_attaches_trade_prediction_fields() -> None:
     from strategy_factory.application.candidate_contract import build_logic_signature
 

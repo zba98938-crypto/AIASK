@@ -107,14 +107,27 @@ def collect(db_path: Path) -> dict[str, Any]:
     session = _synced_session(con)
     synced = session["synced_session"]
     since = (date.fromisoformat(synced) - timedelta(days=14)).isoformat() if synced else "2026-01-01"
+    has_exclusions = _one(
+        con,
+        "SELECT 1 FROM sqlite_master WHERE type='table' AND name=?",
+        "paper_evidence_exclusions",
+    ) is not None
 
     latest_metrics = """
         WITH l AS (
           SELECT m.*, ROW_NUMBER() OVER (PARTITION BY strategy_id ORDER BY metric_date DESC, id DESC) rn
-          FROM strategy_incubation_metrics m)
+          FROM strategy_incubation_metrics m
+          {evidence_filter}
+        )
         SELECT strategy_id, metric_date, decision, effective_n_5d, hit_rate_5d,
                hit_rate_lcb_5d, skill_lcb_5d, nav, max_drawdown
-        FROM l WHERE rn = 1"""
+        FROM l WHERE rn = 1""".format(
+            evidence_filter=(
+                "WHERE m.account_id IS NULL OR NOT EXISTS ("
+                "SELECT 1 FROM paper_evidence_exclusions x WHERE x.account_id = m.account_id)"
+                if has_exclusions else ""
+            )
+        )
     rows = [dict(zip(
         ("strategy_id", "metric_date", "decision", "effective_n_5d", "hit_rate_5d",
          "hit_rate_lcb_5d", "skill_lcb_5d", "nav", "max_drawdown"), r))

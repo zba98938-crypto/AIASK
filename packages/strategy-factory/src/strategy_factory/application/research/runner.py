@@ -8,6 +8,7 @@ only outputs candidates and evidence.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import inspect
 import logging
 from dataclasses import dataclass, field
@@ -496,6 +497,15 @@ class ResearchPlaneRunner:
             or dict(snapshot or {}).get("trace_id")
             or "current"
         ).strip() or "current"
+        factory_run_id = str(
+            dict(snapshot or {}).get("factory_run_id")
+            or dict(snapshot or {}).get("run_id")
+            or dict(full_market_topn or {}).get("factory_run_id")
+            or dict(full_market_topn or {}).get("run_id")
+            or "current"
+        ).strip() or "current"
+        offset_seed = hashlib.sha256(f"{snapshot_id}{factory_run_id}".encode("utf-8")).hexdigest()
+        offset = int(offset_seed, 16) % len(topn_codes)
         output: list[dict[str, Any]] = []
         injected_candidate_count = 0
         injected_symbol_count = 0
@@ -510,7 +520,7 @@ class ResearchPlaneRunner:
                 budget = 1 if len(topn_codes) <= 1 else min(12, len(topn_codes))
             else:
                 budget = 1 if len(topn_codes) <= 1 else min(3, len(topn_codes))
-            start = (index * budget) % len(topn_codes)
+            start = (index * budget + offset) % len(topn_codes)
             selected = list(dict.fromkeys(topn_codes[(start + offset) % len(topn_codes)] for offset in range(budget)))
             if not selected:
                 output.append(item)

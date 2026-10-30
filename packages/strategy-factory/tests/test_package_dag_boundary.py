@@ -321,7 +321,7 @@ def test_boundary_json_pins_four_factories_and_sidecar() -> None:
         "incubation",
         "market_event_ingest",
     ]
-    assert declared["sidecars"] == ["signal_tracker"]
+    assert declared["sidecars"] == ["signal_tracker", "daily_market_sync"]
     assert "signal_tracker" not in declared["four_factories"]
 
 

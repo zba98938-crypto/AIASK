@@ -70,6 +70,9 @@ def _strategy_factory_run_row(row: dict[str, Any] | None) -> dict[str, Any] | No
     started_at = raw.get("started_at") or raw.get("created_at")
     return {
         "run_id": raw.get("run_id"),
+        "pid": raw.get("pid"),
+        "heartbeat_at": raw.get("heartbeat_at") or raw.get("updated_at"),
+        "updated_at": raw.get("updated_at"),
         "factory": FactoryName.STRATEGY.value,
         "status": status,
         "raw_status": raw_status or None,
@@ -138,6 +141,10 @@ def _sidecar_status_path() -> Path:
     if explicit:
         return Path(explicit).expanduser().resolve()
     return _runtime_home() / "run" / "signal_tracker.status.json"
+
+
+def _daily_sync_status_path() -> Path:
+    return _runtime_home() / "run" / "daily_market_sync.status.json"
 
 
 _SUPERVISOR_FACTORY_ALIASES = {
@@ -245,10 +252,13 @@ def _supervisor_heartbeat(factory: str) -> dict[str, Any] | None:
             if str(item.get("factory") or "") != target:
                 continue
             status = str(item.get("status") or "unknown").strip().lower()
+            from aiask_quant_core.runtime_status import effective_status
+            effective = effective_status(status, pid=item.get("pid"), heartbeat_at=record.get("ts"), heartbeat_period_seconds=60)
             return {
                 "run_id": f"supervisor:{target}:{item.get('pid')}",
                 "factory": factory,
-                "status": "running" if status == "running" else status,
+                "status": effective["effective_status"],
+                **effective,
                 "raw_status": status,
                 "mode": "supervisor",
                 "requested_at": record.get("ts"),
@@ -285,14 +295,41 @@ def _read_sidecar_status() -> dict[str, Any]:
             "path": str(path),
             "error": str(exc),
         }
+    from aiask_quant_core.runtime_status import effective_status
+
+    status = str(payload.get("status") or "unknown")
+    verdict = effective_status(
+        status,
+        pid=payload.get("pid"),
+        heartbeat_at=payload.get("updated_at") or payload.get("last_heartbeat_at"),
+        heartbeat_period_seconds=int(payload.get("heartbeat_period_seconds") or 60),
+    )
     return {
         "name": "signal_tracker",
         "configured": True,
-        "status": str(payload.get("status") or "unknown"),
+        "status": verdict["effective_status"],
+        **verdict,
         "required": False,
         "path": str(path),
         "payload": payload,
     }
+
+
+def _read_named_sidecar_status(name: str, path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {"name": name, "configured": False, "status": "missing", "required": False, "path": str(path)}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:
+        return {"name": name, "configured": True, "status": "invalid", "required": False, "path": str(path), "error": str(exc)}
+    from aiask_quant_core.runtime_status import effective_status
+    verdict = effective_status(
+        str(payload.get("status") or "unknown"), pid=payload.get("pid"),
+        heartbeat_at=payload.get("updated_at") or payload.get("last_heartbeat_at"),
+        heartbeat_period_seconds=int(payload.get("heartbeat_period_seconds") or 60),
+    )
+    return {"name": name, "configured": True, "status": verdict["effective_status"], **verdict, "required": False,
+            "path": str(path), "payload": payload}
 
 
 async def list_factories() -> dict[str, Any]:
@@ -303,7 +340,7 @@ async def list_factories() -> dict[str, Any]:
             {"factory": name, **descriptor}
             for name, descriptor in FACTORY_DESCRIPTORS.items()
         ],
-        "sidecars": ["signal_tracker"],
+        "sidecars": ["signal_tracker", "daily_market_sync"],
         "read_only": True,
     }
 
@@ -481,6 +518,14 @@ async def factory_status(factory: str) -> dict[str, Any]:
             active = [item for item in mapped_rows if item.get("status") == "running"] or active
             queued = [item for item in mapped_rows if item.get("status") == "queued"] or queued
         source = "strategy_factory_runs"
+    if latest and str(latest.get("status") or "").lower() == "running":
+        from aiask_quant_core.runtime_status import effective_status
+        effective = effective_status(
+            "running", pid=latest.get("pid"),
+            heartbeat_at=latest.get("heartbeat_at") or latest.get("updated_at"),
+            heartbeat_period_seconds=int(latest.get("heartbeat_period_seconds") or 60),
+        )
+        latest = {**latest, **effective, "status": effective["effective_status"]}
     return {
         "object": "aiask.factory.status",
         "factory": resolved,
@@ -513,17 +558,19 @@ async def factory_readiness(factory: str | None = None) -> dict[str, Any]:
             }
         )
     sidecar = _read_sidecar_status()
+    daily_sync = _read_named_sidecar_status("daily_market_sync", _daily_sync_status_path())
     blockers = [f"runner_missing:{item['factory']}" for item in checks if not item["runner_available"]]
     if not db_status.get("writable"):
         blockers.append("factory_ledger_not_writable")
-    warnings = [] if sidecar["status"] not in {"missing", "invalid"} else ["signal_tracker_sidecar_missing"]
+    warnings = [f"{item['name']}_sidecar_{item['status']}" for item in (sidecar, daily_sync)
+                if item["status"] in {"missing", "invalid", "dead", "stale"}]
     return {
         "object": "aiask.factory.readiness",
         "factory": names[0] if factory else None,
         "ready": not blockers,
         "database": db_status,
         "checks": checks,
-        "sidecars": [sidecar],
+        "sidecars": [sidecar, daily_sync],
         "blockers": blockers,
         "warnings": warnings,
         "read_only": True,

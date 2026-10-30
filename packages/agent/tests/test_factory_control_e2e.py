@@ -224,7 +224,10 @@ def test_factory_control_real_stdio_sqlite_subprocess_e2e(tmp_path, monkeypatch)
                 "factory_tradeability_certificates_read",
             }
             assert readiness["ready"] is True
-            assert readiness["warnings"] == ["signal_tracker_sidecar_missing"]
+            assert readiness["warnings"] == [
+                "signal_tracker_sidecar_missing",
+                "daily_market_sync_sidecar_missing",
+            ]
             assert detail["run"]["status"] == "partial"
             assert detail["read_only"] is True
         finally:

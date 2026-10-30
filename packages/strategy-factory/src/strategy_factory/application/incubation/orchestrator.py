@@ -158,6 +158,20 @@ class IncubationOrchestrator:
 
         # Get DB connection (assumed to be provided by support)
         db = await self._get_db()
+        session_label: dict[str, Any]
+        try:
+            from aiask_quant_core.market_session import resolve_session_date
+
+            session_label = await resolve_session_date(db)
+        except Exception as exc:
+            session_label = {
+                "date": None,
+                "source": "session_resolution_failed",
+                "error": f"{type(exc).__name__}: {exc}",
+            }
+        session_warnings = []
+        if session_label.get("source") != "kline_1d_synced_session":
+            session_warnings.append("session_not_synced")
 
         # These are deliberately captured once per cycle.  A supervisor may
         # change environment variables between runs, but a single cycle must
@@ -600,6 +614,9 @@ class IncubationOrchestrator:
             # phase metadata.
             summary_dict.update(
                 {
+                    "session_date": session_label.get("date"),
+                    "session_source": session_label.get("source"),
+                    "warnings": session_warnings,
                     "daily_predictions": daily_prediction_summary,
                     "horizon_scoring": horizon_result,
                     "calibration": calibration_result,

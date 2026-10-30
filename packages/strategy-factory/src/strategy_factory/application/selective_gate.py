@@ -287,6 +287,13 @@ class SelectiveGate:
         strategy = strategies.get(strategy_id)
         if strategy is None:
             return {"placed": False, "reason": "strategy_not_loaded"}
+        # The order is dated with the decision day, the closed bar the
+        # prediction was made on. Paper settlement fills at the first bar after
+        # that day, which is the prediction's target session. Dating it with
+        # the target (the session being decided) filled one session late.
+        decided_on = _day(prediction.get("prediction_as_of"))
+        if decided_on is None:
+            return {"placed": False, "reason": "prediction_as_of_missing"}
         direction = _string(prediction.get("direction")).lower()
         place = getattr(executor, "place_order_for_execution", None)
         if not callable(place):
@@ -295,7 +302,7 @@ class SelectiveGate:
             result = await place(
                 strategy=strategy,
                 code=_string(prediction.get("stock_code")),
-                signal_date=signal_date.isoformat(),
+                signal_date=decided_on.isoformat(),
                 prediction_id=_string(prediction.get("prediction_id")),
                 direction=direction,
             )

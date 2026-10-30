@@ -88,6 +88,8 @@ async def test_hitrate_hooks_follow_toggles_and_reuse_generated_signal(monkeypat
     result = await IncubationOrchestrator(support).run_cycle(trigger="test")
 
     assert support.signal_calls == 1
+    assert result["session_source"] == "wall_clock_store_unreadable"
+    assert result["warnings"] == ["session_not_synced"]
     assert [item[0] for item in support.calls] == [
         "writer",
         "verify",

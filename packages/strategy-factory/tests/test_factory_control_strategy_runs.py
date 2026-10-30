@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+from datetime import datetime, timezone
 
 import pytest
 
@@ -89,13 +91,13 @@ async def test_factory_status_falls_back_to_supervisor_heartbeat(monkeypatch, tm
     log_dir.mkdir(parents=True)
     (log_dir / "execution_records.jsonl").write_text(
         json.dumps({
-            "ts": "2026-10-20T09:26:00+08:00",
+                    "ts": datetime.now(timezone.utc).isoformat(),
             "event_type": "supervisor_heartbeat",
             "factories": [
                 {
                     "factory": "factor_mining_factory",
                     "status": "running",
-                    "pid": 1196,
+                        "pid": os.getpid(),
                     "uptime_seconds": 100,
                     "restart_count": 0,
                     "last_exit_code": None,
@@ -110,7 +112,7 @@ async def test_factory_status_falls_back_to_supervisor_heartbeat(monkeypatch, tm
 
     assert result["status"] == "running"
     assert result["source"] == "supervisor_heartbeat"
-    assert result["latest_run"]["pid"] == 1196
+    assert result["latest_run"]["pid"] == os.getpid()
 
 
 @pytest.mark.asyncio
