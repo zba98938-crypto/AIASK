@@ -67,6 +67,10 @@ def conn():
             id INTEGER PRIMARY KEY,
             strategy_id TEXT NOT NULL
         );
+        CREATE TABLE paper_evidence_exclusions (
+            account_id TEXT PRIMARY KEY,
+            reason_code TEXT NOT NULL
+        );
         CREATE TABLE factory_run_ledger (
             id INTEGER PRIMARY KEY,
             factory TEXT NOT NULL
@@ -92,6 +96,7 @@ def conn():
         "strategy_factory_task_evidence",
         "strategy_incubation_accounts",
         "factory_run_locks",
+        "paper_evidence_exclusions",
         "strategy_domain_events",
         "matching_engine_worker_state",
     ],
@@ -124,6 +129,7 @@ def test_collect_reads_only_factory_tables(conn) -> None:
         "strategies",
         "strategy_factory_runs",
         "strategy_incubation_metrics",
+        "paper_evidence_exclusions",
         "factory_run_ledger",
     }
     assert "stock_daily_bars" not in schema

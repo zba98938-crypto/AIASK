@@ -163,6 +163,9 @@ class _ExecutionAcceptanceMixin:
             snapshot_metadata = get_execution_audit_snapshot_metadata()
             try:
                 if callable(snapshot_builder):
+                    from aiask_quant_core.market_session import resolve_session_date
+
+                    session = await resolve_session_date(self)
                     snapshot = await self.upsert_execution_audit_snapshot(
                         snapshot_builder(
                             strategy_id=strategy_filter,
@@ -174,13 +177,14 @@ class _ExecutionAcceptanceMixin:
                             execution_hard_gate_passed=bool(
                                 audit_summary.get("audit_ready_for_hard_gate")
                             ),
-                            as_of=date.today().isoformat(),
+                            as_of=session["date"].isoformat(),
                             correlation_id=_string(strategy_filter),
                             source_action="execution_audit_acceptance",
                             metadata={
                                 "acceptance_status": status,
                                 "backfill_executed": bool(backfill),
                                 "gap_categories": list(gap_categories),
+                                "as_of_source": session["source"],
                             },
                         )
                     )

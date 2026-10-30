@@ -2,9 +2,34 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from aiask_quant_core.storage.sqlite import SQLiteAdapter
+from aiask_quant_core.storage import runtime_hooks
 
 from akshare_mcp.storage.sqlite.strategy_incubation import StrategyIncubationMixin
+
+
+@pytest.fixture(autouse=True)
+def _install_stable_storage_runtime_hooks(monkeypatch):
+    """Keep these domain behavior tests independent of import/test order."""
+    from akshare_mcp.services.strategy_lifecycle_shared.execution_audit_snapshot import (
+        build_execution_audit_snapshot_payload,
+        with_execution_audit_snapshot_metadata,
+    )
+    from strategy_factory.api.semantic_contract import build_signal_evidence_records
+
+    monkeypatch.setattr(runtime_hooks, "_signal_evidence_builder", build_signal_evidence_records)
+    monkeypatch.setattr(
+        runtime_hooks,
+        "_execution_audit_snapshot_builder",
+        build_execution_audit_snapshot_payload,
+    )
+    monkeypatch.setattr(
+        runtime_hooks,
+        "_execution_audit_snapshot_metadata",
+        with_execution_audit_snapshot_metadata,
+    )
 
 
 class _SignalEvidenceBackfillDb(StrategyIncubationMixin):
@@ -47,6 +72,11 @@ class _AcceptanceHarness(StrategyIncubationMixin):
         self._backfill_result = dict(backfill_result)
         self.snapshot_payload = None
 
+    async def fetch(self, sql: str, *args):
+        if "MAX(time)" in sql:
+            return [{"latest": "2026-10-23T15:00:00+08:00"}]
+        return [{"n": 5500}]
+
     async def backfill_trade_position_links(self, strategy_id=None):
         return {"strategy_id": strategy_id, "position_count": 1, "fill_count": 2}
 
@@ -59,6 +89,31 @@ class _AcceptanceHarness(StrategyIncubationMixin):
     async def upsert_execution_audit_snapshot(self, payload: dict):
         self.snapshot_payload = dict(payload or {})
         return dict(payload or {})
+
+
+def test_trade_audit_summary_supports_schema_without_optional_exclusion_table(initialized_db):
+    async def _run():
+        adapter = SQLiteAdapter(path=initialized_db)
+        try:
+            await adapter.initialize()
+            await adapter.save_strategy(
+                {
+                    "id": "strategy-legacy-audit",
+                    "name": "Legacy audit schema",
+                    "status": "incubating",
+                    "strategy_type": "momentum",
+                }
+            )
+            async with adapter.acquire() as conn:
+                await conn.execute("DROP TABLE paper_evidence_exclusions")
+            return await adapter.get_strategy_trade_audit_summary("strategy-legacy-audit")
+        finally:
+            await adapter.close()
+
+    summary = asyncio.run(_run())
+    assert summary["method"] == "position_id_round_trip_v1"
+    assert summary["mapped_position_count"] == 0
+    assert summary["realized_trade_count"] == 0
 
 
 def test_backfill_strategy_signal_evidence_native_prefers_compile_stable_records():
@@ -191,6 +246,50 @@ def test_backfill_strategy_signal_evidence_native_synthesizes_proxy_lineage_for_
     assert sell_row["payload"]["backfill_mode"] == "paper_execution_native_backfill_v1"
 
 
+def test_native_signal_backfill_does_not_promote_excluded_account_orders():
+    class _Conn:
+        async def fetchval(self, _sql):
+            return True
+
+        async def fetch(self, _sql):
+            return [{"account_id": "archived-account"}]
+
+    class _Acquire:
+        async def __aenter__(self):
+            return _Conn()
+
+        async def __aexit__(self, *_args):
+            return False
+
+    class _ExcludedDb(_SignalEvidenceBackfillDb):
+        def acquire(self):
+            return _Acquire()
+
+    strategy = {"id": "strategy-excluded-backfill", "params": {}}
+    db = _ExcludedDb(
+        strategy=strategy,
+        orders=[
+            {
+                "id": "archived-order",
+                "strategy_id": strategy["id"],
+                "account_id": "archived-account",
+                "signal_id": "archived-signal",
+                "code": "600188",
+                "direction": "buy",
+                "signal_date": "2026-10-20",
+            }
+        ],
+        trades=[],
+    )
+
+    result = asyncio.run(
+        db.backfill_strategy_signal_evidence_native(strategy_id=strategy["id"])
+    )
+
+    assert result["saved_signal_count"] == 0
+    assert db.saved_rows == []
+
+
 def test_run_execution_audit_acceptance_emits_gap_categories_and_actionable_todos():
     verification = {
         "coverage": {
@@ -243,6 +342,8 @@ def test_run_execution_audit_acceptance_emits_gap_categories_and_actionable_todo
     )
     assert any("production hard gate" in todo for todo in result["actionable_todos"])
     assert result["backfill_result"]["native_signal_evidence"]["saved_signal_count"] == 3
+    assert result["snapshot"]["as_of"] == "2026-10-23"
+    assert result["snapshot"]["metadata"]["as_of_source"] == "kline_1d_synced_session"
 
 
 def test_normalize_trade_audit_summary_counts_excludes_open_positions_from_incomplete_gate():
@@ -700,6 +801,75 @@ def test_trade_audit_summary_excludes_backtest_bootstrap_from_production_hard_ga
     assert summary["execution_audit_gate_status"] == "insufficient_samples"
     assert summary["bootstrap_gate_ready"] is False
     assert summary["audit_ready_for_hard_gate"] is False
+
+
+def test_archived_account_fills_are_preserved_but_excluded_from_trade_audit(initialized_db):
+    async def _run():
+        adapter = SQLiteAdapter(path=initialized_db)
+        await adapter.initialize()
+        try:
+            strategy_id = "strategy-archived-evidence"
+            account_id = "paper-archived-evidence"
+            await adapter.save_strategy(
+                {
+                    "id": strategy_id,
+                    "name": "Archived evidence",
+                    "strategy_type": "momentum",
+                    "status": "incubating",
+                    "params": {},
+                }
+            )
+            trade = await adapter.save_paper_trade(
+                {
+                    "id": "trade-archived-evidence",
+                    "account_id": account_id,
+                    "stock_code": "600188",
+                    "trade_type": "buy",
+                    "price": 10.0,
+                    "quantity": 100,
+                    "amount": 1000.0,
+                    "trade_time": "2026-10-20T10:00:00+08:00",
+                    "strategy_id": strategy_id,
+                    "position_id": "position-archived-evidence",
+                }
+            )
+            await adapter.save_strategy_trade_position(
+                {
+                    "position_id": "position-archived-evidence",
+                    "strategy_id": strategy_id,
+                    "account_id": account_id,
+                    "code": "600188",
+                    "direction": "long",
+                    "status": "closed",
+                    "entry_shares": 100,
+                    "exit_shares": 100,
+                    "remaining_shares": 0,
+                    "realized_pnl": 100.0,
+                    "realized_return": 0.1,
+                    "audit_eligible": 1,
+                }
+            )
+            async with adapter.acquire() as conn:
+                await conn.execute(
+                    "INSERT INTO paper_evidence_exclusions (account_id, reason_code) VALUES ($1, $2)",
+                    account_id,
+                    "stale_quote_fill_provenance_unverified",
+                )
+            summary = await adapter.get_strategy_trade_audit_summary(strategy_id)
+            verification = await adapter.get_execution_audit_verification(strategy_id)
+            async with adapter.acquire() as conn:
+                preserved_trade_count = await conn.fetchval(
+                    "SELECT COUNT(*) FROM paper_trades WHERE id=$1", trade["id"]
+                )
+            return summary, verification, preserved_trade_count
+        finally:
+            await adapter.close()
+
+    summary, verification, preserved_trade_count = asyncio.run(_run())
+    assert preserved_trade_count == 1
+    assert summary["mapped_position_count"] == 0
+    assert summary["realized_trade_count"] == 0
+    assert verification["coverage"]["paper_trades"]["total"] == 0
 
 
 def test_refresh_trade_position_clears_stale_exit_fields(initialized_db):

@@ -335,8 +335,17 @@ class _TradeAuditMixin:
         strategy = await self.get_strategy(strategy_id)
         strategy_type = _string((strategy or {}).get("strategy_type")) or None
         async with self.acquire() as conn:
+            exclusions_present = bool(await conn.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type IN ('table', 'view') "
+                "AND name = 'paper_evidence_exclusions')"
+            ))
+            exclusion_filter = (
+                "AND NOT EXISTS (SELECT 1 FROM paper_evidence_exclusions e "
+                "WHERE e.account_id = p.account_id)"
+                if exclusions_present else ""
+            )
             row = await conn.fetchrow(
-                """
+                f"""
                 WITH classified_positions AS (
                     SELECT
                         p.*,
@@ -349,7 +358,7 @@ class _TradeAuditMixin:
                                   SELECT 1
                                   FROM strategy_trade_position_fills f
                                   WHERE f.position_id = p.position_id
-                                    AND json_valid(COALESCE(f.payload, '{}'))
+                                    AND json_valid(COALESCE(f.payload, '{{}}'))
                                     AND (
                                         COALESCE(json_extract(f.payload, '$.source'), '') = 'backtest_bootstrap_import'
                                         OR COALESCE(json_extract(f.payload, '$.bootstrap_source'), '') = 'backtest_to_incubation_v1'
@@ -364,6 +373,7 @@ class _TradeAuditMixin:
                     LEFT JOIN paper_orders exit_order
                       ON CAST(exit_order.id AS TEXT) = CAST(p.exit_order_id AS TEXT)
                     WHERE p.strategy_id = $1
+                      {exclusion_filter}
                 )
                 SELECT
                     COALESCE(COUNT(*), 0) AS mapped_position_count,
@@ -543,6 +553,16 @@ class _TradeAuditMixin:
 
             async def _count_rows(table_name: str, *, column_name: Optional[str] = None) -> int:
                 where_clause = "WHERE ($1 IS NULL OR strategy_id = $1)"
+                if table_name in {
+                    "paper_orders",
+                    "paper_trades",
+                    "strategy_trade_positions",
+                    "strategy_trade_position_fills",
+                } and exclusions_present:
+                    where_clause += (
+                        f" AND NOT EXISTS (SELECT 1 FROM paper_evidence_exclusions e "
+                        f"WHERE e.account_id = {table_name}.account_id)"
+                    )
                 if column_name:
                     where_clause += f" AND NULLIF(TRIM(COALESCE({column_name}, '')), '') IS NOT NULL"
                 row = await conn.fetchrow(
@@ -559,6 +579,12 @@ class _TradeAuditMixin:
                 table_name: await _table_present(table_name)
                 for table_name in _EXECUTION_AUDIT_REQUIRED_TABLES
             }
+            exclusions_present = await _table_present("paper_evidence_exclusions")
+            excluded_account_ids = {
+                str(dict(row or {}).get("account_id") or "")
+                for row in await conn.fetch("SELECT account_id FROM paper_evidence_exclusions")
+                if dict(row or {}).get("account_id")
+            } if exclusions_present else set()
             column_presence = {
                 table_name: {
                     column_name: await _column_present(table_name, column_name)
@@ -719,19 +745,21 @@ class _TradeAuditMixin:
             position_status_counts: dict[str, int] = {}
             if table_presence["strategy_trade_positions"]:
                 row = await conn.fetchrow(
-                    """
+                    f"""
                     SELECT COALESCE(COUNT(*), 0) AS count
                     FROM strategy_trade_positions
                     WHERE ($1 IS NULL OR strategy_id = $1)
+                      {"AND NOT EXISTS (SELECT 1 FROM paper_evidence_exclusions e WHERE e.account_id = strategy_trade_positions.account_id)" if exclusions_present else ""}
                     """,
                     strategy_filter,
                 )
                 position_count = int(dict(row or {}).get("count") or 0)
                 status_rows = await conn.fetch(
-                    """
+                    f"""
                     SELECT COALESCE(status, 'unknown') AS status, COUNT(*) AS count
                     FROM strategy_trade_positions
                     WHERE ($1 IS NULL OR strategy_id = $1)
+                      {"AND NOT EXISTS (SELECT 1 FROM paper_evidence_exclusions e WHERE e.account_id = strategy_trade_positions.account_id)" if exclusions_present else ""}
                     GROUP BY COALESCE(status, 'unknown')
                     ORDER BY status
                     """,
@@ -781,6 +809,15 @@ class _TradeAuditMixin:
                 if table_presence["strategy_trade_position_fills"]
                 else []
             )
+            if excluded_account_ids:
+                position_rows = [
+                    row for row in position_rows
+                    if str((row or {}).get("account_id") or "") not in excluded_account_ids
+                ]
+                fill_rows = [
+                    row for row in fill_rows
+                    if str((row or {}).get("account_id") or "") not in excluded_account_ids
+                ]
             position_count = len(position_rows)
             fill_count = len(fill_rows)
             position_status_counts = {}
@@ -972,6 +1009,9 @@ class _TradeAuditMixin:
                 snapshot_builder = get_execution_audit_snapshot_builder()
                 try:
                     if callable(snapshot_builder):
+                        from aiask_quant_core.market_session import resolve_session_date
+
+                        session = await resolve_session_date(self)
                         persisted_snapshot = await self.upsert_execution_audit_snapshot(
                             snapshot_builder(
                                 strategy_id=strategy_filter,
@@ -988,7 +1028,7 @@ class _TradeAuditMixin:
                                 execution_hard_gate_passed=bool(
                                     dict(audit_summary or {}).get("audit_ready_for_hard_gate")
                                 ),
-                                as_of=date.today().isoformat(),
+                                as_of=session["date"].isoformat(),
                                 factory_run_id=_string((snapshot or {}).get("factory_run_id")) or None,
                                 correlation_id=_string((snapshot or {}).get("correlation_id"))
                                 or strategy_filter,
@@ -1003,6 +1043,7 @@ class _TradeAuditMixin:
                                     "verification_status": status,
                                     "recommendation_count": len(recommendations),
                                     "lineage_status": lineage_status,
+                                    "as_of_source": session["source"],
                                 },
                             )
                         )

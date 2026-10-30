@@ -73,10 +73,19 @@ class _IncReadsMixin:
                     account_id,
                 )
             else:
+                exclusions_present = bool(await conn.fetchval(
+                    "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_evidence_exclusions')"
+                ))
+                exclusion_filter = (
+                    "AND NOT EXISTS (SELECT 1 FROM paper_evidence_exclusions e "
+                    "WHERE e.account_id = strategy_incubation_accounts.account_id)"
+                    if exclusions_present else ""
+                )
                 row = await conn.fetchrow(
-                    """
+                    f"""
                     SELECT * FROM strategy_incubation_accounts
-                    WHERE strategy_id = $1
+                    WHERE strategy_id = $1 AND status = 'active'
+                      {exclusion_filter}
                     ORDER BY updated_at DESC
                     LIMIT 1
                     """,
@@ -418,8 +427,19 @@ class _IncReadsMixin:
 
     async def get_paper_account_by_strategy(self, strategy_id: str) -> Optional[dict]:
         async with self.acquire() as conn:
+            exclusions_present = bool(await conn.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_evidence_exclusions')"
+            ))
+            exclusion_filter = (
+                "AND NOT EXISTS (SELECT 1 FROM paper_evidence_exclusions e "
+                "WHERE e.account_id = paper_accounts.id)"
+                if exclusions_present else ""
+            )
             row = await conn.fetchrow(
-                "SELECT * FROM paper_accounts WHERE strategy_id = $1 ORDER BY created_at LIMIT 1",
+                f"""SELECT * FROM paper_accounts
+                   WHERE strategy_id = $1 AND COALESCE(status, 'active') = 'active'
+                     {exclusion_filter}
+                   ORDER BY created_at LIMIT 1""",
                 strategy_id,
             )
         return dict(row) if row else None

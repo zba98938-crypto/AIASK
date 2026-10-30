@@ -30,6 +30,20 @@ class _SignalEvidenceMixin:
                 "saved_row_count": 0,
             }
 
+        excluded_account_ids: set[str] = set()
+        exclusion_table_present = False
+        if hasattr(self, "acquire"):
+            async with self.acquire() as conn:
+                exclusion_table_present = bool(await conn.fetchval(
+                    "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_evidence_exclusions')"
+                ))
+                if exclusion_table_present:
+                    excluded_account_ids = {
+                        _string(row.get("account_id"))
+                        for row in await conn.fetch("SELECT account_id FROM paper_evidence_exclusions")
+                        if _string(row.get("account_id"))
+                    }
+
         if strategy_filter:
             orders = await self.list_strategy_paper_orders(strategy_filter, limit=limit_value)
             trades = await self.list_strategy_paper_trades(strategy_filter, limit=limit_value)
@@ -39,21 +53,31 @@ class _SignalEvidenceMixin:
             )
         else:
             async with self.acquire() as conn:
+                order_exclusion = (
+                    "AND NOT EXISTS (SELECT 1 FROM paper_evidence_exclusions e WHERE e.account_id = paper_orders.account_id)"
+                    if exclusion_table_present else ""
+                )
+                trade_exclusion = (
+                    "AND NOT EXISTS (SELECT 1 FROM paper_evidence_exclusions e WHERE e.account_id = paper_trades.account_id)"
+                    if exclusion_table_present else ""
+                )
                 order_rows = await conn.fetch(
-                    """
+                    f"""
                     SELECT *
                     FROM paper_orders
                     WHERE NULLIF(TRIM(COALESCE(signal_id, '')), '') IS NOT NULL
+                      {order_exclusion}
                     ORDER BY COALESCE(filled_at, updated_at, created_at) DESC
                     LIMIT $1
                     """,
                     limit_value,
                 )
                 trade_rows = await conn.fetch(
-                    """
+                    f"""
                     SELECT *
                     FROM paper_trades
                     WHERE NULLIF(TRIM(COALESCE(signal_id, '')), '') IS NOT NULL
+                      {trade_exclusion}
                     ORDER BY trade_time DESC, created_at DESC
                     LIMIT $1
                     """,
@@ -71,6 +95,16 @@ class _SignalEvidenceMixin:
             orders = [dict(row) for row in order_rows]
             trades = [dict(row) for row in trade_rows]
             existing_rows = [dict(row) for row in signal_rows]
+
+        if excluded_account_ids:
+            orders = [
+                row for row in orders
+                if _string(dict(row or {}).get("account_id")) not in excluded_account_ids
+            ]
+            trades = [
+                row for row in trades
+                if _string(dict(row or {}).get("account_id")) not in excluded_account_ids
+            ]
 
         existing_signal_ids = {
             _string(row.get("signal_id"))

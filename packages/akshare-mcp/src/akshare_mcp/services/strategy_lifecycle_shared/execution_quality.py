@@ -193,8 +193,19 @@ async def _load_execution_quality_inputs(db, strategy_id: str, *, nav_limit: int
         account = await db.get_paper_account_by_strategy(strategy_id)
     elif hasattr(db, "acquire"):
         async with db.acquire() as conn:
+            exclusions_present = bool(await conn.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_evidence_exclusions')"
+            ))
+            exclusion_filter = (
+                "AND NOT EXISTS (SELECT 1 FROM paper_evidence_exclusions e WHERE e.account_id = p.id)"
+                if exclusions_present else ""
+            )
             row = await conn.fetchrow(
-                "SELECT * FROM paper_accounts WHERE strategy_id = $1 ORDER BY created_at LIMIT 1",
+                f"""SELECT * FROM paper_accounts p
+                   WHERE p.strategy_id = $1
+                     AND COALESCE(p.status, 'active') = 'active'
+                     {exclusion_filter}
+                   ORDER BY p.created_at LIMIT 1""",
                 strategy_id,
             )
         account = dict(row) if row else None

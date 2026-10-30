@@ -15,6 +15,44 @@ logger = logging.getLogger(__name__)
 
 
 class _ClosureSnapshotsMixin:
+    async def _evidence_exclusion_ids(self, conn, strategy_id: str) -> list[str]:
+        table_present = bool(await conn.fetchval(
+            "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_evidence_exclusions')"
+        ))
+        if not table_present:
+            return []
+        rows = await conn.fetch(
+            """
+            SELECT DISTINCT e.account_id
+            FROM paper_evidence_exclusions e
+            WHERE e.account_id IN (
+                SELECT id FROM paper_accounts WHERE strategy_id = $1
+                UNION
+                SELECT account_id FROM strategy_incubation_accounts WHERE strategy_id = $1
+            )
+            ORDER BY e.account_id
+            """,
+            strategy_id,
+        )
+        return sorted(
+            {
+                _string(dict(row or {}).get("account_id"))
+                for row in rows
+                if _string(dict(row or {}).get("account_id"))
+            }
+        )
+
+    def _snapshot_matches_evidence_exclusions(self, row: dict, exclusion_ids: list[str]) -> bool:
+        metadata = self._decode_json_field(row.get("metadata"), {})
+        if not isinstance(metadata, dict):
+            return not exclusion_ids
+        recorded = metadata.get("evidence_exclusion_ids")
+        if recorded is None:
+            # Legacy snapshots remain usable when no account has been excluded,
+            # but cannot carry forward an unfiltered verdict after exclusions exist.
+            return not exclusion_ids
+        return sorted(_string(item) for item in list(recorded or []) if _string(item)) == exclusion_ids
+
     def _decode_execution_audit_snapshot(self, row: dict) -> dict:
         result = dict(row)
         for key in (
@@ -55,18 +93,24 @@ class _ClosureSnapshotsMixin:
         strategy_filter = _string(strategy_id)
         if not strategy_filter:
             return None
+        from aiask_quant_core.market_session import resolve_session_date
+
+        session_date = (await resolve_session_date(self))["date"].isoformat()
         async with self.acquire() as conn:
+            exclusion_ids = await self._evidence_exclusion_ids(conn, strategy_filter)
             row = await conn.fetchrow(
                 """
                 SELECT *
                 FROM strategy_execution_audit_snapshots
                 WHERE strategy_id = $1
+                  AND as_of_date <= $2
                 ORDER BY updated_at DESC
                 LIMIT 1
                 """,
                 strategy_filter,
+                session_date,
             )
-        if not row:
+        if not row or not self._snapshot_matches_evidence_exclusions(dict(row), exclusion_ids):
             return None
         return self._decode_execution_audit_snapshot(dict(row))
 
@@ -77,6 +121,8 @@ class _ClosureSnapshotsMixin:
             return None
         verdict = dict(payload.get("verdict") or {})
         async with self.acquire() as conn:
+            metadata = dict(payload.get("metadata") or {})
+            metadata["evidence_exclusion_ids"] = await self._evidence_exclusion_ids(conn, strategy_id)
             row = await conn.fetchrow(
                 """
                 INSERT INTO strategy_execution_audit_snapshots
@@ -132,7 +178,7 @@ class _ClosureSnapshotsMixin:
                 json.dumps(payload.get("acceptance") or {}, ensure_ascii=False, default=str),
                 json.dumps(payload.get("audit_summary") or {}, ensure_ascii=False, default=str),
                 json.dumps(payload.get("snapshot") or {}, ensure_ascii=False, default=str),
-                json.dumps(payload.get("metadata") or {}, ensure_ascii=False, default=str),
+                json.dumps(metadata, ensure_ascii=False, default=str),
             )
         if not row:
             return None
@@ -158,20 +204,26 @@ class _ClosureSnapshotsMixin:
         snapshot_type_filter = _string(snapshot_type) or "incubation_overview"
         if not strategy_filter:
             return None
+        from aiask_quant_core.market_session import resolve_session_date
+
+        session_date = (await resolve_session_date(self))["date"].isoformat()
         async with self.acquire() as conn:
+            exclusion_ids = await self._evidence_exclusion_ids(conn, strategy_filter)
             row = await conn.fetchrow(
                 """
                 SELECT *
                 FROM strategy_closure_snapshots
                 WHERE strategy_id = $1
                   AND snapshot_type = $2
+                  AND as_of_date <= $3
                 ORDER BY as_of_date DESC NULLS LAST, updated_at DESC
                 LIMIT 1
                 """,
                 strategy_filter,
                 snapshot_type_filter,
+                session_date,
             )
-        if not row:
+        if not row or not self._snapshot_matches_evidence_exclusions(dict(row), exclusion_ids):
             return None
         return self._decode_strategy_closure_snapshot(dict(row))
 
@@ -183,6 +235,8 @@ class _ClosureSnapshotsMixin:
             return None
         snapshot_id = _string(payload.get("snapshot_id")) or f"cls_{strategy_id}_{snapshot_type}"
         async with self.acquire() as conn:
+            metadata = dict(payload.get("metadata") or {})
+            metadata["evidence_exclusion_ids"] = await self._evidence_exclusion_ids(conn, strategy_id)
             row = await conn.fetchrow(
                 """
                 INSERT INTO strategy_closure_snapshots
@@ -217,7 +271,7 @@ class _ClosureSnapshotsMixin:
                 payload.get("parent_task_run_id"),
                 payload.get("source_action"),
                 json.dumps(payload.get("snapshot") or {}, ensure_ascii=False, default=str),
-                json.dumps(payload.get("metadata") or {}, ensure_ascii=False, default=str),
+                json.dumps(metadata, ensure_ascii=False, default=str),
             )
         if not row:
             return None

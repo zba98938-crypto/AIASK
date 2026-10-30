@@ -73,6 +73,7 @@ FACTORY_TABLE_NAMES: frozenset[str] = frozenset(
         "strategy_runtime_controls",
         "strategy_runtime_risk_events",
         "strategy_runtime_risk_snapshots",
+        "paper_evidence_exclusions",
         "strategy_trade_predictions",
         "strategy_trade_prediction_outcomes",
         "signal_forward_returns",

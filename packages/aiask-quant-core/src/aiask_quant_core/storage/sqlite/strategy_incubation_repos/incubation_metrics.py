@@ -20,7 +20,17 @@ class _IncubationMetricsMixin:
         end_date = None,
     ) -> List[dict]:
         async with self.acquire() as conn:
-            sql = "SELECT * FROM strategy_incubation_metrics WHERE strategy_id = $1"
+            exclusions_present = bool(await conn.fetchval(
+                "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_evidence_exclusions')"
+            ))
+            exclusion_filter = (
+                "AND (m.account_id IS NULL OR NOT EXISTS ("
+                "SELECT 1 FROM paper_evidence_exclusions e WHERE e.account_id = m.account_id))"
+                if exclusions_present else ""
+            )
+            sql = f"""SELECT m.* FROM strategy_incubation_metrics m
+                     WHERE m.strategy_id = $1
+                       {exclusion_filter}"""
             params: list = [strategy_id]
             idx = 2
             if start_date is not None:

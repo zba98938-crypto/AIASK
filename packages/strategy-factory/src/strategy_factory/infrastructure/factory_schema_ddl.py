@@ -1217,6 +1217,13 @@ async def init_strategy_tables(conn, sqlite_python_enabled: bool = False) -> Non
         CREATE INDEX IF NOT EXISTS idx_strategy_incubation_metrics_sid
             ON strategy_incubation_metrics(strategy_id, metric_date DESC);
 
+        CREATE TABLE IF NOT EXISTS paper_evidence_exclusions (
+            account_id TEXT PRIMARY KEY,
+            reason_code TEXT NOT NULL,
+            source_report TEXT,
+            excluded_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
         CREATE TABLE IF NOT EXISTS strategy_incubation_pipeline_snapshots (
             id INTEGER PRIMARY KEY,
             strategy_id TEXT NOT NULL REFERENCES strategies(id) ON DELETE CASCADE,

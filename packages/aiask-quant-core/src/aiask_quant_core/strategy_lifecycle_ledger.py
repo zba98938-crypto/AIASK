@@ -12,6 +12,7 @@ P1-1: 实现统一状态查询类,替换所有多表拼接查询。
 from __future__ import annotations
 
 import logging
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -157,11 +158,29 @@ class StrategyLifecycleLedger:
             execution_audit_gate_status=evidence["audit_gate_status"],
             hard_gate_passed=evidence["hard_gate_passed"],
             blocker_reason=blocker,
-            snapshot_at=datetime.now()
+            snapshot_at=datetime.now(),
+            audit_snapshot_as_of=evidence["audit_snapshot_as_of"],
         )
 
     def _query_evidence_counts(self, strategy_id: str) -> dict[str, Any]:
         """查询策略的证据计数"""
+        exclusions_present = bool(
+            self.conn.execute(
+                "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_evidence_exclusions')"
+            ).fetchone()[0]
+        )
+        order_exclusion = (
+            "AND NOT EXISTS (SELECT 1 FROM paper_evidence_exclusions e WHERE e.account_id = po.account_id)"
+            if exclusions_present else ""
+        )
+        trade_exclusion = (
+            "AND NOT EXISTS (SELECT 1 FROM paper_evidence_exclusions e WHERE e.account_id = pt.account_id)"
+            if exclusions_present else ""
+        )
+        position_exclusion = (
+            "AND NOT EXISTS (SELECT 1 FROM paper_evidence_exclusions e WHERE e.account_id = p.account_id)"
+            if exclusions_present else ""
+        )
         # 查询信号数
         cursor = self.conn.execute(
             "SELECT COUNT(*) FROM strategy_signals WHERE strategy_id = ? AND COALESCE(signal, 0) != 0",
@@ -171,17 +190,23 @@ class StrategyLifecycleLedger:
 
         # 查询订单数
         cursor = self.conn.execute(
-            "SELECT COUNT(*) FROM paper_orders WHERE strategy_id = ?",
+            f"""
+            SELECT COUNT(*)
+            FROM paper_orders po
+            WHERE po.strategy_id = ?
+              {order_exclusion}
+            """,
             (strategy_id,)
         )
         order_count = cursor.fetchone()[0]
 
         # 查询成交数
         cursor = self.conn.execute(
-            """
+            f"""
             SELECT COUNT(*) FROM paper_trades pt
             JOIN paper_orders po ON po.id = pt.source_order_id
             WHERE po.strategy_id = ?
+              {trade_exclusion}
             """,
             (strategy_id,)
         )
@@ -189,13 +214,21 @@ class StrategyLifecycleLedger:
 
         # 查询持仓数
         cursor = self.conn.execute(
-            "SELECT COUNT(*) FROM strategy_trade_positions WHERE strategy_id = ? AND status = 'open'",
+            f"""
+            SELECT COUNT(*) FROM strategy_trade_positions p
+            WHERE p.strategy_id = ? AND p.status = 'open'
+              {position_exclusion}
+            """,
             (strategy_id,)
         )
         open_position_count = cursor.fetchone()[0]
 
         cursor = self.conn.execute(
-            "SELECT COUNT(*) FROM strategy_trade_positions WHERE strategy_id = ? AND status = 'closed'",
+            f"""
+            SELECT COUNT(*) FROM strategy_trade_positions p
+            WHERE p.strategy_id = ? AND p.status = 'closed'
+              {position_exclusion}
+            """,
             (strategy_id,)
         )
         closed_position_count = cursor.fetchone()[0]
@@ -217,15 +250,47 @@ class StrategyLifecycleLedger:
         # row per strategy the two coincide, but the expression says neither what it
         # means nor when the verdict was taken. The timestamp below is what lets a
         # caller tell a current verdict from one the strategy has since outgrown.
-        cursor = self.conn.execute(
-            "SELECT COUNT(*), MAX(verdict_status), MAX(updated_at) "
-            "FROM strategy_execution_audit_snapshots WHERE strategy_id = ?",
-            (strategy_id,)
-        )
-        row = cursor.fetchone()
-        audit_snapshot_count = row[0]
-        audit_gate_status = row[1]
-        audit_snapshot_as_of = row[2]
+        excluded_rows = self.conn.execute(
+            """
+            SELECT DISTINCT e.account_id
+            FROM paper_evidence_exclusions e
+            WHERE e.account_id IN (
+                SELECT id FROM paper_accounts WHERE strategy_id = ?
+                UNION
+                SELECT account_id FROM strategy_incubation_accounts WHERE strategy_id = ?
+            )
+            ORDER BY e.account_id
+            """,
+            (strategy_id, strategy_id),
+        ).fetchall() if exclusions_present else []
+        exclusion_ids = sorted(str(row[0]) for row in excluded_rows if row[0])
+        snapshot_rows = self.conn.execute(
+            """
+            SELECT verdict_status, updated_at, metadata
+            FROM strategy_execution_audit_snapshots
+            WHERE strategy_id = ?
+            ORDER BY updated_at DESC
+            """,
+            (strategy_id,),
+        ).fetchall()
+        current_snapshots = []
+        for snapshot_row in snapshot_rows:
+            try:
+                metadata = json.loads(snapshot_row[2] or "{}")
+            except (TypeError, ValueError):
+                metadata = {}
+            recorded_exclusions = metadata.get("evidence_exclusion_ids") if isinstance(metadata, dict) else None
+            if recorded_exclusions is None:
+                if exclusion_ids:
+                    continue
+            elif not isinstance(recorded_exclusions, (list, tuple)) or sorted(
+                str(item) for item in recorded_exclusions if item
+            ) != exclusion_ids:
+                continue
+            current_snapshots.append(snapshot_row)
+        audit_snapshot_count = len(current_snapshots)
+        audit_gate_status = current_snapshots[0][0] if current_snapshots else None
+        audit_snapshot_as_of = current_snapshots[0][1] if current_snapshots else None
 
         hard_gate_passed = audit_gate_status == "passed" if audit_gate_status else False
 
