@@ -108,28 +108,37 @@ root command above for the current result.
 
 ## Known state, honestly
 
-- **Four runtimes are supervised, not cron-scheduled.** `run_three_factories.py`
-  has been running since 2026-10-18 16:02: Strategy Factory every 300s, Factor
-  Mining at 18:30 plus 06:00 maintenance, Incubation at 18:30, Market Event
-  Ingest hourly. FactorScheduler (18:00), SignalTracker (18:30) and the Agent
-  HTTP API are separate sidecars managed by `scripts/ops/run_sidecars.py`;
-  none of them is one of the four factories. The supervisor restarts them after
-  an exit and writes `~/.aiask/run/sidecars.status.json`. Current measured
-  state is in
-  `docs/architecture/current-state-2026-10-20/architecture-understanding.md`.
-- **The universe is the whole market, and no longer a curated residue.** 5,582
-  rows in `stocks`, 5,575 listed (2 delisted rows are marked `D`), 1,733,871
-  daily bars covering 100% of them, latest bar 2026-10-15.
-  `resolve_stock_universe()` still returns the source it
-  used and warns on stderr when it degrades to the 30-code seed pool, so the old
-  failure mode is reported rather than fixed by having been fixed once.
-- **Factors now cover the same universe as the prices.** `factor_values` held 157
-  symbols (the old seed pool) and stopped at 2026-09-23; it now holds 5,561
-  distinct symbols across 44 factors at 2026-10-16, and `factor_ic_history`
-  carries 6 factors x 3 horizons over ~5,520 names. Read a single row as **one
-  cross-sectional observation, not a factor rating** — `volatility`'s +0.47 at
-  h=10 was independently reproduced and is a genuine one-date number, not a
-  stable IC.
+- **Runtime state (measured 2026-10-29):** no supervisor or sidecar process was
+  alive during this check. Historical status files and old architecture notes
+  are not evidence that a service is currently running. Use the pid and fresh
+  heartbeat, not the last reported `running` label.
+- **Daily bars are behind (read-only measurement 2026-10-29):**
+  `kline_1d` has 1,739,152 rows and its latest date is 2026-10-23. Coverage is
+  53 codes on each of 10-21..10-23, 57 on 10-19..10-20, versus 5,570 on
+  10-16. This is not full-market coverage and the table is not yet registered
+  as a complete `kline_1d` sync. Reproduce with
+  `sqlite3.connect('file:<AIASK_RUNTIME_HOME>/data/db/akshare_mcp.sqlite3?mode=ro', uri=True)`
+  and `SELECT substr(time,1,10), COUNT(*) FROM kline_1d GROUP BY 1 ORDER BY 1 DESC LIMIT 10`.
+- **Quotes are not execution-grade:** read-only measurement found `stock_quotes`
+  latest at 2026-10-18 (171 rows). A DB snapshot older than the execution
+  session is not a valid fill, stop-loss, or risk-reduction price. This machine
+  has no verified real-time quote source; stale-quote refusal is expected, not
+  a service failure.
+- **Paper evidence needs repair before it is a current performance baseline.**
+  The database contains paper fills dated 10-19..10-21 outside their session
+  bar ranges, plus weekend-dated evidence. P7/P8 repair and sync have not been
+  authorized/applied, so historical aggregate scores should not be interpreted
+  as clean evidence.
+- **Admission is observation, not rejection:** after commit `4534777`, gate-A
+  failures route candidates to the zero-capital observation lane. The previous
+  statement that the gate was rejecting them was stale.
+- **Promotion review table:** the authoritative table is
+  `strategy_promotion_reviews` (76 rows at the 2026-10-20 measurement: 24
+  `rejected`, 52 `watch`), not `promotion_reviews`. Reproduce with
+  `SELECT status, COUNT(*) FROM strategy_promotion_reviews GROUP BY status`.
+- **No CI run is claimed:** this checkout has no git remote. GitHub Actions have
+  not run for this local branch; `scripts/ci_local.sh` is the intended local
+  pre-commit gate, not a substitute for a hosted CI result.
 - **Industry comes from East money's F10 report, not Sina's board list.** Sina
   classified 48% of the market and counted `次新股` — a listing-age bucket — as
   an industry. `stocks.industry` is East money `EM2016` level 1 (28 values) and
@@ -140,27 +149,16 @@ root command above for the current result.
   `sz399006`, `sz399300`) alongside the companies. They are benchmarks, not
   companies, and their industry/sector are left NULL so a `GROUP BY industry`
   over this table returns companies only.
-- **15 historical `signal_tracker` task runs were reclaimed.** Their processes
+- **Historical task-run repair (measured 2026-10-20):** 15 `signal_tracker`
+  task runs had been reclaimed. This describes a past repair, not a claim that
+  the sidecar is alive now. Their processes
   died before the finaliser ran, and the finaliser had been calling the INSERT
   helper with an `id`, so it could never close its own row. The finaliser now
   updates, cycles reclaim stale rows as `timed_out`, and the historical 15 have
-  been reclaimed by `scripts/reclaim_stale_task_runs.py`. A sidecar daemon is
-  running again since 2026-10-20 09:13 and writes
-  `~/.aiask/run/signal_tracker.status.json`.
-- **No strategy has been promoted.** As of 2026-10-20 10:14: 8,538 strategies
-  (6,175 `rejected`, 1,826 `submitted`, 9 `incubating`, 511 `draft`), 0 live,
-  0 `promotion_reviews`. The factory is actively generating; counts move every
-  few minutes. The gates reject; that is the system working, not a bug.
-- **Paper positions:** 156 open (all `submitted`), 61 closed, 70
-  `orphaned_exit`; rejected-strategy open positions are 0. The open positions
-  are waiting for a sell signal or a declared holding-period close.
-- **Declared holding-period exits are enabled** for this deployment:
-  `INCUBATION_FACTORY_STALE_PAPER_POSITION_CLOSURE_ENABLED=1` (batch 100,
-  grace 0). The parser now reads `params.hold_days` and
-  `mapping_search.hold` as well as `exit_policy`/`holding_window`; the first
-  run handled 35 stale positions (3 real closes, 30 legacy orphan rows).
-  Strategies without a declared horizon remain on the signal-driven
-  (moving-average crossover) exit path; the policy is not a blanket time stop.
+  been reclaimed by `scripts/reclaim_stale_task_runs.py`; this historical count
+  was not re-measured on 2026-10-29. Paper-position counts and holding-period
+  closure configuration in older reports likewise are historical and are not
+  treated as a valid post-audit performance baseline.
 - Single-machine, single-user. See the user-system ruling in `CLAUDE.md` before
   touching anything `user_id`-shaped.
 - `docs/` contains historical reports whose "100% complete" claims predate this

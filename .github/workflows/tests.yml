@@ -18,12 +18,17 @@ jobs:
   pytest:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+        package: [agent, aiask-quant-core, finance-mcp-servers, strategy-factory, akshare-mcp, aiask-skills, data-mcp, reference-host]
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install test dependencies
         # The packages are consumed from source via pytest.ini pythonpath, so only
@@ -54,38 +59,9 @@ jobs:
       # green, so a non-blocking run only meant a regression in the two largest
       # packages (1900+ tests, including the formula-execution security suite)
       # could not fail the build.
-      - name: agent
+      - name: Install reference-host
+        if: matrix.package == 'reference-host'
+        run: python -m pip install -e packages/reference-host --no-deps
+      - name: ${{ matrix.package }}
         run: python -m pytest -q tests
-        working-directory: packages/agent
-
-      - name: aiask-quant-core
-        run: python -m pytest -q tests
-        working-directory: packages/aiask-quant-core
-
-      - name: finance-mcp-servers
-        run: python -m pytest -q tests
-        working-directory: packages/finance-mcp-servers
-
-      - name: strategy-factory
-        run: python -m pytest -q tests
-        working-directory: packages/strategy-factory
-
-      - name: akshare-mcp
-        run: python -m pytest -q tests
-        working-directory: packages/akshare-mcp
-
-      - name: aiask-skills
-        run: python -m pytest -q tests
-        working-directory: packages/aiask-skills
-
-      - name: data-mcp
-        run: python -m pytest -q tests
-        working-directory: packages/data-mcp
-
-      - name: reference-host
-        # Installed so `import aiask_reference_host` resolves; its isolation test
-        # asserts the import graph stays narrow, not that the package is absent.
-        run: |
-          python -m pip install -e . --no-deps
-          python -m pytest -q tests
-        working-directory: packages/reference-host
+        working-directory: packages/${{ matrix.package }}

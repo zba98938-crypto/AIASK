@@ -1,4 +1,4 @@
-# AIASK integration — current product truth (2026-07-15)
+# AIASK integration — current product truth (2026-10-29)
 
 This file is the **current-state** pointer for the Hermes + AIASK finance
 upgrade. Prefer it over June historical “100% complete” reports when those
@@ -32,6 +32,41 @@ conflict with the tree.
 > submitted without a measured evidence chain. `is_formal_ready` is **not a
 > stored column** anywhere in the running DB; promotion is recorded as
 > `decision='promote'` rows in `strategy_incubation_metrics`.
+
+> ## 2026-10-29 correction — current worktree measurement
+>
+> The 2026-10-20 table above is historical and must not be read as current
+> runtime state. On 2026-10-29, this checkout's hermetic root run completed
+> **3,331 passed, 22 skipped, 0 failed** under
+> `HOME=/tmp/aiask_decoy PYTHONUSERBASE=/Users/mac/.local /opt/miniconda3/envs/aiask/bin/python -m pytest -q`.
+> Both decoy SQLite files retained identical hashes, sizes and mtimes; the
+> authoritative DB fingerprints were also observed unchanged at the pre/post
+> comparison. This is a decoy-HOME run, not the requested final no-env real-HOME
+> run or the per-package CI gate.
+>
+> Read-only authoritative-store measurement on 2026-10-29:
+>
+> | Surface | Measured |
+> |---|---|
+> | `kline_1d` | 1,739,152 rows, latest 2026-10-23; 53 codes on 10-21..10-23 and 57 on 10-19..10-20; 5,570 on 10-16 |
+> | `stock_quotes` | 171 rows, latest `updated_at=2026-10-18 10:42:26` |
+> | paper orders | 545 filled, 24 expired, 2 pending |
+> | score85 progress | 1,815 tracked strategies; 18 measurable; 3 positive skill LCB; 0 at the 10% Y bound; `prediction_executions=0` |
+> | label audit | synced session 2026-10-16; `paper_nav` weekend labels 140 (10-18) + 598 (10-24), ahead-of-sync 1,102 (10-19) + 1,767 (10-20); incubation metrics weekend 140 + 574 and ahead 1,088 + 1,586 |
+> | root tests, decoy run | 3,331 passed, 22 skipped, 0 failed |
+> | running processes | no matching supervisor or sidecar was found at measurement time |
+>
+> The decoy result proves the current guard prevents test writes into the
+> selected decoy HOME. It does not replace the planned reverse-control defect
+> injection and real-HOME no-environment fingerprint check. Do not treat paper
+> fills, NAV, weekend labels or score85 progress as repaired: P7/P8 have not
+> been applied. The 116 `/v1/tools` count remains the 2026-10-20 measurement and
+> was not rechecked in this run.
+>
+> Reproduce progress/label counts with `scripts/check_score85_progress.py --json`.
+> Reproduce the read-only data counts using Python's SQLite URI with
+> `mode=ro`, e.g. `SELECT substr(time,1,10), COUNT(*) FROM kline_1d GROUP BY 1
+> ORDER BY 1 DESC LIMIT 10`; do not import the MCP server for a read-only audit.
 >
 > The readiness gate (`scripts/aiask_readiness.py`) now reports two
 > explicitly separated verdicts:

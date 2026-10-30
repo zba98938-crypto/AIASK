@@ -61,6 +61,20 @@ def _scan_candidates(conn: sqlite3.Connection, *, limit: int) -> list[dict[str, 
     metrics_join = ""
     metrics_cols = "0 AS total_signals, 0 AS total_orders, 0 AS total_trades, 0 AS effective_n_5d"
     if _table_exists(conn, "strategy_incubation_metrics"):
+        metric_exclusion = ""
+        latest_exclusion = ""
+        if _table_exists(conn, "paper_evidence_exclusions"):
+            metric_exclusion = """
+                AND (m.account_id IS NULL OR NOT EXISTS (
+                    SELECT 1 FROM paper_evidence_exclusions e WHERE e.account_id = m.account_id
+                ))
+            """
+            latest_exclusion = """
+                WHERE account_id IS NULL OR NOT EXISTS (
+                    SELECT 1 FROM paper_evidence_exclusions e
+                    WHERE e.account_id = strategy_incubation_metrics.account_id
+                )
+            """
         metrics_join = """
         LEFT JOIN (
             SELECT m.*
@@ -68,12 +82,15 @@ def _scan_candidates(conn: sqlite3.Connection, *, limit: int) -> list[dict[str, 
             JOIN (
                 SELECT strategy_id, MAX(metric_date) AS metric_date
                 FROM strategy_incubation_metrics
+                {latest_exclusion}
                 GROUP BY strategy_id
             ) latest
               ON latest.strategy_id = m.strategy_id
              AND latest.metric_date = m.metric_date
+            WHERE 1 = 1
+              {metric_exclusion}
         ) m ON m.strategy_id = a.strategy_id
-        """
+        """.format(metric_exclusion=metric_exclusion, latest_exclusion=latest_exclusion)
         metrics_cols = """
             COALESCE(m.total_signals, 0) AS total_signals,
             COALESCE(m.total_orders, 0) AS total_orders,

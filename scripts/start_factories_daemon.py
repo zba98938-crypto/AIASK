@@ -31,10 +31,12 @@ import time
 from pathlib import Path
 from typing import Optional
 
+from aiask_quant_core.runtime_paths import runtime_home
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SUPERVISOR = REPO_ROOT / "scripts" / "factories" / "run_three_factories.py"
-DEFAULT_LOG = Path("/tmp/aiask-supervisor.log")
-DEFAULT_PID = Path("/tmp/aiask-supervisor.pid")
+DEFAULT_LOG = runtime_home() / "logs" / "four_runtime_supervisor" / "supervisor.log"
+DEFAULT_PID = runtime_home() / "run" / "aiask-supervisor.pid"
 
 #: The runbook's arguments, with the interpreter named explicitly: the project runs
 #: on the conda environment and `uv` is not used here.
@@ -71,6 +73,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 0
 
     pid_file = Path(args.pid_file)
+    Path(args.log).expanduser().parent.mkdir(parents=True, exist_ok=True)
+    pid_file.expanduser().parent.mkdir(parents=True, exist_ok=True)
     if pid_file.exists():
         try:
             existing = int(pid_file.read_text().strip())

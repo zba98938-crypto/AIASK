@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.aiask.factories</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/opt/miniconda3/envs/aiask/bin/python</string>
+    <string>-u</string>
+    <string>REPLACE_WITH_AIASK_ROOT/scripts/factories/run_three_factories.py</string>
+    <string>--python</string><string>/opt/miniconda3/envs/aiask/bin/python</string>
+    <string>--strategy-dispatch-run</string>
+    <string>--strategy-dispatch-default-universe</string>
+    <string>--strategy-dispatch-default-universe-limit</string><string>200</string>
+    <string>--incubation-run-time</string><string>18:30</string>
+  </array>
+  <key>WorkingDirectory</key><string>REPLACE_WITH_AIASK_ROOT</string>
+  <key>RunAtLoad</key><false/>
+  <key>KeepAlive</key><true/>
+  <key>StandardOutPath</key><string>REPLACE_WITH_RUNTIME_HOME/logs/four_runtime_supervisor/launchd.out.log</string>
+  <key>StandardErrorPath</key><string>REPLACE_WITH_RUNTIME_HOME/logs/four_runtime_supervisor/launchd.err.log</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>AIASK_RUNTIME_HOME</key><string>REPLACE_WITH_RUNTIME_HOME</string>
+    <key>PYTHONUNBUFFERED</key><string>1</string>
+  </dict>
+</dict>
+</plist>

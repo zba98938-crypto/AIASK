@@ -1,5 +1,7 @@
 # AKShare MCP Makefile
 
+PY ?= /opt/miniconda3/envs/aiask/bin/python
+
 .PHONY: help install lint format tool-registry tool-description-audit incubation-factory incubation-factory-daemon incubation-factory-status clean
 
 help:
@@ -15,7 +17,7 @@ help:
 	@echo "  make clean       - Clean cache files"
 
 install:
-	pip install -r requirements.txt
+	$(PY) -m pip install -r requirements.txt
 
 lint:
 	flake8 src/ --max-line-length=120 --ignore=E501,W503
@@ -24,22 +26,22 @@ format:
 	black src/ --line-length=120
 
 tool-registry:
-	python scripts/export_tool_registry.py
+	$(PY) scripts/export_tool_registry.py
 
 tool-description-audit:
-	python scripts/generate_tool_description_audit.py
+	$(PY) scripts/generate_tool_description_audit.py
 
 incubation-factory:
-	python scripts/run_incubation_factory.py
+	$(PY) scripts/run_incubation_factory.py
 
 incubation-factory-daemon:
-	python scripts/run_incubation_factory.py --daemon
+	$(PY) scripts/run_incubation_factory.py --daemon
 
 incubation-factory-status:
-	python scripts/run_incubation_factory.py --status
+	$(PY) scripts/run_incubation_factory.py --status
 
 incubation-factory-dry-run:
-	python scripts/run_incubation_factory.py --dry-run --json
+	$(PY) scripts/run_incubation_factory.py --dry-run --json
 
 clean:
 	find . -type d -name "__pycache__" -exec rm -rf {} +

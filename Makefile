@@ -1,18 +1,24 @@
-.PHONY: bootstrap test test-agent test-finance smoke code-graph
+.PHONY: bootstrap test smoke code-graph
+
+PY ?= /opt/miniconda3/envs/aiask/bin/python
 
 bootstrap:
-	cd packages/agent && uv sync
+	$(PY) -m pip install -e packages/aiask-quant-core
+	$(PY) -m pip install -e packages/strategy-factory
+	$(PY) -m pip install -e packages/akshare-mcp
+	$(PY) -m pip install -e packages/data-mcp
+	$(PY) -m pip install -e packages/finance-mcp-servers
+	$(PY) -m pip install -e packages/aiask-skills
+	$(PY) -m pip install -e packages/reference-host
+	$(PY) -m pip install -e packages/agent
 
-test: test-agent test-finance
-
-test-agent:
-	cd packages/agent && pytest -q tests
-
-test-finance:
-	cd packages/akshare-mcp && pytest -q tests/test_strategy_mgr_capabilities_health.py tests/test_tool_argument_contract.py tests/test_strategy_market_incubation_surface.py
+test:
+	@set -e; for package in agent aiask-quant-core finance-mcp-servers strategy-factory akshare-mcp aiask-skills data-mcp reference-host; do \
+		(cd packages/$$package && $(PY) -m pytest -q tests); \
+	done
 
 smoke:
 	curl -fsS http://127.0.0.1:$${AIASK_AGENT_PORT:-8765}/health
 
 code-graph:
-	python scripts/code_graph/build_aiask_code_graph.py
+	$(PY) scripts/code_graph/build_aiask_code_graph.py

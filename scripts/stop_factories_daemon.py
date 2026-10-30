@@ -14,7 +14,10 @@ import sys
 import time
 from pathlib import Path
 
-PID_FILE = Path("/tmp/aiask-supervisor.pid")
+from aiask_quant_core.runtime_paths import runtime_home
+
+PID_FILE = runtime_home() / "run" / "aiask-supervisor.pid"
+LEGACY_PID_FILE = Path("/tmp/aiask-supervisor.pid")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -23,6 +26,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     path = Path(args.pid_file)
+    if not path.exists() and path == PID_FILE and LEGACY_PID_FILE.exists():
+        path = LEGACY_PID_FILE
     if not path.exists():
         print("no pid file; nothing started by the daemon script is running")
         return 0

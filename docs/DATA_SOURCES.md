@@ -1,5 +1,45 @@
 # Data sources
 
+## Runtime and paper-evidence state (measured 2026-10-29)
+
+The authoritative database is not currently a complete market-data baseline.
+Read-only inspection found `kline_1d` latest at **2026-10-23** with 53 rows on
+each of 10-21..10-23 and 57 rows on 10-19..10-20, while 10-16 has 5,570 rows.
+`stock_quotes` held 171 rows and the maximum `updated_at` was
+`2026-10-18 10:42:26`. The local machine has no verified real-time quote
+provider. Consequently a stale DB quote must not trigger matching, stops or
+risk reduction; after the P2 guard is enabled these actions will be refused and
+counted until a fresh quote source exists. Day-close stop evaluation is a
+separate follow-up, not an excuse to trade on stale marks.
+
+The `~/.aiask-local` sandbox snapshot is a **separate fork**, not an approved
+restore source for the authoritative store. Its bars must not be copied into
+the authoritative database without the provider/write gate and sampled source
+agreement. The MCP `DataSyncScheduler` has historically started by default,
+including in a read-only tool-only server, so it is being changed to default
+off in tool-only mode and on in full mode; an explicit
+`DATA_SYNC_SCHEDULER_ENABLED` still overrides the default.
+
+The 10-29 integrity audit and repair authorization are not complete. Therefore
+the known out-of-range paper fills and weekend-dated NAV/metrics remain
+unrepaired; do not present historical paper performance as clean evidence.
+Reproduce data freshness without importing the server:
+
+```bash
+/opt/miniconda3/envs/aiask/bin/python - <<'PY'
+import sqlite3
+from pathlib import Path
+db = Path.home()/".aiask/data/db/akshare_mcp.sqlite3"
+con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+print(con.execute("SELECT substr(time,1,10),COUNT(*) FROM kline_1d GROUP BY 1 ORDER BY 1 DESC LIMIT 10").fetchall())
+print(con.execute("SELECT MAX(updated_at),COUNT(*) FROM stock_quotes").fetchone())
+con.close()
+PY
+```
+
+This repo had no git remote at measurement time and no hosted CI run is claimed.
+`scripts/ci_local.sh` is the local compileall + eight-package pytest gate.
+
 What this project reads, from where, and what was verified on 2026-10-15 on this
 machine. Every "works" below was measured, not assumed; the command that measures
 it is in the row.
@@ -501,6 +541,16 @@ The resolver is `aiask_quant_core.runtime_paths.resolve_sqlite_path()`:
 
 `factory_cli evidence` now defaults to the resolver (previously it pointed at
 the legacy 0-row shell, which made every evidence count read back as 0).
+
+2026-10-29 read-only remeasurement: the authoritative `kline_1d` ended at
+2026-10-23 (53 codes on 10-21..10-23, 57 on 10-19..10-20, 5,570 on 10-16);
+`stock_quotes` had 171 rows and was last updated 2026-10-18 10:42:26. The
+`~/.aiask-local` snapshot is a fork, not a verified restore source; do not copy
+its bars into this authoritative file without sampled source agreement and the
+normal write gate. MCP `DataSyncScheduler` must default off in `tool-only`
+startup to keep a nominally read-only service from writing this database.
+Reproduce the measurements with a `sqlite3.connect(file_uri, uri=True)` URI
+using `mode=ro`; do not import `akshare_mcp.server` for this audit.
 
 ## 11. TDX: marked unavailable (2026-10)
 

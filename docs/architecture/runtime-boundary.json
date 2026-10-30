@@ -48,7 +48,8 @@
     "market_event_ingest"
   ],
   "sidecars": [
-    "signal_tracker"
+    "signal_tracker",
+    "daily_market_sync"
   ],
   "run_envelope": {
     "protocol_version": "1.0",

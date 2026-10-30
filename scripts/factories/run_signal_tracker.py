@@ -57,33 +57,12 @@ def _configure_stdio_utf8() -> None:
                 continue
 
 
-_configure_stdio_utf8()
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 STRATEGY_FACTORY_SRC = PROJECT_ROOT / "packages" / "strategy-factory" / "src"
 if str(STRATEGY_FACTORY_SRC) not in sys.path:
     sys.path.insert(0, str(STRATEGY_FACTORY_SRC))
 
-from strategy_factory.runtime_bootstrap import ensure_factory_runtime
-
 logger = logging.getLogger(__name__)
-
-ensure_factory_runtime(
-    project_root=PROJECT_ROOT,
-    script_path=Path(__file__).resolve(),
-    argv=sys.argv[1:],
-    editable_packages=(
-        "packages/strategy-factory",
-        "packages/aiask-quant-core",
-        "packages/akshare-mcp",
-    ),
-    distribution_names=(
-        "strategy-factory",
-        "aiask-quant-core",
-        "akshare-mcp",
-    ),
-    uv_project="packages/agent",
-)
 
 
 def _bootstrap_local_package_paths() -> dict:
@@ -101,7 +80,30 @@ def _bootstrap_local_package_paths() -> dict:
     return bootstrap_runner(Path(__file__), load_env=False)
 
 
-BOOTSTRAP_REPORT = _bootstrap_local_package_paths()
+BOOTSTRAP_REPORT: dict | None = None
+
+
+def _bootstrap_runtime() -> dict:
+    """Preflight and inject local package paths before loading runtime providers."""
+    from strategy_factory.runtime_bootstrap import ensure_factory_runtime
+
+    ensure_factory_runtime(
+        project_root=PROJECT_ROOT,
+        script_path=Path(__file__).resolve(),
+        argv=sys.argv[1:],
+        editable_packages=(
+            "packages/strategy-factory",
+            "packages/aiask-quant-core",
+            "packages/akshare-mcp",
+        ),
+        distribution_names=(
+            "strategy-factory",
+            "aiask-quant-core",
+            "akshare-mcp",
+        ),
+        uv_project="packages/agent",
+    )
+    return _bootstrap_local_package_paths()
 
 
 def _setup_logging(verbose: bool) -> None:
@@ -230,6 +232,7 @@ async def _run_daemon(args: argparse.Namespace) -> None:
         "name": "signal_tracker",
         "status": "running",
         "pid": os.getpid(),
+        "heartbeat_period_seconds": 60,
         "started_at": datetime.now().isoformat(timespec="seconds"),
         "run_time": f"{hh:02d}:{mm:02d}",
     })
@@ -245,7 +248,18 @@ async def _run_daemon(args: argparse.Namespace) -> None:
                 target.strftime("%Y-%m-%d %H:%M"),
                 wait_seconds,
             )
-            await asyncio.sleep(wait_seconds)
+            while wait_seconds > 0:
+                _write_status({
+                    "name": "signal_tracker",
+                    "status": "running",
+                    "pid": os.getpid(),
+                    "heartbeat_period_seconds": 60,
+                    "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+                    "run_time": f"{hh:02d}:{mm:02d}",
+                })
+                interval = min(60.0, wait_seconds)
+                await asyncio.sleep(interval)
+                wait_seconds -= interval
             try:
                 await _run_once_inner(verbose=args.verbose)
             except Exception as exc:
@@ -293,7 +307,10 @@ def main() -> int:
     )
 
     args = parser.parse_args()
+    _configure_stdio_utf8()
     _setup_logging(args.verbose)
+    global BOOTSTRAP_REPORT
+    BOOTSTRAP_REPORT = _bootstrap_runtime()
 
     if not args.once and not args.daemon:
         args.daemon = True

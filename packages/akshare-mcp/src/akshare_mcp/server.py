@@ -414,6 +414,14 @@ def _background_services_env_enabled() -> bool:
     )
 
 
+def _data_sync_scheduler_enabled(startup_profile: str) -> bool:
+    """Keep read-only tool-only MCP startup from writing market data by default."""
+    configured = os.getenv("DATA_SYNC_SCHEDULER_ENABLED")
+    if configured is not None:
+        return _as_bool(configured)
+    return startup_profile in {"full", "legacy"}
+
+
 def _resolve_startup_profile() -> str:
     return _current_startup_profile()
 
@@ -574,7 +582,7 @@ def _launch_sync_background_services(logger: logging.Logger, startup_profile: st
                 "run Strategy Factory via the standalone runner instead"
             )
 
-        if startup_profile != "worker" and _as_bool(os.getenv("DATA_SYNC_SCHEDULER_ENABLED", "true")):
+        if startup_profile != "worker" and _data_sync_scheduler_enabled(startup_profile):
             try:
                 from .services.data_sync_scheduler import get_data_sync_scheduler  # noqa: PLC0415
                 sync_scheduler = _remember_started_service("DataSyncScheduler", get_data_sync_scheduler())

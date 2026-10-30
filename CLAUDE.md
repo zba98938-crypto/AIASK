@@ -98,6 +98,12 @@ cd packages/akshare-mcp && /opt/miniconda3/envs/aiask/bin/python -m pytest -q
 
 ## 测试
 
+**所有 pytest 必须隔离运行时目录。** 根目录和每个包的 `tests/conftest.py`
+都必须先安装 `aiask_quant_core.testing.hermetic`，让 HOME、运行时目录、项目
+`.env` 和 SQLite 连接与真实 `~/.aiask` / `~/.aiask-agent` 隔离。2026-10-29
+根 pytest 曾关闭 9 个真实持仓并写入证据；不能用“测试通常只读”代替隔离。
+新包也必须有包级 conftest，因为逐包 pytest 不会加载仓库根 conftest。
+
 写**行为断言**：调用真实函数，验证返回值与错误码。
 
 不要读源码文本做字符串匹配（`Path(...).read_text()` + `assert "xxx" in src`）。这类断言在模块搬迁时产生假失败，且不验证行为正确性。

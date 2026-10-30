@@ -563,18 +563,34 @@ class FactoryHealthDiagnostics:
 
         # 同时检查 incubation metrics。总行数与“有有效样本”的行数是
         # 两个不同事实；只报后者会让 1,383 行看起来像 0 行。
+        has_exclusions = self._query_one(
+            "SELECT 1 AS present FROM sqlite_master WHERE type='table' AND name='paper_evidence_exclusions'"
+        ) is not None
+        metric_filter = (
+            "WHERE account_id IS NULL OR NOT EXISTS ("
+            "SELECT 1 FROM paper_evidence_exclusions e WHERE e.account_id = strategy_incubation_metrics.account_id)"
+            if has_exclusions else ""
+        )
         metrics_total_count = self._query_one(
-            "SELECT COUNT(*) as count FROM strategy_incubation_metrics"
+            f"SELECT COUNT(*) as count FROM strategy_incubation_metrics {metric_filter}"
         )
         metrics_total = metrics_total_count["count"] if metrics_total_count else 0
         metrics_count = self._query_one(
-            """
+            f"""
             SELECT COUNT(*) as count
             FROM strategy_incubation_metrics
-            WHERE COALESCE(effective_n_5d, 0) > 0
+            {metric_filter if has_exclusions else 'WHERE 1=1'}
+              AND COALESCE(effective_n_5d, 0) > 0
             """
         )
         metrics = metrics_count["count"] if metrics_count else 0
+        metrics_excluded = 0
+        if has_exclusions:
+            excluded_count = self._query_one(
+                """SELECT COUNT(*) AS count FROM strategy_incubation_metrics m
+                   JOIN paper_evidence_exclusions e ON e.account_id = m.account_id"""
+            )
+            metrics_excluded = excluded_count["count"] if excluded_count else 0
 
         if count == 0 and metrics_total == 0:
             self._add_check(
@@ -595,6 +611,7 @@ class FactoryHealthDiagnostics:
                     "signal_forward_returns": count,
                     "incubation_metrics": metrics,
                     "incubation_metrics_total": metrics_total,
+                    "incubation_metrics_excluded": metrics_excluded,
                 },
             )
         else:
@@ -608,6 +625,7 @@ class FactoryHealthDiagnostics:
                 {
                     "incubation_metrics": metrics,
                     "incubation_metrics_total": metrics_total,
+                    "incubation_metrics_excluded": metrics_excluded,
                 },
             )
 

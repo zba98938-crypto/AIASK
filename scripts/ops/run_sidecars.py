@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 
+from aiask_quant_core.runtime_status import pid_alive
+
 
 ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_HOME = Path(
@@ -94,6 +96,18 @@ def _specs() -> list[SidecarSpec]:
                 "18:30",
             ),
             "signal_tracker.log",
+        ),
+        SidecarSpec(
+            "daily_market_sync",
+            (
+                python,
+                "-u",
+                str(ROOT / "scripts/factories/run_daily_market_sync.py"),
+                "--daemon",
+                "--run-time",
+                "15:40",
+            ),
+            "daily_market_sync.log",
         ),
         SidecarSpec(
             "agent_http",
@@ -217,14 +231,6 @@ def _stop(state: SidecarState, *, grace_sec: float = 10.0) -> None:
     state.process = None
 
 
-def _pid_alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-        return True
-    except OSError:
-        return False
-
-
 def main() -> int:
     PID_PATH.parent.mkdir(parents=True, exist_ok=True)
     if PID_PATH.is_file():
@@ -232,7 +238,7 @@ def main() -> int:
             existing = int(PID_PATH.read_text(encoding="utf-8").strip())
         except ValueError:
             existing = 0
-        if existing and _pid_alive(existing):
+        if existing and pid_alive(existing):
             print(f"sidecar supervisor already running: pid={existing}", file=sys.stderr)
             return 1
     PID_PATH.write_text(f"{os.getpid()}\n", encoding="utf-8")
