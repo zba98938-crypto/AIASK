@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+import math
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from ..data_source import data_source
@@ -41,20 +42,27 @@ def _realtime_fallback_enabled() -> bool:
 
 def _parse_asof(value: Any) -> datetime | None:
     if isinstance(value, datetime):
-        return value.astimezone() if value.tzinfo else value.astimezone()
+        parsed = value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
     text = str(value or "").strip()
     if not text:
         return None
     if text.endswith("Z"):
         text = text[:-1] + "+00:00"
     try:
-        return datetime.fromisoformat(text).astimezone()
+        parsed = datetime.fromisoformat(text)
+        if parsed.tzinfo is None:
+            # SQLite CURRENT_TIMESTAMP is UTC but has no offset. Treat naive
+            # database timestamps as UTC; using the host timezone can make a
+            # stale quote appear several hours newer on a UTC+8 machine.
+            parsed = parsed.replace(tzinfo=timezone.utc)
+        return parsed.astimezone(timezone.utc)
     except ValueError as _swallowed:
         logger.warning("packages/akshare-mcp/src/akshare_mcp/services/market_data_access.py:50: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
         pass
     for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d"):
         try:
-            return datetime.strptime(text[: len(fmt)], fmt).astimezone()
+            return datetime.strptime(text[: len(fmt)], fmt).replace(tzinfo=timezone.utc)
         except ValueError as _swallowed:
             logger.warning("packages/akshare-mcp/src/akshare_mcp/services/market_data_access.py:55: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
             continue
@@ -65,7 +73,7 @@ def _freshness_seconds(value: Any) -> float | None:
     parsed = _parse_asof(value)
     if parsed is None:
         return None
-    return round(max((datetime.now().astimezone() - parsed).total_seconds(), 0.0), 3)
+    return round((datetime.now(timezone.utc) - parsed).total_seconds(), 3)
 
 
 def _normalize_quote(raw: dict[str, Any], *, code: str, source: str) -> dict[str, Any]:
@@ -193,7 +201,7 @@ async def get_quote_snapshot(
             if isinstance(raw, dict) and raw:
                 db_snapshot_time = raw.get("time") or raw.get("updated_at")
                 freshness = _freshness_seconds(db_snapshot_time)
-                stale = freshness is not None and freshness > ttl
+                stale = freshness is not None and (freshness < 0 or freshness > ttl)
                 db_payload = _normalize_quote(raw, code=normalized_code, source="db.stock_quotes")
                 if not stale or mode == FALLBACK_DB_ONLY or not _realtime_fallback_enabled():
                     reasons = ["db_snapshot_stale"] if stale else []
@@ -384,6 +392,50 @@ def attach_quote_access_meta(response: dict[str, Any], access: dict[str, Any]) -
         ):
             data[key] = access.get(key)
     return response
+
+
+# --- executable prices -------------------------------------------------------
+# A paper fill, stop-loss or risk reduction needs a quote that is known to be
+# fresh. On 2026-10-21 09:30 the matching engine used 000002's stock_quotes
+# row from 2026-07-15 (3.13) although the snapshot said stale=True: 16
+# stop-loss sells, 55 order fills near 3.1316 and 24 risk reductions followed.
+# A quote whose age cannot be measured is not fresh either; ``get_quote_snapshot``
+# reports such a row as stale=False.
+
+STALE_QUOTE = "stale_quote"
+QUOTE_AGE_UNKNOWN = "quote_age_unknown"
+QUOTE_UNAVAILABLE = "quote_unavailable"
+QUOTE_TIMESTAMP_IN_FUTURE = "quote_timestamp_in_future"
+
+
+def execution_quote_verdict(access: dict[str, Any] | None) -> tuple[bool, str | None]:
+    """``(usable, reason)`` for trading against a quote snapshot result."""
+    if not isinstance(access, dict) or not access.get("success") or not access.get("data"):
+        return False, QUOTE_UNAVAILABLE
+    raw_age = access.get("data_freshness_seconds")
+    age = safe_float(raw_age)
+    if raw_age is None or age is None or not math.isfinite(age):
+        return False, QUOTE_AGE_UNKNOWN
+    if age < 0:
+        return False, QUOTE_TIMESTAMP_IN_FUTURE
+    if access.get("stale"):
+        return False, STALE_QUOTE
+    return True, None
+
+
+def quote_row_verdict(row: dict[str, Any] | None, *, freshness_ttl: float | None = None) -> tuple[bool, str | None]:
+    """The same rule for a raw ``stock_quotes`` row read without this module."""
+    if not isinstance(row, dict) or not row:
+        return False, QUOTE_UNAVAILABLE
+    age = _freshness_seconds(row.get("time") or row.get("trade_time") or row.get("updated_at"))
+    if age is None:
+        return False, QUOTE_AGE_UNKNOWN
+    if age < 0:
+        return False, QUOTE_TIMESTAMP_IN_FUTURE
+    ttl = quote_max_stale_seconds() if freshness_ttl is None else max(float(freshness_ttl), 0.0)
+    if age > ttl:
+        return False, STALE_QUOTE
+    return True, None
 
 
 async def get_quote_snapshot_response(

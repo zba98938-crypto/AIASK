@@ -59,6 +59,58 @@ def _safe_int(value, default: int = 0) -> int:
         return int(default)
 
 
+# Paper execution: a signal confirmed at the close of session S executes at the
+# open of the first bar after S (the backtest's next_open policy). On 2026-10-20
+# settlement used "the close on or before S, else the order's own price", so 241
+# 000002 positions opened at 10-16's close of 3.66.
+PENDING_MARKET_DATA = 'pending_market_data'
+EXECUTION_WINDOW_MISSED = 'execution_window_missed'
+_SESSION_OPEN_UTC = datetime.min.time().replace(hour=1, minute=30)  # 09:30 Asia/Shanghai
+
+
+def _max_execution_lag_sessions() -> int:
+    """Sessions an order may trail the settlement session before it expires.
+
+    The default of 1 tolerates one missed evening run. Longer gaps mean the
+    system was not trading; filling then would invent an execution.
+    """
+    return max(0, _safe_int(os.getenv('INCUBATION_MAX_EXECUTION_LAG_SESSIONS'), 1))
+
+
+def _bar_day(bar: dict) -> Optional[date]:
+    raw = (bar or {}).get('date') or (bar or {}).get('trade_date') or (bar or {}).get('time')
+    if isinstance(raw, datetime):
+        return raw.date()
+    if isinstance(raw, date):
+        return raw
+    try:
+        return date.fromisoformat(str(raw or '')[:10])
+    except ValueError:
+        return None
+
+
+def _tradable_bar(bar: dict) -> bool:
+    """A bar someone could have traded on: a positive open, and volume when the row carries it.
+
+    Suspended days can appear as zero-volume rows that repeat the last close.
+    """
+    if _safe_float((bar or {}).get('open'), 0.0) <= 0:
+        return False
+    volume = (bar or {}).get('volume')
+    return volume is None or _safe_float(volume, 0.0) > 0
+
+
+def _as_day(value) -> Optional[date]:
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    try:
+        return date.fromisoformat(str(value or '')[:10])
+    except ValueError:
+        return None
+
+
 def _runtime_playbook_for_strategy(strategy: dict) -> dict:
     payload = dict(strategy or {})
     params = dict(payload.get("params") or {})
@@ -841,9 +893,19 @@ class StrategyIncubationService:
                 account['id'],
                 account.get('user_id') or 'strategy_factory',
                 account['name'],
-                float(account.get('initial_capital') or DEFAULT_INCUBATION_CAPITAL),
-                float(account.get('current_capital') or DEFAULT_INCUBATION_CAPITAL),
-                float(account.get('total_value') or DEFAULT_INCUBATION_CAPITAL),
+                _safe_float(account.get('initial_capital'), DEFAULT_INCUBATION_CAPITAL),
+                _safe_float(
+                    account.get('current_capital')
+                    if account.get('current_capital') is not None
+                    else account.get('initial_capital'),
+                    DEFAULT_INCUBATION_CAPITAL,
+                ),
+                _safe_float(
+                    account.get('total_value')
+                    if account.get('total_value') is not None
+                    else account.get('initial_capital'),
+                    DEFAULT_INCUBATION_CAPITAL,
+                ),
                 json.dumps(_safe_rules_dict(account.get('risk_rules')) or DEFAULT_INCUBATION_RULES),
                 account.get('strategy_id'),
                 account.get('account_type') or 'incubation',
@@ -969,7 +1031,9 @@ class StrategyIncubationService:
         code_token = str(code or '').strip()
         if not code_token:
             return None
-        if as_of_date and hasattr(db, 'get_klines'):
+        if as_of_date is None:
+            return await self._latest_price(db, code_token)
+        if hasattr(db, 'get_klines'):
             try:
                 klines = await db.get_klines(
                     code_token,
@@ -980,12 +1044,92 @@ class StrategyIncubationService:
                     return float((klines[-1] or {}).get('close') or 0.0) or None
             except Exception as _swallowed:
                 logger.warning("packages/akshare-mcp/src/akshare_mcp/services/incubation.py:975: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-                pass
-        return await self._latest_price(db, code_token)
+        # No fallback to the newest bar: it may lie after as_of_date, and a
+        # decision dated as_of_date must not see it.
+        return None
+
+    async def _bars_between(self, db, code: str, first_day: date, last_day: date) -> Optional[list[dict]]:
+        """Daily bars with first_day <= day <= last_day, ascending, one per day. None if unreadable."""
+        if not hasattr(db, 'get_klines'):
+            return None
+        try:
+            rows = await db.get_klines(code, start_date=str(first_day), end_date=str(last_day))
+        except Exception as exc:
+            logger.warning("incubation: kline read failed for %s %s..%s: %s: %s", code, first_day, last_day, type(exc).__name__, exc)
+            return None
+        by_day: dict[date, dict] = {}
+        for row in list(rows or []):
+            day = _bar_day(row)
+            if day is not None and first_day <= day <= last_day:
+                by_day[day] = dict(row)  # a later row for the same day wins
+        return [by_day[day] for day in sorted(by_day)]
+
+    async def _execution_bar(self, db, code: str, signal_date: date, settle_date: date) -> dict:
+        """The first tradable bar E with signal_date < E <= settle_date, and how far E trails settle_date.
+
+        Returns ``status``: ``ok`` (with ``bar``, ``day``, ``lag_sessions``),
+        ``no_bar`` or ``unreadable``. Sessions are counted on this code's own
+        bars, so days it was suspended do not count as missed.
+        """
+        bars = await self._bars_between(db, code, signal_date, settle_date)
+        if bars is None:
+            return {'status': 'unreadable'}
+        tradable = [bar for bar in bars if (_bar_day(bar) or signal_date) > signal_date and _tradable_bar(bar)]
+        if not tradable:
+            return {'status': 'no_bar'}
+        execution_day = _bar_day(tradable[0])
+        return {
+            'status': 'ok',
+            'bar': tradable[0],
+            'day': execution_day,
+            'lag_sessions': self._sessions_after_execution(execution_day, settle_date, tradable),
+        }
 
     @staticmethod
-    def _execution_timestamp(signal_date: Optional[date]) -> datetime:
-        resolved_date = signal_date if isinstance(signal_date, date) else date.today()
+    def _sessions_after_execution(
+        execution_day: date,
+        settle_date: date,
+        tradable_bars: list[dict],
+    ) -> int:
+        """Count this security's tradable bars strictly after E through T.
+
+        Its own bars distinguish a suspended security from an exchange session
+        missed by a stopped runner, without depending on strategy-factory's
+        private trading-calendar implementation.
+        """
+        return sum(
+            1
+            for bar in tradable_bars
+            if execution_day < (_bar_day(bar) or execution_day) <= settle_date
+        )
+
+    async def _mark_on_or_before(self, db, code: str, settle_date: date) -> Optional[tuple[float, date]]:
+        """Newest close at or before settle_date, with its day. Never a bar after settle_date."""
+        if not hasattr(db, 'get_klines'):
+            return None
+        try:
+            rows = await db.get_klines(code, end_date=str(settle_date), limit=1)
+        except Exception as exc:
+            logger.warning("incubation: mark read failed for %s on %s: %s: %s", code, settle_date, type(exc).__name__, exc)
+            return None
+        for row in reversed(list(rows or [])):
+            day = _bar_day(row)
+            close = _safe_float((row or {}).get('close'), 0.0)
+            if day is not None and day <= settle_date and close > 0:
+                return close, day
+        return None
+
+    @staticmethod
+    def _session_open_timestamp(trade_date: date) -> datetime:
+        """09:30 Asia/Shanghai on trade_date, as the +00:00 timestamp paper_trades already use."""
+        return datetime.combine(trade_date, _SESSION_OPEN_UTC, tzinfo=timezone.utc)
+
+    @staticmethod
+    def _execution_timestamp(signal_date) -> datetime:
+        resolved_date = _as_day(signal_date)
+        if resolved_date is None:
+            # It used to fall back to date.today(), stamping evidence with the wall clock.
+            raise ValueError(f"execution timestamp needs a trading date, got {signal_date!r}")
         return datetime.combine(resolved_date, datetime.min.time(), tzinfo=timezone.utc)
 
     async def _list_positions(self, db, account_id: str) -> list[dict]:
@@ -1099,15 +1243,22 @@ class StrategyIncubationService:
         nav_rows_method = _get_async_db_method(db, 'get_paper_nav_rows')
         rows = await nav_rows_method(account_id, limit=2) if nav_rows_method is not None else []
         prev = next((row for row in rows if str(row.get('nav_date')) != str(nav_date)), None)
-        prev_total = float((prev or {}).get('total_value') or account.get('initial_capital') or total_value or DEFAULT_INCUBATION_CAPITAL)
-        daily_return = ((total_value - prev_total) / prev_total) if prev_total > 0 else 0.0
+        prev_total_value = (prev or {}).get('total_value')
+        if prev_total_value is None:
+            prev_total_value = account.get('initial_capital')
+        if prev_total_value is None:
+            prev_total_value = total_value
+        if prev_total_value is None:
+            prev_total_value = DEFAULT_INCUBATION_CAPITAL
+        prev_total = float(prev_total_value)
+        daily_return = ((total_value - prev_total) / prev_total) if prev_total > 0 else None
         snapshot = {
             'account_id': account_id,
             'nav_date': nav_date,
             'total_value': total_value,
             'cash': round(cash, 4),
             'market_value': round(market_value, 4),
-            'daily_return': round(daily_return, 6),
+            'daily_return': round(daily_return, 6) if daily_return is not None else None,
         }
         save_nav_method = _get_async_db_method(db, 'save_paper_nav')
         if save_nav_method is not None:
@@ -1192,8 +1343,46 @@ class StrategyIncubationService:
             ),
         )
 
+    async def _carried_pending_keys(self, db, *, strategy_id: str, account_id: str, signal_date: date) -> set[tuple]:
+        """(code, direction) of orders from earlier sessions that have not executed yet.
+
+        Orders now wait at least one session for their execution bar. Without
+        this, every run would add another order for a code whose earlier
+        order is still waiting.
+        """
+        rows = await self._list_settleable_orders(
+            db,
+            strategy_id=strategy_id,
+            account_id=account_id,
+            signal_date=signal_date,
+        )
+        return {
+            (row.get('code'), str(row.get('direction') or '').strip().lower())
+            for row in rows
+            if _as_day(row.get('signal_date')) != _as_day(signal_date)
+        }
+
     async def settle_orders(self, db, strategy: dict, signal_date: Optional[date] = None) -> dict:
-        signal_date = signal_date or date.today()
+        """Settle pending orders against settlement session T (``signal_date``).
+
+        An order decided at the close of S fills at the open of the first
+        tradable bar E with S < E <= T; positions are marked at the newest
+        close on or before T. Without such a bar the order stays pending
+        (``pending_market_data``). When E trails T by more than
+        ``INCUBATION_MAX_EXECUTION_LAG_SESSIONS`` sessions the order expires
+        (``execution_window_missed``): the system was not trading then.
+        Neither the order's own price nor a bar outside S..T is ever used.
+        """
+        session_source = 'caller'
+        if signal_date is None:
+            from aiask_quant_core.market_session import resolve_session_date
+
+            session = await resolve_session_date(db)
+            signal_date, session_source = session['date'], session['source']
+        settle_date = _as_day(signal_date)
+        if settle_date is None:
+            raise ValueError(f"settle_orders needs a settlement date, got {signal_date!r}")
+        signal_date = settle_date
         ensure = await self.ensure_account(db, strategy)
         account = ensure['account']
         account_id = account['id']
@@ -1201,25 +1390,55 @@ class StrategyIncubationService:
             db,
             strategy_id=strategy['id'],
             account_id=account_id,
-            signal_date=signal_date,
+            signal_date=settle_date,
         )
         positions = {str(item.get('stock_code') or ''): dict(item) for item in await self._list_positions(db, account_id)}
-        cash = float(account.get('current_capital') or account.get('initial_capital') or DEFAULT_INCUBATION_CAPITAL)
+        cash = _safe_float(
+            account.get('current_capital')
+            if account.get('current_capital') is not None
+            else account.get('initial_capital'),
+            DEFAULT_INCUBATION_CAPITAL,
+        )
         filled = []
         rejected = []
-        execution_ts = self._execution_timestamp(signal_date)
+        expired = []
+        deferred: list[dict] = []
+        max_lag = _max_execution_lag_sessions()
 
         for order in executable:
             code = str(order.get('code') or '').strip()
             direction = str(order.get('direction') or '').strip().lower()
             shares = int(order.get('shares') or 0)
-            if not code or shares <= 0 or direction not in {'buy', 'sell'}:
+            decided_on = _as_day(order.get('signal_date'))
+            if not code or shares <= 0 or direction not in {'buy', 'sell'} or decided_on is None:
+                # An order with no decision day has no next session to execute in.
                 rejected.append(await self._update_order(db, order['id'], {'status': 'rejected', 'reason': 'invalid_order'}))
                 continue
-            exec_price = await self._price_on_or_before(db, code, signal_date) or float(order.get('price') or 0)
-            if exec_price <= 0:
-                rejected.append(await self._update_order(db, order['id'], {'status': 'rejected', 'reason': 'price_unavailable'}))
+            execution = await self._execution_bar(db, code, decided_on, settle_date)
+            if execution['status'] != 'ok':
+                # Preserve the domain reason (e.g. a sell exit signal) and
+                # persist this independent pending state as the stable reason
+                # code required by downstream order inspection.
+                await self._update_order(db, order['id'], {'status': 'pending', 'reason': PENDING_MARKET_DATA})
+                deferred.append({
+                    'order_id': order.get('id'),
+                    'code': code,
+                    'signal_date': decided_on.isoformat(),
+                    'reason': PENDING_MARKET_DATA,
+                    'detail': (
+                        'kline_unreadable' if execution['status'] == 'unreadable'
+                        else 'awaiting_next_session' if decided_on >= settle_date
+                        else 'no_bar_after_signal'
+                    ),
+                })
                 continue
+            if execution['lag_sessions'] > max_lag:
+                expired.append(await self._update_order(db, order['id'], {'status': 'expired', 'reason': EXECUTION_WINDOW_MISSED}))
+                continue
+            execution_day = execution['day']
+            execution_ts = self._session_open_timestamp(execution_day)
+            exec_price = _safe_float(execution['bar'].get('open'), 0.0)
+            day_close = _safe_float(execution['bar'].get('close'), 0.0) or exec_price
             commission = round(exec_price * shares * 0.0003, 4)
             position = dict(positions.get(code) or {})
             current_qty = int(position.get('quantity') or 0)
@@ -1233,7 +1452,7 @@ class StrategyIncubationService:
                 new_qty = current_qty + shares
                 avg_cost = float(position.get('cost_price') or 0.0)
                 new_cost = ((avg_cost * current_qty) + amount) / max(new_qty, 1)
-                latest_price = await self._price_on_or_before(db, code, signal_date) or exec_price
+                latest_price = day_close  # marked at the execution bar; re-marked at T below
                 market_value = round(latest_price * new_qty, 4)
                 positions[code] = await self._save_position(db, {
                     'account_id': account_id,
@@ -1253,7 +1472,7 @@ class StrategyIncubationService:
                 cash = round(cash + amount - commission, 4)
                 new_qty = current_qty - shares
                 avg_cost = float(position.get('cost_price') or 0.0)
-                latest_price = await self._price_on_or_before(db, code, signal_date) or exec_price
+                latest_price = day_close  # marked at the execution bar; re-marked at T below
                 market_value = round(latest_price * new_qty, 4)
                 positions[code] = await self._save_position(db, {
                     'account_id': account_id,
@@ -1294,11 +1513,25 @@ class StrategyIncubationService:
             filled.append({'order': updated_order, 'trade': trade})
 
         market_value = 0.0
+        marks: dict[str, dict] = {}
+        stale_mark_codes: list[str] = []
+        unmarked_codes: list[str] = []
         for code, position in list(positions.items()):
             qty = int(position.get('quantity') or 0)
             if qty <= 0:
                 continue
-            latest_price = await self._price_on_or_before(db, code, signal_date) or float(position.get('current_price') or position.get('cost_price') or 0.0)
+            mark = await self._mark_on_or_before(db, code, settle_date)
+            if mark is None:
+                # No bar on or before T: keep the stored mark and say so,
+                # rather than reach for a bar after T.
+                latest_price = float(position.get('current_price') or position.get('cost_price') or 0.0)
+                unmarked_codes.append(code)
+                marks[code] = {'price': round(latest_price, 4), 'date': None, 'source': 'stored_mark'}
+            else:
+                latest_price, mark_day = mark
+                if mark_day < settle_date:
+                    stale_mark_codes.append(code)
+                marks[code] = {'price': round(latest_price, 4), 'date': mark_day.isoformat(), 'source': 'kline_1d'}
             avg_cost = float(position.get('cost_price') or 0.0)
             market_value += latest_price * qty
             positions[code] = await self._save_position(db, {
@@ -1310,41 +1543,77 @@ class StrategyIncubationService:
                 'profit_rate': round(((latest_price - avg_cost) / avg_cost), 6) if avg_cost > 0 else 0.0,
             })
 
-        nav_result = await self._save_nav_snapshot(db, account, signal_date, cash, market_value)
-        if filled or rejected:
+        deferred_counts: dict[str, int] = {}
+        deferred_detail_counts: dict[str, int] = {}
+        for item in deferred:
+            deferred_counts[item['reason']] = deferred_counts.get(item['reason'], 0) + 1
+            deferred_detail_counts[item['detail']] = deferred_detail_counts.get(item['detail'], 0) + 1
+        expired_count = len([item for item in expired if item])
+
+        nav_unmeasured_codes = sorted(set(stale_mark_codes + unmarked_codes))
+        nav_reason_code = "position_mark_not_current" if nav_unmeasured_codes else None
+        if nav_reason_code:
+            # Keep known cash in sync after any fills, but do not persist a
+            # fabricated total NAV assembled from stale or absent marks.
+            account = await self._save_strategy_account(db, {
+                **account,
+                "current_capital": round(cash, 4),
+            })
+            nav_result = {"snapshot": None, "account": account}
+        else:
+            nav_result = await self._save_nav_snapshot(db, account, settle_date, cash, market_value)
+        if filled or rejected or expired:
             await self._record_domain_event(
                 db,
                 strategy['id'],
                 'incubation.orders_settled',
                 {
                     'account_id': account_id,
-                    'signal_date': str(signal_date),
+                    'signal_date': str(settle_date),
                     'filled_count': len(filled),
                     'rejected_count': len([item for item in rejected if item]),
+                    'expired_count': expired_count,
+                    'deferred_counts': deferred_counts,
                     'nav': nav_result['snapshot'],
+                    'nav_reason_code': nav_reason_code,
                 },
-                correlation_id=str(signal_date),
-                severity='warning' if rejected else 'info',
+                correlation_id=str(settle_date),
+                severity='warning' if (rejected or expired) else 'info',
             )
         await self._record_domain_event(
             db,
             strategy['id'],
-            'incubation.nav_recorded',
+            'incubation.nav_recorded' if nav_result['snapshot'] else 'incubation.nav_unmeasurable',
             {
                 'account_id': account_id,
-                'signal_date': str(signal_date),
+                'signal_date': str(settle_date),
                 'nav': nav_result['snapshot'],
+                'reason_code': nav_reason_code,
+                'stale_mark_codes': stale_mark_codes,
+                'unmarked_codes': unmarked_codes,
             },
-            correlation_id=str(signal_date),
+            correlation_id=str(settle_date),
+            severity='warning' if nav_reason_code else 'info',
         )
         return {
             'strategy_id': strategy['id'],
             'account_id': account_id,
+            'settle_date': settle_date.isoformat(),
+            'session_source': session_source,
             'filled_count': len(filled),
             'rejected_count': len([item for item in rejected if item]),
+            'expired_count': expired_count,
+            'deferred_counts': deferred_counts,
+            'deferred_detail_counts': deferred_detail_counts,
+            'deferred': deferred,
+            'marks': marks,
+            'stale_mark_codes': stale_mark_codes,
+            'unmarked_codes': unmarked_codes,
+            'nav_status': 'recorded' if nav_result['snapshot'] else 'unmeasurable',
+            'nav_reason_code': nav_reason_code,
             'nav_snapshot': nav_result['snapshot'],
-            'cash': nav_result['snapshot']['cash'],
-            'market_value': nav_result['snapshot']['market_value'],
+            'cash': nav_result['snapshot']['cash'] if nav_result['snapshot'] else round(cash, 4),
+            'market_value': nav_result['snapshot']['market_value'] if nav_result['snapshot'] else None,
         }
 # --- incubation_parts/specs.py ---
 
@@ -1377,6 +1646,10 @@ class StrategyIncubationService:
                 )
             existing_orders = [dict(row) for row in rows]
         existing_keys = {(row.get('code'), row.get('direction')) for row in existing_orders}
+        carried_pending_keys = await self._carried_pending_keys(
+            db, strategy_id=strategy['id'], account_id=account_id, signal_date=signal_date,
+        )
+        existing_keys |= carried_pending_keys
         created = []
         skipped = 0
         skip_reason_counts: dict[str, int] = {}
@@ -1393,9 +1666,15 @@ class StrategyIncubationService:
             token = str(reason or "unknown").strip() or "unknown"
             skip_reason_counts[token] = int(skip_reason_counts.get(token) or 0) + 1
 
-        initial_capital = float(account.get('initial_capital') or DEFAULT_INCUBATION_CAPITAL)
-        current_capital = float(account.get('current_capital') or initial_capital or DEFAULT_INCUBATION_CAPITAL)
-        total_value = float(account.get('total_value') or current_capital or DEFAULT_INCUBATION_CAPITAL)
+        initial_capital = _safe_float(account.get('initial_capital'), DEFAULT_INCUBATION_CAPITAL)
+        current_capital = _safe_float(
+            account.get('current_capital') if account.get('current_capital') is not None else initial_capital,
+            DEFAULT_INCUBATION_CAPITAL,
+        )
+        total_value = _safe_float(
+            account.get('total_value') if account.get('total_value') is not None else current_capital,
+            DEFAULT_INCUBATION_CAPITAL,
+        )
         base_budget_pct = max(0.01, _safe_float(position_policy.get("base_budget_pct"), 0.12))
         max_position_pct = max(0.02, _safe_float(position_policy.get("max_position_pct"), 0.25))
         max_concurrent_positions = max(1, _safe_int(position_policy.get("max_concurrent_positions"), 2))
@@ -1608,9 +1887,9 @@ class StrategyIncubationService:
             updated_account["current_capital"] = scaled_capital
             updated_account["total_value"] = scaled_capital
             account = await self._save_strategy_account(db, updated_account)
-            initial_capital = float(account.get("initial_capital") or scaled_capital)
-            current_capital = float(account.get("current_capital") or scaled_capital)
-            total_value = float(account.get("total_value") or scaled_capital)
+            initial_capital = _safe_float(account.get("initial_capital"), scaled_capital)
+            current_capital = _safe_float(account.get("current_capital"), scaled_capital)
+            total_value = _safe_float(account.get("total_value"), scaled_capital)
             capital_scaled_for_min_lot = True
             event_payload = {
                 "account_id": account_id,
@@ -1753,6 +2032,9 @@ class StrategyIncubationService:
                     blocked_by_execution_guard += 1
                     _skip("execution_guard_blocked")
                     continue
+            if (code, direction) in carried_pending_keys:
+                _skip("order_already_pending")
+                continue
             if (code, direction) in existing_keys:
                 _skip("duplicate_order")
                 continue
@@ -1915,6 +2197,9 @@ class StrategyIncubationService:
                 )
             existing_orders = [dict(row) for row in rows]
         existing_keys = {(row.get('code'), row.get('direction')) for row in existing_orders}
+        existing_keys |= await self._carried_pending_keys(
+            db, strategy_id=strategy['id'], account_id=account_id, signal_date=signal_date,
+        )
         positions = {
             str(item.get('stock_code') or '').strip(): dict(item)
             for item in await self._list_positions(db, account_id)
@@ -2125,7 +2410,18 @@ class StrategyIncubationService:
 # --- incubation_parts/runtime.py ---
 
     async def record_metrics(self, db, strategy: dict, metric_date: Optional[date] = None) -> Optional[dict]:
-        metric_date = metric_date or date.today()
+        from aiask_quant_core.market_session import resolve_session_date
+
+        market_session = await resolve_session_date(db)
+        if metric_date is None:
+            metric_date = market_session['date']
+        elif metric_date != market_session['date']:
+            market_session = {
+                'date': metric_date,
+                'source': 'caller',
+                'latest_bar_date': market_session.get('latest_bar_date'),
+                'coverage': market_session.get('coverage'),
+            }
         binding = await self.ensure_account(db, strategy)
         account = binding['account']
         account_id = account['id']
@@ -2141,6 +2437,13 @@ class StrategyIncubationService:
                     account_id,
                 )]
             order_summary = None
+
+        metric_day = _as_day(metric_date)
+        nav_rows = [
+            row for row in nav_rows
+            if (nav_day := _as_day(row.get('nav_date'))) is not None
+            and (metric_day is None or nav_day <= metric_day)
+        ]
 
         # Execution evidence is account-scoped, but a strategy's active
         # incubation accounts can span stages (ensure_account only upgrades
@@ -2160,11 +2463,20 @@ class StrategyIncubationService:
         if hasattr(db, 'acquire'):
             try:
                 async with db.acquire() as conn:
+                    exclusions_present = bool(await conn.fetchval(
+                        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='paper_evidence_exclusions')"
+                    ))
+                    exclusion_filter = (
+                        "AND NOT EXISTS (SELECT 1 FROM paper_evidence_exclusions e "
+                        "WHERE e.account_id = a.account_id)"
+                        if exclusions_present else ""
+                    )
                     rows = await conn.fetch(
-                        """
+                        f"""
                         SELECT a.account_id
                         FROM strategy_incubation_accounts a
                         WHERE a.strategy_id = $1 AND a.status = 'active'
+                          {exclusion_filter}
                         ORDER BY a.bound_at
                         """,
                         strategy['id'],
@@ -2240,28 +2552,38 @@ class StrategyIncubationService:
                 execution_aggregation_errors.append(f"fold_accounts:{type(exc).__name__}:{exc}")
 
         latest_nav = nav_rows[0] if nav_rows else None
-        total_value = float((latest_nav or {}).get('total_value') or account.get('total_value') or account.get('initial_capital') or DEFAULT_INCUBATION_CAPITAL)
-        cash = float((latest_nav or {}).get('cash') or account.get('current_capital') or 0.0)
-        market_value = float((latest_nav or {}).get('market_value') or max(total_value - cash, 0.0))
-        daily_return = float((latest_nav or {}).get('daily_return') or 0.0)
+        nav_as_of_date = _as_day((latest_nav or {}).get('nav_date'))
+        nav_is_current = latest_nav is not None and nav_as_of_date == metric_day
+        if nav_is_current:
+            total_value = float(latest_nav.get('total_value')) if latest_nav.get('total_value') is not None else None
+            cash = float(latest_nav.get('cash')) if latest_nav.get('cash') is not None else None
+            market_value = float(latest_nav.get('market_value')) if latest_nav.get('market_value') is not None else None
+            daily_return = float(latest_nav.get('daily_return')) if latest_nav.get('daily_return') is not None else None
+        else:
+            # Historical NAV is not a measurement for metric_date. Preserve
+            # the signal/execution metrics, but do not relabel an older balance
+            # as current financial evidence.
+            total_value = cash = market_value = daily_return = None
 
         nav_values = [float(row.get('total_value') or 0) for row in reversed(nav_rows)]
-        peak = nav_values[0] if nav_values else total_value
-        max_drawdown = 0.0
-        for value in nav_values:
-            peak = max(peak, value)
-            if peak > 0:
-                max_drawdown = max(max_drawdown, (peak - value) / peak)
+        max_drawdown = None
+        if nav_is_current and nav_values:
+            peak = nav_values[0]
+            max_drawdown = 0.0
+            for value in nav_values:
+                peak = max(peak, value)
+                if peak > 0:
+                    max_drawdown = max(max_drawdown, (peak - value) / peak)
 
         returns = [float(row.get('daily_return') or 0) for row in nav_rows if row.get('daily_return') is not None]
         # Fix #9: 至少需要 20 个数据点才能计算有统计意义的 Sharpe
-        if len(returns) >= 20:
+        if nav_is_current and len(returns) >= 20:
             mean_r = sum(returns) / len(returns)
             variance = sum((item - mean_r) ** 2 for item in returns) / max(len(returns) - 1, 1)
             std_r = variance ** 0.5
-            sharpe_ratio = (mean_r / std_r) * (252 ** 0.5) if std_r > 0 else 0.0
+            sharpe_ratio = (mean_r / std_r) * (252 ** 0.5) if std_r > 0 else None
         else:
-            sharpe_ratio = 0.0
+            sharpe_ratio = None
 
         signal_stats = await db.get_signal_stats(strategy['id'])
         hit_rate_5d = float((signal_stats.get('hit_rate') or {}).get(5, (signal_stats.get('hit_rate') or {}).get('5', 0)) or 0)
@@ -2274,9 +2596,21 @@ class StrategyIncubationService:
         baseline_sharpe = float(backtest.get('sharpe_ratio') or 0)
         baseline_mdd = abs(float(backtest.get('max_drawdown') or 0))
         alpha_decay = max(0.0, baseline_sharpe - max(forward_sharpe_5d, 0.0))
-        drift_score = (abs(max_drawdown - baseline_mdd) + abs(baseline_sharpe - forward_sharpe_5d)) / 2 if baseline_sharpe or baseline_mdd else 0.0
-        exposure_rate = (market_value / total_value) if total_value > 0 else 0.0
-        turnover_rate = float(order_summary.get('trade_amount') or 0.0) / total_value if total_value > 0 else 0.0
+        drift_score = (
+            (abs(max_drawdown - baseline_mdd) + abs(baseline_sharpe - forward_sharpe_5d)) / 2
+            if max_drawdown is not None and (baseline_sharpe or baseline_mdd)
+            else None
+        )
+        exposure_rate = (
+            market_value / total_value
+            if market_value is not None and total_value is not None and total_value > 0
+            else None
+        )
+        turnover_rate = (
+            float(order_summary.get('trade_amount') or 0.0) / total_value
+            if total_value is not None and total_value > 0
+            else None
+        )
 
         from .strategy_lifecycle_shared import build_incubation_overview as _build_incubation_overview
         overview = await _build_incubation_overview(db, strategy)
@@ -2301,13 +2635,13 @@ class StrategyIncubationService:
             'account_id': account_id,
             # Fix #12: 使用完整的 6 阶段映射替代二元分类
             'stage': derived_stage,
-            'total_value': round(total_value, 4),
-            'cash': round(cash, 4),
-            'market_value': round(market_value, 4),
-            'nav': round(total_value / max(float(account.get('initial_capital') or DEFAULT_INCUBATION_CAPITAL), 1.0), 6),
-            'daily_return': round(daily_return, 6),
-            'max_drawdown': round(max_drawdown, 6),
-            'sharpe_ratio': round(sharpe_ratio, 6),
+            'total_value': round(total_value, 4) if total_value is not None else None,
+            'cash': round(cash, 4) if cash is not None else None,
+            'market_value': round(market_value, 4) if market_value is not None else None,
+            'nav': round(total_value / max(float(account.get('initial_capital') or DEFAULT_INCUBATION_CAPITAL), 1.0), 6) if total_value is not None else None,
+            'daily_return': round(daily_return, 6) if daily_return is not None else None,
+            'max_drawdown': round(max_drawdown, 6) if max_drawdown is not None else None,
+            'sharpe_ratio': round(sharpe_ratio, 6) if sharpe_ratio is not None else None,
             'hit_rate_5d': round(hit_rate_5d, 6),
             'hit_rate_lcb_5d': round(float(signal_quality_5d.get('hit_rate_lcb') or 0.0), 6) if signal_quality_5d.get('hit_rate_lcb') is not None else None,
             'skill_lcb_5d': round(float(signal_quality_5d.get('skill_lcb') or 0.0), 6) if signal_quality_5d.get('skill_lcb') is not None else None,
@@ -2320,14 +2654,26 @@ class StrategyIncubationService:
             'total_signals': total_signals,
             'total_orders': int(order_summary.get('total_orders') or 0),
             'total_trades': int(order_summary.get('total_trades') or 0),
-            'turnover_rate': round(turnover_rate, 6),
-            'exposure_rate': round(exposure_rate, 6),
+            'turnover_rate': round(turnover_rate, 6) if turnover_rate is not None else None,
+            'exposure_rate': round(exposure_rate, 6) if exposure_rate is not None else None,
             'alpha_decay': round(alpha_decay, 6),
-            'drift_score': round(drift_score, 6),
+            'drift_score': round(drift_score, 6) if drift_score is not None else None,
             'blockers': overview.get('blockers') or [],
             'risk_flags': overview.get('risk_flags') or [],
             'decision': decision,
             'metadata': {
+                'market_session': {
+                    'date': str(metric_date),
+                    'source': market_session.get('source'),
+                    'latest_bar_date': str(market_session.get('latest_bar_date'))
+                    if market_session.get('latest_bar_date') else None,
+                    'coverage': market_session.get('coverage'),
+                },
+                'valuation': {
+                    'status': 'measured' if nav_is_current else 'unmeasurable',
+                    'reason_code': None if nav_is_current else 'nav_not_measured_for_metric_date',
+                    'as_of_date': nav_as_of_date.isoformat() if nav_as_of_date else None,
+                },
                 'overview': overview_without_signal_quality,
                 'signal_quality': signal_quality,
                 'execution_quality': execution_quality,
@@ -2363,7 +2709,14 @@ class StrategyIncubationService:
         return metric
 
     async def process_strategies(self, db, strategies: list[dict], signal_date: Optional[date] = None) -> dict:
-        signal_date = signal_date or date.today()
+        session_source = 'caller'
+        if signal_date is None:
+            # Was date.today(): a weekend run dated orders, fills and NAV with
+            # a session absent from kline_1d.
+            from aiask_quant_core.market_session import resolve_session_date
+
+            session = await resolve_session_date(db)
+            signal_date, session_source = session['date'], session['source']
         accounts_bound = 0
         orders_created = 0
         orders_filled = 0
@@ -2413,6 +2766,8 @@ class StrategyIncubationService:
                     'skip_reason_counts': dict(sync_result.get('skip_reason_counts') or {}),
                     'orders_filled': settle_result.get('filled_count', 0),
                     'rejected_orders': settle_result.get('rejected_count', 0),
+                    'expired_orders': settle_result.get('expired_count', 0),
+                    'deferred_counts': dict(settle_result.get('deferred_counts') or {}),
                     'nav': (settle_result.get('nav_snapshot') or {}).get('total_value'),
                     'decision': (metric or {}).get('decision'),
                 })
@@ -2421,6 +2776,8 @@ class StrategyIncubationService:
                 items.append({'strategy_id': strategy.get('id'), 'error': str(exc)})
         return {
             'count': len(strategies),
+            'signal_date': str(signal_date),
+            'session_source': session_source,
             'accounts_bound': accounts_bound,
             'orders_created': orders_created,
             'orders_filled': orders_filled,
@@ -2445,6 +2802,10 @@ class StrategyIncubationService:
         if not strategy_id:
             return []
 
+        from aiask_quant_core.market_session import resolve_session_date
+
+        market_session_end = (await resolve_session_date(db))["date"]
+
         resolved_start = start_date
         resolved_end = end_date
         signal_rows = await db.get_signals(
@@ -2460,16 +2821,12 @@ class StrategyIncubationService:
                 if isinstance(item.get('signal_date'), date)
             }
         )
-        if signal_dates and resolved_start is None:
-            resolved_start = signal_dates[0]
-        if signal_dates and resolved_end is None:
-            resolved_end = max(signal_dates[-1], date.today())
         if resolved_start is None:
-            resolved_start = date.today()
+            resolved_start = signal_dates[0] if signal_dates else market_session_end
         if resolved_end is None:
-            resolved_end = max(resolved_start, date.today())
+            resolved_end = market_session_end
         if resolved_end < resolved_start:
-            resolved_end = resolved_start
+            return []
 
         replay_dates: set[date] = set(signal_dates)
         if include_market_days and hasattr(db, 'get_klines'):

@@ -53,6 +53,9 @@ class RiskExecutor:
         self.max_drawdown_pct = max_drawdown_pct
         self._cooldowns: Dict[str, datetime] = {}  # account_id -> last_trigger_time
         self.total_actions = 0
+        # Sells refused because no fresh quote existed (stale or unknown age).
+        self.skipped_stale_quote = 0
+        self.skipped_quote_by_reason: Dict[str, int] = {}
 
     def _in_cooldown(self, account_id: str) -> bool:
         last = self._cooldowns.get(account_id)
@@ -182,11 +185,40 @@ class RiskExecutor:
 
         return actions
 
+    async def _fresh_execution_price(self, code: str) -> tuple[Optional[float], Optional[str]]:
+        from .market_data_access import FALLBACK_DB_ONLY, execution_quote_verdict, get_quote_snapshot_response
+        from ..utils import normalize_code
+        try:
+            res = await get_quote_snapshot_response(normalize_code(code), fallback_mode=FALLBACK_DB_ONLY)
+        except Exception as exc:
+            logger.warning("[RiskExecutor] quote read failed for %s: %s: %s", code, type(exc).__name__, exc)
+            return None, "quote_read_failed"
+        usable, reason = execution_quote_verdict(res)
+        if not usable:
+            return None, reason
+        data = res.get("data") or {}
+        price = data.get("price") or data.get("close")
+        return (float(price), None) if price else (None, "quote_without_price")
+
     async def _execute_sell(
         self, db, conn, account_id: str, code: str, qty: int, price: float,
         action_type: str, reason: str,
     ) -> Optional[RiskAction]:
-        """执行卖出并记录审计事件"""
+        """执行卖出并记录审计事件。
+
+        ``price`` is the stored mark that triggered the action. The sell itself
+        needs a fresh quote: on 2026-10-21 24 reductions executed at a
+        2026-07-15 quote. Without one the sell is skipped and counted.
+        """
+        fresh_price, refusal = await self._fresh_execution_price(code)
+        if fresh_price is None or fresh_price <= 0:
+            token = str(refusal or "unknown")
+            self.skipped_quote_by_reason[token] = self.skipped_quote_by_reason.get(token, 0) + 1
+            if token in {"stale_quote", "quote_age_unknown"}:
+                self.skipped_stale_quote += 1
+            logger.info("[RiskExecutor] %s skipped for %s %s: %s", action_type, account_id, code, token)
+            return None
+        price = fresh_price
         try:
             from ..tools.managers.paper_trading_manager import _fill_order, _record_order_event
             trade_id, commission = await _fill_order(conn, account_id, code, "sell", qty, price)
@@ -219,6 +251,8 @@ class RiskExecutor:
             "active_cooldowns": len(self._cooldowns),
             "max_position_pct": self.max_position_pct,
             "max_drawdown_pct": self.max_drawdown_pct,
+            "skipped_stale_quote": self.skipped_stale_quote,
+            "skipped_quote_by_reason": dict(self.skipped_quote_by_reason),
         }
 
 

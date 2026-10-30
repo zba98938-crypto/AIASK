@@ -17,6 +17,7 @@ from ._paper_trading_manager_support import (
     _ensure_account,
     _ensure_positions_consistency,
     _fill_order,
+    _get_fill_price,
     _get_quote_snapshot,
     _get_price,
     _reconcile_account_state,
@@ -235,9 +236,15 @@ def register_paper_trading_manager(mcp):
 
                 # --- market 即时成交 ---
                 if price is None:
-                    price = await _get_price(code, db)
-                if price is None:
-                    return fail('市价单无法获取当前价格，请手动指定 price')
+                    # Only a fresh quote is a market price. _get_price also
+                    # falls back to the newest daily close, which could be
+                    # weeks old; filling there silently was the 2026-10-21 bug.
+                    price, price_refusal = await _get_fill_price(code, db)
+                    if price is None:
+                        return fail(
+                            f'市价单没有新鲜行情（{price_refusal}），不按过期价格成交；请手动指定 price',
+                            error_code=price_refusal or 'stale_quote',
+                        )
                 try:
                     price = float(price)
                 except Exception:

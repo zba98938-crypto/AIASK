@@ -56,6 +56,11 @@ class MatchingEngine:
         self.matched_count = 0
         self.scan_count = 0
         self.last_scan: Optional[datetime] = None
+        # Price lookups refused because the quote was stale or of unknown age.
+        # Counted per lookup, not per order: one pending order adds 1 per scan.
+        self.skipped_stale_quote = 0
+        self.skipped_quote_by_reason: dict[str, int] = {}
+        self.skipped_quote_by_path: dict[str, int] = {}
 
     def start(self):
         if self._running:
@@ -99,6 +104,9 @@ class MatchingEngine:
             "scan_count": self.scan_count,
             "matched_count": self.matched_count,
             "last_scan": str(self.last_scan) if self.last_scan else None,
+            "skipped_stale_quote": self.skipped_stale_quote,
+            "skipped_quote_by_reason": dict(self.skipped_quote_by_reason),
+            "skipped_quote_by_path": dict(self.skipped_quote_by_path),
         }
 
     async def _loop(self):
@@ -293,15 +301,17 @@ class MatchingEngine:
                 )
             for pos in positions:
                 cost = float(pos.get('cost_price') or 0)
-                current = float(pos.get('current_price') or 0)
-                if cost <= 0 or current <= 0:
+                qty = int(pos.get('quantity') or 0)
+                if cost <= 0 or qty <= 0:
+                    continue
+                code = pos['stock_code']
+                # paper_positions.current_price is whatever the last mark was;
+                # on 2026-10-21 it was a three-month-old quote.
+                current = await self._fresh_quote_price(code, path='stop_loss')
+                if current is None or current <= 0:
                     continue
                 loss_pct = (cost - current) / cost * 100
                 if loss_pct >= stop_loss_pct:
-                    qty = int(pos.get('quantity') or 0)
-                    if qty <= 0:
-                        continue
-                    code = pos['stock_code']
                     logger.info("[MatchingEngine] stop-loss trigger: %s loss %.1f%% >= %.1f%%",
                                 code, loss_pct, stop_loss_pct)
                     try:
@@ -311,30 +321,42 @@ class MatchingEngine:
                     except Exception as e:
                         logger.warning("[MatchingEngine] stop-loss sell %s failed: %s", code, e)
 
-    async def _get_current_price(self, code: str, db) -> Optional[float]:
+    async def _fresh_snapshot(self, code: str) -> tuple[Optional[dict], Optional[str]]:
+        """The quote data when it is fresh enough to trade on, else (None, reason)."""
+        from .market_data_access import FALLBACK_DB_ONLY, execution_quote_verdict, get_quote_snapshot_response
+        from ..utils import normalize_code
         try:
-            from .market_data_access import FALLBACK_DB_ONLY, get_quote_snapshot_response
-            from ..utils import normalize_code
             res = await get_quote_snapshot_response(normalize_code(code), fallback_mode=FALLBACK_DB_ONLY)
-            if res and res.get('success') and res.get('data'):
-                d = res['data']
-                return d.get('price') or d.get('close') or d.get('now')
-        except Exception as _swallowed:
-            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/matching_engine.py:323: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-            pass
-        return None
+        except Exception as exc:
+            logger.warning("[MatchingEngine] quote read failed for %s: %s: %s", code, type(exc).__name__, exc)
+            return None, 'quote_read_failed'
+        usable, reason = execution_quote_verdict(res)
+        return (dict(res['data']) if usable else None), reason
+
+    def _count_refusal(self, reason: Optional[str], path: str) -> None:
+        token = str(reason or 'unknown')
+        self.skipped_quote_by_reason[token] = self.skipped_quote_by_reason.get(token, 0) + 1
+        if token in {'stale_quote', 'quote_age_unknown'}:
+            self.skipped_stale_quote += 1
+            self.skipped_quote_by_path[path] = self.skipped_quote_by_path.get(path, 0) + 1
+
+    async def _fresh_quote_price(self, code: str, *, path: str) -> Optional[float]:
+        data, reason = await self._fresh_snapshot(code)
+        if data is None:
+            self._count_refusal(reason, path)
+            return None
+        price = data.get('price') or data.get('close') or data.get('now')
+        return float(price) if price else None
+
+    async def _get_current_price(self, code: str, db) -> Optional[float]:
+        return await self._fresh_quote_price(code, path='order_match')
 
     async def _get_prev_close(self, code: str, db) -> Optional[float]:
-        try:
-            from .market_data_access import FALLBACK_DB_ONLY, get_quote_snapshot_response
-            from ..utils import normalize_code
-            res = await get_quote_snapshot_response(normalize_code(code), fallback_mode=FALLBACK_DB_ONLY)
-            if res and res.get('success') and res.get('data'):
-                return res['data'].get('prev_close') or res['data'].get('pre_close')
-        except Exception as _swallowed:
-            logger.warning("packages/akshare-mcp/src/akshare_mcp/services/matching_engine.py:334: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-            pass
-        return None
+        data, reason = await self._fresh_snapshot(code)
+        if data is None:
+            self._count_refusal(reason, 'prev_close')
+            return None
+        return data.get('prev_close') or data.get('pre_close')
 
     async def _run_risk_executor(self, db):
         """对所有账户执行风控自动处置"""

@@ -222,7 +222,8 @@ def _price_limit_pct(code: str, stock_name: str | None = None) -> float:
         return 0.30
     return 0.10
 
-async def _get_quote_snapshot(code: str, db=None) -> dict:
+async def _read_quote_row(code: str, db=None) -> dict:
+    """The stock_quotes row for code, whatever its age."""
     normalized_code = _canonical_stock_code(code)
     if db is not None:
         try:
@@ -236,6 +237,34 @@ async def _get_quote_snapshot(code: str, db=None) -> dict:
         except Exception as e:
             logger.debug('[PaperTrading] DB 行情快照读取失败: %s', e)
     return {}
+
+
+async def _get_quote_snapshot(code: str, db=None) -> dict:
+    """The quote row only when it is fresh (see market_data_access.quote_row_verdict).
+
+    A stale row is no current price: on 2026-10-21 marks and fills used
+    000002's quote from 2026-07-15. Callers fall back to their own sources
+    (daily bars for valuation and the limit band) or refuse.
+    """
+    from ...services.market_data_access import quote_row_verdict
+
+    quote = await _read_quote_row(code, db)
+    usable, _ = quote_row_verdict(quote)
+    return quote if usable else {}
+
+
+async def _get_fill_price(code: str, db=None) -> tuple[float | None, str | None]:
+    """A price a market order may fill at now: a fresh quote, else (None, reason)."""
+    from ...services.market_data_access import quote_row_verdict
+
+    quote = await _read_quote_row(code, db)
+    usable, reason = quote_row_verdict(quote)
+    if not usable:
+        return None, reason
+    price = _safe_float(quote.get('price'))
+    if price is None or price <= 0:
+        return None, 'quote_without_price'
+    return price, None
 
 async def _get_previous_close(code: str, db, quote: dict | None = None) -> float | None:
     quote = quote or {}
@@ -264,7 +293,9 @@ async def _validate_price_limit(code: str, price: float | None, db) -> str | Non
     prev_close = await _get_previous_close(code, db, quote)
     if prev_close is None or prev_close <= 0:
         return None
-    limit_pct = _price_limit_pct(code, quote.get('name'))
+    # The name decides the ST band; a stale row still carries it.
+    name = quote.get('name') or (await _read_quote_row(code, db)).get('name')
+    limit_pct = _price_limit_pct(code, name)
     lower = round(prev_close * (1 - limit_pct), 2)
     upper = round(prev_close * (1 + limit_pct), 2)
     normalized_price = round(float(price), 2)
