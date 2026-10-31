@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from aiask_agent.model_client import AnthropicMessagesClient, ModelResponse, MockModelClient
+from aiask_agent.model_providers import ModelProviderRegistry
 from aiask_agent.runtime import AgentRuntime
 from aiask_agent.server import create_app
 from aiask_agent.session_store import AgentSessionStore
@@ -38,6 +39,23 @@ def test_ai_status_reports_mock_runtime_without_secrets(tmp_path, monkeypatch) -
     assert payload["configured"] is True
     assert payload["secrets_redacted"] is True
     assert "sk-" not in str(payload)
+
+
+def test_openai_compatible_registry_uses_gateway_model_and_redacts_key() -> None:
+    registry = ModelProviderRegistry(env={
+        "AIASK_AGENT_MODEL_PROVIDER": "openai",
+        "AIASK_AGENT_MODEL": "gpt-6-luna",
+        "OPENAI_BASE_URL": "https://gateway.example.test/",
+        "OPENAI_API_KEY": "fake-agent-secret",
+    })
+    provider = next(item for item in registry.providers() if item.name == "openai")
+    status = registry.status()
+    assert provider.provider_type == "openai_compatible"
+    assert provider.model == "gpt-6-luna"
+    assert provider.base_url == "https://gateway.example.test/"
+    assert provider.configured is True
+    assert status["secrets_redacted"] is True
+    assert "fake-agent-secret" not in str(status)
 
 
 def test_ai_smoke_uses_runtime_model_client_and_model_override(tmp_path, monkeypatch) -> None:

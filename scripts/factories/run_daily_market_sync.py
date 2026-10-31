@@ -44,9 +44,68 @@ def _record_completeness(*, sync_ok: bool) -> dict:
     try:
         row = con.execute("SELECT MAX(substr(time,1,10)) FROM kline_1d").fetchone()
         as_of = row[0] if row else None
-        count = con.execute("SELECT COUNT(DISTINCT code) FROM kline_1d WHERE substr(time,1,10)=?", (as_of,)).fetchone()[0] if as_of else 0
-        status = "ok" if sync_ok and count >= FULL_SESSION_MIN_CODES else "partial"
-        detail = json.dumps({"source": "free_data_daily_sync", "coverage_codes": count, "threshold": FULL_SESSION_MIN_CODES}, ensure_ascii=False)
+        observed_count = con.execute(
+            "SELECT COUNT(DISTINCT code) FROM kline_1d WHERE substr(time,1,10)=?",
+            (as_of,),
+        ).fetchone()[0] if as_of else 0
+        has_stock_universe = con.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='stocks'"
+        ).fetchone() is not None
+        universe_count = None
+        missing_codes: list[str] = []
+        if has_stock_universe and as_of:
+            universe_codes = [str(item[0]) for item in con.execute(
+                "SELECT DISTINCT s.stock_code FROM stocks s "
+                "WHERE s.stock_code GLOB '[0-9]*' AND COALESCE(s.list_status, 'L')='L' "
+                "ORDER BY s.stock_code"
+            )]
+            # Exclude symbols already delisted by the snapshot date. Retaining
+            # them in today's expected universe would turn historical symbols
+            # into permanent false gaps.
+            delisted_as_of = {
+                str(item[0])
+                for item in con.execute(
+                    "SELECT DISTINCT s.stock_code FROM stocks s "
+                    "JOIN kline_1d k ON k.code=s.stock_code "
+                    "WHERE s.stock_code GLOB '[0-9]*' AND COALESCE(s.list_status,'L')='D' "
+                    "AND substr(k.time,1,10)<=?",
+                    (as_of,),
+                )
+            }
+            universe_codes = [code for code in universe_codes if code not in delisted_as_of]
+            universe_count = len(universe_codes)
+            present_codes = {str(item[0]) for item in con.execute(
+                "SELECT DISTINCT code FROM kline_1d WHERE substr(time,1,10)=?",
+                (as_of,),
+            )}
+            missing_codes = sorted(set(universe_codes) - present_codes)
+            observed_universe_codes = len(set(universe_codes) & present_codes)
+            count = observed_universe_codes
+            coverage_complete = bool(universe_count and not missing_codes)
+            coverage_basis = "active_stocks_universe"
+        else:
+            count = observed_count
+            # A row-count threshold cannot prove full-market coverage without
+            # an authoritative universe denominator.
+            coverage_complete = False
+            coverage_basis = "observed_count_only"
+        status = "ok" if sync_ok and coverage_complete else "partial"
+        detail = json.dumps({
+            "source": "free_data_daily_sync",
+            "coverage_basis": coverage_basis,
+            "coverage_codes": count,
+            "observed_codes": observed_count,
+            "active_universe_codes": universe_count,
+            "delisted_with_history_excluded": len(delisted_as_of) if has_stock_universe and as_of else 0,
+            "missing_codes": missing_codes,
+            "coverage_unknown_reason": (
+                None if has_stock_universe and as_of else
+                "stocks_universe_missing" if not has_stock_universe else
+                "snapshot_date_missing"
+            ),
+            "threshold": FULL_SESSION_MIN_CODES,
+            "coverage_complete": coverage_complete,
+        }, ensure_ascii=False)
         con.execute("""
             INSERT INTO tdx_data_completeness(data_key,status,as_of_date,row_count,detail,updated_at)
             VALUES('kline_1d',?,?,?,?,CURRENT_TIMESTAMP)

@@ -461,19 +461,30 @@ def _is_llm_provider_error_key(key: Any) -> bool:
 
 def _llm_provider_error_count(summary: Mapping[str, Any]) -> int:
     overlay = dict(summary or {})
-    count = sum(_safe_count(overlay.get(key)) for key in _LLM_PROVIDER_ERROR_SUMMARY_KEYS)
+    # These summary fields and status buckets are alternate projections of
+    # task-level provider failures. They often carry the same events, so use
+    # the strongest projection instead of summing and double-counting them.
+    summary_count = max(
+        (_safe_count(overlay.get(key)) for key in _LLM_PROVIDER_ERROR_SUMMARY_KEYS),
+        default=0,
+    )
+    status_count = 0
     for bucket_name in ("llm_status_counts", "external_llm_status_counts"):
+        bucket_count = 0
         for key, value in dict(overlay.get(bucket_name) or {}).items():
             if _is_llm_provider_error_key(key):
-                count += _safe_count(value)
+                bucket_count += _safe_count(value)
+        status_count = max(status_count, bucket_count)
     # pipeline_fallback_counts.cooldown_skip 表示因 provider 近期过载/超时进入冷却而跳过请求，
-    # 属 provider 侧降级，应计入 provider 错误；local_fallback_preferred_or_skip /
+    # 属 provider 侧降级，应计入 provider 错误；此处与 task-level 状态可能描述同一失败，
+    # 因此作为另一投影参与 max，而非累加。local_fallback_preferred_or_skip /
     # target_context_blocked 由 _is_llm_provider_error_key 显式排除，不计入。
+    pipeline_count = 0
     for key, value in dict(overlay.get("pipeline_fallback_counts") or {}).items():
         token = str(key or "").strip().lower()
         if token == "cooldown_skip" or _is_llm_provider_error_key(key):
-            count += _safe_count(value)
-    return count
+            pipeline_count += _safe_count(value)
+    return max(summary_count, status_count, pipeline_count)
 
 
 def _llm_provider_error_ratio(summary: Mapping[str, Any]) -> float:
@@ -533,7 +544,20 @@ def _is_llm_degraded(
         _safe_count(overlay.get("external_llm_effective_response_count")),
         _safe_count(overlay.get("research_external_autonomy_candidate_count")),
     )
-    if local_fallback_count > 0 and external_effective_count <= 0:
+    external_attempt_count = max(
+        _safe_count(overlay.get("external_llm_real_request_count")),
+        _safe_count(overlay.get("external_llm_network_request_count")),
+        _safe_count(overlay.get("external_llm_attempt_count")),
+    )
+    autonomy_task_count = _safe_count(overlay.get("autonomy_task_count"))
+    # Local/template candidates are not evidence of provider degradation when
+    # autonomy had no executable tasks or the provider was never called. Only
+    # assess this fallback-vs-external-output signal after a real attempt.
+    if (
+        local_fallback_count > 0
+        and external_effective_count <= 0
+        and (external_attempt_count > 0 or autonomy_task_count > 0)
+    ):
         return True
     eff_timeout_threshold = (
         float(timeout_threshold)

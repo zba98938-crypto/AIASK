@@ -264,6 +264,53 @@ def test_pipeline_fallback_only_is_partial_llm() -> None:
     assert status == FactoryRunStatus.PARTIAL_LLM
 
 
+def test_local_candidates_without_autonomy_attempt_are_not_llm_degradation() -> None:
+    """Skipped autonomy with no external request must not imply provider failure."""
+    stages = _ok_stages()
+    stages["autonomy"] = _stage("skipped")
+    summary = {
+        "gate_3_passed": 0,
+        "submitted": 0,
+        "autonomy_task_count": 0,
+        "external_llm_status": "skipped",
+        "external_llm_network_request_count": 0,
+        "external_llm_effective_response_count": 0,
+        "research_local_rule_candidate_count": 4,
+    }
+    status = resolve_run_status("success", stages, summary=summary)
+    assert status == FactoryRunStatus.SUCCESS_NO_STRATEGY
+
+
+def test_local_fallback_after_real_external_attempt_is_partial_llm() -> None:
+    summary = {
+        "gate_3_passed": 0,
+        "submitted": 0,
+        "autonomy_task_count": 2,
+        "external_llm_network_request_count": 2,
+        "external_llm_effective_response_count": 0,
+        "research_local_rule_candidate_count": 2,
+    }
+    status = resolve_run_status("success", _ok_stages(), summary=summary)
+    assert status == FactoryRunStatus.PARTIAL_LLM
+
+
+def test_duplicate_provider_error_projections_count_same_event_once() -> None:
+    summary = {
+        "gate_3_passed": 0,
+        "submitted": 0,
+        "autonomy_task_count": 10,
+        "external_llm_network_request_count": 10,
+        "provider_error_count": 1,
+        "provider_http_error_count": 1,
+        "provider_http_5xx_count": 1,
+        "llm_status_counts": {"succeeded": 9, "provider_error": 1},
+        "external_llm_status_counts": {"succeeded": 9, "provider_error": 1},
+        "pipeline_fallback_counts": {"cooldown_skip": 1},
+    }
+    status = resolve_run_status("success", _ok_stages(), summary=summary)
+    assert status == FactoryRunStatus.SUCCESS_NO_STRATEGY
+
+
 def test_priority_infra_over_llm() -> None:
     """When both infra and LLM are degraded, infra wins."""
     stages = _ok_stages()

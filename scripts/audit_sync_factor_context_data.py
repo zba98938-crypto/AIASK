@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import io
+import json
 import logging
 import os
 import sys
@@ -108,14 +109,45 @@ def _format_error(*, task_type: str, reason: str, **context: Any) -> str:
     return f"[audit_sync_{task_type}] " + " ".join(pieces)
 
 
+def _dispatch_target_codes(rows: list[Any], *, limit: int) -> list[str]:
+    """Extract, validate and deduplicate target codes from dispatch rows.
+
+    SQLite adapters may return mappings or positional rows. A malformed JSON
+    payload is an input error, not an empty target set.
+    """
+    candidates: list[str] = []
+    for row in rows:
+        if isinstance(row, dict):
+            value = row.get("codes")
+        elif hasattr(row, "keys"):
+            value = row["codes"] if "codes" in row.keys() else None
+        else:
+            value = row[0] if row else None
+        if value in (None, ""):
+            continue
+        if isinstance(value, str):
+            try:
+                value = json.loads(value)
+            except json.JSONDecodeError as exc:
+                raise ValueError("dispatch target_codes contains invalid JSON") from exc
+        if isinstance(value, dict):
+            value = value.get("target_codes")
+        if value is None:
+            continue
+        if not isinstance(value, (list, tuple, set)):
+            raise ValueError("dispatch target_codes must be a JSON array")
+        candidates.extend(_normalize_codes(value))
+
+    return list(dict.fromkeys(candidates))[: max(1, int(limit or 12))]
+
+
 async def _resolve_factory_target_codes(active_pool_limit: int) -> list[str]:
-    """Pull recently-active strategy/factory targets from DB if available."""
+    """Pull recently-active strategy/factory targets; raise on read failures."""
     try:
         from akshare_mcp.storage import get_db
         db = get_db()
-    except Exception:
-        return []
-    candidates: list[str] = []
+    except Exception as exc:
+        raise RuntimeError(f"factory target database unavailable: {type(exc).__name__}") from exc
     # `strategy_factory_runs` has no `metadata` column, and even the fields it does
     # have are compacted: its `stages` keeps only
     # `"requested_target_codes": {"storage_mode": "dropped_large_payload"}`, so the
@@ -135,41 +167,23 @@ async def _resolve_factory_target_codes(active_pool_limit: int) -> list[str]:
             (max(1, int(active_pool_limit or 12)),),
         ),
     ]
-    read_errors: list[str] = []
     async with db.acquire() as conn:
-        for sql, params in queries:
-            try:
-                rows = await conn.fetch(sql, *params)
-            except Exception as _swallowed:
-                # Recorded, not just logged: an audit that could not read its own
-                # input must not look like one that found nothing to report.
-                logger.warning(
-                    "scripts/audit_sync_factor_context_data.py:132: swallowed %s and continued: %s",
-                    type(_swallowed).__name__, _swallowed,
-                )
-                read_errors.append(f"{type(_swallowed).__name__}: {_swallowed}")
-                continue
-            for row in rows:
-                value = row[0] if row else None
-                for code in _normalize_codes(value):
-                    candidates.append(code)
-    # Deduplicate while preserving order
-    seen: set[str] = set()
-    deduped: list[str] = []
-    for code in candidates:
-        if code in seen:
-            continue
-        seen.add(code)
-        deduped.append(code)
-    return deduped[: max(1, int(active_pool_limit or 12))]
+        sql, params = queries[0]
+        try:
+            rows = await conn.fetch(sql, *params)
+        except Exception as exc:
+            raise RuntimeError(f"factory target dispatch read failed: {type(exc).__name__}") from exc
+    return _dispatch_target_codes(rows, limit=active_pool_limit)
 
 
-async def _resolve_codes(args: argparse.Namespace) -> list[str]:
+async def _resolve_codes(args: argparse.Namespace) -> tuple[list[str], list[str]]:
     explicit = _normalize_codes(getattr(args, "codes", ""))
     scope = _normalize_scope(getattr(args, "scope_sources", "") or
                              "explicit,representative,active_pool,factory_targets")
     out: list[str] = []
     seen: set[str] = set()
+    resolution_failures: list[str] = []
+    factory_target_read_failed = False
 
     def _extend(items: list[str]) -> None:
         for code in items:
@@ -188,14 +202,37 @@ async def _resolve_codes(args: argparse.Namespace) -> list[str]:
                 int(getattr(args, "active_pool_limit", 12) or 12)
             )
             _extend(factory_codes)
+            if factory_codes:
+                logger.info("factory targets resolved: status=targets_found count=%d", len(factory_codes))
+            else:
+                logger.info("factory targets resolved: status=no_targets")
         except Exception as exc:
-            logger.warning("factory_targets resolution failed: %s", exc)
+            factory_target_read_failed = True
+            logger.warning("factory_targets resolution failed: status=read_failed error=%s", exc)
 
     if not out and explicit:
         _extend(explicit)
     if not out:
         _extend(DEFAULT_REPRESENTATIVE_CODES)
-    return out
+    if factory_target_read_failed:
+        fallback_sources: list[str] = []
+        if any(code in seen for code in explicit):
+            fallback_sources.append("explicit")
+        if any(code in seen for code in DEFAULT_REPRESENTATIVE_CODES):
+            fallback_sources.append("representative")
+        fallback_source = ",".join(fallback_sources) or "none"
+        logger.warning(
+            "factory_targets resolution degraded=true fallback_source=%s code_count=%d",
+            fallback_source,
+            len(out),
+        )
+        resolution_failures.append(_format_error(
+            task_type="target_resolution",
+            reason="factory_targets_read_failed",
+            fallback_source=fallback_source,
+            code_count=len(out),
+        ))
+    return out, resolution_failures
 
 
 async def _ingest_market_text(args: argparse.Namespace, codes: list[str]) -> dict[str, Any]:
@@ -318,7 +355,8 @@ async def _main(args: argparse.Namespace) -> int:
 
     failures: list[str] = []
 
-    codes = await _resolve_codes(args)
+    codes, resolution_failures = await _resolve_codes(args)
+    failures.extend(resolution_failures)
     print(f"[factor_context] resolved {len(codes)} codes (sample={codes[:3]})")
 
     # Hard ceiling on the network-bound ingest path. Warmup callers expect us

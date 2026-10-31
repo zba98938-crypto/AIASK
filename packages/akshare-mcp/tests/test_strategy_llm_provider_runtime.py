@@ -233,6 +233,32 @@ def test_factor_llm_endpoint_adds_v1_for_bare_openai_compatible_host() -> None:
     assert asyncio.run(_run()) == "https://icoe.pp.ua/v1/chat/completions"
 
 
+def test_factor_llm_env_config_uses_strategy_settings_and_redacts_secret(monkeypatch) -> None:
+    import json
+
+    from akshare_mcp.services.factor_llm_provider import FactorLLMConfig, FactorLLMProvider
+
+    monkeypatch.setenv("AIASK_LLM_ENV_FILE_PRIORITY", "0")
+    for key in (
+        "FACTOR_LLM_ENABLED", "FACTOR_LLM_PROVIDER", "FACTOR_LLM_BASE_URL",
+        "FACTOR_LLM_API_KEY", "FACTOR_LLM_MODEL",
+    ):
+        monkeypatch.delenv(key, raising=False)
+    monkeypatch.setenv("STRATEGY_LLM_ENABLED", "1")
+    monkeypatch.setenv("STRATEGY_LLM_PROVIDER", "openai_compatible")
+    monkeypatch.setenv("STRATEGY_LLM_BASE_URL", "https://gateway.example.test/")
+    monkeypatch.setenv("STRATEGY_LLM_API_KEY", "fake-config-secret")
+    monkeypatch.setenv("STRATEGY_LLM_MODEL", "gpt-6-luna")
+
+    config = FactorLLMConfig.from_env()
+    assert config.enabled is True
+    assert config.provider == "openai_compatible"
+    assert config.base_url == "https://gateway.example.test/"
+    assert config.model == "gpt-6-luna"
+    assert config.api_key == "fake-config-secret"
+    assert "fake-config-secret" not in json.dumps(FactorLLMProvider(config).status())
+
+
 def test_strategy_llm_extracts_markdown_fenced_json() -> None:
     provider = _provider_with_responses(
         [
