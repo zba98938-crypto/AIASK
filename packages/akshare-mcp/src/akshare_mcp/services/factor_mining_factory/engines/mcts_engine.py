@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from .base import EngineStatus, FactorCandidate, SearchBudget
+from ..._factor_search_budget import bounded_search, search_checkpoint, remember_search_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +166,7 @@ class MCTSSearchEngine:
         self._last_error: str | None = None
         self._visited_expressions: set[str] = set()  # 频繁子树回避
 
+    @bounded_search
     async def generate(
         self,
         context: Any,
@@ -173,9 +175,11 @@ class MCTSSearchEngine:
         """MCTS 搜索生成候选因子。"""
         try:
             candidates = self._blueprint_candidates(context, max(1, budget.candidate_count // 2))
+            remember_search_candidates(candidates)
             simulations_per_candidate = max(30, self.simulations // max(1, budget.candidate_count))
 
             for i in range(budget.candidate_count * 3):  # 过采样
+                search_checkpoint()
                 if len(candidates) >= budget.candidate_count:
                     break
 
@@ -187,6 +191,7 @@ class MCTSSearchEngine:
                     if self._validate_expression(best_expr):
                         self._visited_expressions.add(best_expr)
                         candidates.append(self._build_candidate(best_expr, i))
+                        remember_search_candidates(candidates[-1:])
 
                 # P1-F: 每次 MCTS 搜索后让出 event loop,使并行 llm_primary httpx 回调有调度窗口。
                 # _run_mcts 是纯 CPU 同步、整循环无 await,会独占 loop 阻塞 LLM 引擎。
@@ -201,10 +206,11 @@ class MCTSSearchEngine:
             if len(self._visited_expressions) > 1000:
                 self._visited_expressions = set(list(self._visited_expressions)[-500:])
 
+            candidates = await self._rank_with_quick_evidence(candidates, context)
+            search_checkpoint()
             self._success_count += 1
             self._last_run_at = datetime.now(timezone.utc).isoformat()
             self._last_error = None
-            candidates = await self._rank_with_quick_evidence(candidates, context)
             return candidates[:budget.candidate_count]
 
         except Exception as exc:
@@ -251,6 +257,7 @@ class MCTSSearchEngine:
         import inspect
 
         for candidate in unique:
+            search_checkpoint()
             try:
                 evidence = evaluator(candidate)
                 if inspect.isawaitable(evidence):
@@ -278,6 +285,7 @@ class MCTSSearchEngine:
         candidates = []
         attempts = 0
         while len(candidates) < count and attempts < count * 5:
+            search_checkpoint()
             attempts += 1
             # 随机构建完整状态
             expr_type = random.choice([t for t, _ in _GRAMMAR["expr"]])
@@ -303,12 +311,14 @@ class MCTSSearchEngine:
             if expr not in self._visited_expressions and self._validate_expression(expr):
                 self._visited_expressions.add(expr)
                 candidates.append(self._build_candidate(expr, len(candidates)))
+                remember_search_candidates(candidates[-1:])
 
         return candidates
 
     def _run_mcts(self, root: MCTSNode, simulations: int) -> str | None:
         """运行 MCTS 搜索。"""
         for _ in range(simulations):
+            search_checkpoint()
             # Selection
             node = self._select(root)
 

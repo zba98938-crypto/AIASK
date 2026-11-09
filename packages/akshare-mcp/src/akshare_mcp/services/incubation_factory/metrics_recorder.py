@@ -89,7 +89,8 @@ class MetricsRecorder:
             metric_date: 指标日期（默认今天）
 
         Returns:
-            保存的指标记录，或 None（如果保存失败）
+            保存的指标记录；保存失败会抛异常，不能作为已记录指标计数。
+            无策略 ID 时返回 None。
         """
         sid = str(strategy.get("id") or "").strip()
         if not sid:
@@ -180,9 +181,9 @@ class MetricsRecorder:
                 logger.warning(
                     "MetricsRecorder: save failed for %s: %s", sid, exc
                 )
-                return None
+                raise RuntimeError(f"incubation_metric_write_failed: {exc}") from exc
 
-        return metric
+        raise RuntimeError("incubation_metric_store_unavailable")
 
     async def record_batch(
         self,
@@ -210,9 +211,14 @@ class MetricsRecorder:
         for strategy in strategies:
             sid = str(strategy.get("id") or "").strip()
             verification = verifications.get(sid, {})
-            result = await self.record(
-                db, strategy, verification, metric_date=metric_date
-            )
+            try:
+                result = await self.record(
+                    db, strategy, verification, metric_date=metric_date
+                )
+            except Exception as exc:
+                logger.warning("MetricsRecorder: batch write failed for %s: %s", sid, exc)
+                failed += 1
+                continue
             if result is not None:
                 recorded += 1
             else:

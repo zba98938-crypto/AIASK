@@ -38,6 +38,7 @@ class IncubationRuntime:
         *,
         run_time: dt_time | None = None,
         error_backoff_sec: int = DEFAULT_ERROR_BACKOFF_SEC,
+        dry_run: bool | None = None,
     ):
         self._support = support
         provider = support
@@ -54,6 +55,7 @@ class IncubationRuntime:
                 resolved_run_time = support_run_time
         self._run_time = resolved_run_time or DEFAULT_DAEMON_RUN_TIME
         self._error_backoff_sec = int(error_backoff_sec)
+        self._dry_run = bool(dry_run or getattr(support, "dry_run", False))
 
     def preflight(self) -> dict[str, Any]:
         return {
@@ -70,12 +72,16 @@ class IncubationRuntime:
 
     async def start(self) -> None:
         """Start paper runtime engines (MatchingEngine + NavEngine)."""
+        if self._dry_run:
+            return
         start_method = getattr(self._support, "_start_paper_trading_daemons", None)
         if callable(start_method):
             await start_method()
 
     async def stop(self) -> None:
         """Stop paper runtime engines."""
+        if self._dry_run:
+            return
         stop_method = getattr(self._support, "_stop_paper_trading_daemons", None)
         if callable(stop_method):
             await stop_method()
@@ -84,7 +90,7 @@ class IncubationRuntime:
         self,
         *,
         trigger: str = "scheduled",
-        dry_run: bool = False,
+        dry_run: bool | None = None,
     ) -> dict[str, Any]:
         """Execute one complete incubation cycle.
 
@@ -99,10 +105,10 @@ class IncubationRuntime:
 
         result = await self._orchestrator.run_cycle(
             trigger=trigger,
-            dry_run=dry_run,
+            dry_run=self._dry_run or bool(dry_run),
         )
-        # Preserve the established facade keys while legacy hosts migrate the
-        # remaining audit/pipeline operations to the public provider protocol.
+        # Preserve the established facade keys for alternate orchestrators and
+        # include settlement details collected by legacy provider adapters.
         result.setdefault("pipeline", {})
         result.setdefault("execution_audit_acceptance", {})
         settlements = getattr(self._provider, "settlements", None)
@@ -133,13 +139,21 @@ class IncubationRuntime:
             target += timedelta(days=1)
         return (target - current).total_seconds()
 
-    async def run_daemon(self, *, max_cycles: int | None = None) -> dict[str, Any]:
-        """Run one incubation cycle per day at ``run_time`` until cancelled.
+    async def run_daemon(
+        self, *, max_cycles: int | None = None, interval_sec: int | None = None,
+    ) -> dict[str, Any]:
+        """Run daily, or immediately and serially at a fixed completion interval.
 
         Owns the paper-trading engine lifecycle for the duration of the daemon:
         engines are started before the first wait and always stopped on exit.
         ``max_cycles`` bounds the loop for tests; production passes ``None``.
+        A positive ``interval_sec`` runs the first cycle immediately, then waits
+        that long after each completed cycle. Failed cycles retain their error
+        backoff in addition to this interval. Zero/None preserve daily scheduling.
         """
+        interval_seconds = int(interval_sec or 0)
+        if interval_seconds < 0:
+            raise ValueError("interval_sec must be non-negative")
         if self._orchestrator is None:
             return {
                 "success": False,
@@ -152,17 +166,26 @@ class IncubationRuntime:
         await self.start()
         try:
             while max_cycles is None or cycles < max_cycles:
-                wait_seconds = self._seconds_until_next_run()
-                logger.info(
-                    "IncubationRuntime: next cycle at %02d:%02d (waiting %.0fs)",
-                    self._run_time.hour,
-                    self._run_time.minute,
-                    wait_seconds,
-                )
-                await asyncio.sleep(wait_seconds)
+                if interval_seconds > 0:
+                    if cycles > 0:
+                        logger.info("IncubationRuntime: waiting %ds after completed cycle", interval_seconds)
+                        await asyncio.sleep(interval_seconds)
+                else:
+                    wait_seconds = self._seconds_until_next_run()
+                    logger.info(
+                        "IncubationRuntime: next cycle at %02d:%02d (waiting %.0fs)",
+                        self._run_time.hour,
+                        self._run_time.minute,
+                        wait_seconds,
+                    )
+                    await asyncio.sleep(wait_seconds)
                 cycles += 1
                 try:
-                    await self.run_once(trigger="daemon")
+                    result = await self.run_once(trigger="daemon")
+                    if result.get("success") is False or result.get("status") in {"partial", "failed"}:
+                        failures += 1
+                        logger.error("IncubationRuntime: cycle returned %s: %s", result.get("status"), result.get("phase_failures"))
+                        await asyncio.sleep(self._error_backoff_sec)
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
@@ -204,7 +227,7 @@ def build_incubation_runtime(
             kwargs = {key: value for key, value in kwargs.items() if key in signature.parameters}
         support = factory(**kwargs)
     resolved_support = support
-    return IncubationRuntime(resolved_support, run_time=run_time)
+    return IncubationRuntime(resolved_support, run_time=run_time, dry_run=dry_run)
 
 
 def get_incubation_runtime() -> IncubationRuntime:

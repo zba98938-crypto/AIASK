@@ -112,11 +112,12 @@ async def _mark_launch_failed(
             exit_code=exit_code,
             error=error,
         )
-    except ValueError as _swallowed:
-        # Lost a race into a terminal state. The launch diagnostics above are
-        # already persisted, so the failure is still traceable.
-        logger.warning("packages/agent/src/aiask_agent/factory_dispatcher.py:114: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-        pass
+    except ValueError:
+        # Only a verified terminal-state race is harmless. A contract/schema
+        # error must surface instead of stranding a queued run without evidence.
+        latest = await db.get_factory_run(run_id)
+        if latest is None or not latest.get("terminal"):
+            raise
 
 
 def _verified_intent(intent_id: str, intent_db_path: str) -> dict[str, Any]:
@@ -146,6 +147,9 @@ async def dispatch_factory_run(params: dict[str, Any]) -> dict[str, Any]:
     if not idempotency_key:
         raise ValueError("idempotency_key is required")
     run_params = dict(payload.get("params") or {})
+    from strategy_factory.api.runtime import register_factory_schema
+
+    register_factory_schema()
     db = get_db()
     await db.initialize()
     run = await db.request_factory_run(

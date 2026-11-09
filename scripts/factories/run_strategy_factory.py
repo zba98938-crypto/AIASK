@@ -224,6 +224,7 @@ class StrategyFactoryRunner:
         self._partial_count = 0
         self._failure_count = 0
         self._active_dispatch: dict[str, Any] | None = None
+        self._pending_batch_dispatch: str | None = None
 
     async def _execute_cycle(self) -> dict[str, Any]:
         runtime_kwargs = _load_strategy_factory_runtime_kwargs()
@@ -288,6 +289,25 @@ class StrategyFactoryRunner:
         self._active_dispatch = None
 
     async def _execute_dispatch_run_batch(self, scheduler: Any, runtime_kwargs: dict[str, Any]) -> dict[str, Any]:
+        # One outstanding dispatch per runner. Await completion before issuing
+        # the next shard or letting the periodic loop start another generation.
+        get_status = getattr(scheduler, "get_dispatch_status", None)
+
+        async def drain_pending():
+            if self._pending_batch_dispatch is None:
+                return None
+            if not callable(get_status):
+                raise RuntimeError("Cannot verify pending dispatch completion")
+            while True:
+                state = await get_status(self._pending_batch_dispatch)
+                if state is None:
+                    raise RuntimeError("Pending dispatch status unavailable; refusing to enqueue more work")
+                if str(state.get("status") or "").lower() not in {"queued", "running"}:
+                    self._pending_batch_dispatch = None
+                    return state
+                await asyncio.sleep(1)
+
+        await drain_pending()
         codes = list(self.target_codes)
         default_universe = False
         if self.dispatch_default_universe and not codes:
@@ -302,17 +322,25 @@ class StrategyFactoryRunner:
                     if str(row.get("code") or row.get("stock_code") or "").strip()
                 ]
                 default_universe = True
-        shard_size = self.dispatch_shard_size or max(1, len(codes) or 1)
+        # Scheduler target normalization is a candidate-scoped 40-code contract.
+        # Shard the universe BEFORE dispatch so all requested codes are covered,
+        # rather than silently truncating a 200-code universe to its first 40.
+        shard_size = min(self.dispatch_shard_size or 40, 40)
         chunks = [codes[index : index + shard_size] for index in range(0, len(codes), shard_size)] or [[]]
         results = []
         for chunk in chunks:
-            results.append(
-                await scheduler.dispatch_run(
-                    None,
-                    execution_mode=self.execution_mode,
-                    target_codes=chunk,
-                )
+            result = await scheduler.dispatch_run(
+                None, execution_mode=self.execution_mode, target_codes=chunk,
             )
+            if str(result.get("status") or "").lower() in {"queued", "running"} and callable(get_status):
+                dispatch_id = str(result.get("dispatch_id") or "").strip()
+                if not dispatch_id:
+                    raise RuntimeError("Queued dispatch has no identity; refusing further shards")
+                self._pending_batch_dispatch = dispatch_id
+                result = await drain_pending()
+            results.append(result)
+            if str(result.get("status") or "").lower() not in {"success", "queued"}:
+                break
         failed = [item for item in results if str(item.get("status") or "").lower() not in {"success", "queued"}]
         return {
             "status": "failed" if failed else "success",
@@ -416,6 +444,9 @@ async def _run_async(args: argparse.Namespace) -> int:
             "live_trading_enabled": os.getenv("LIVE_TRADING_ENABLED"),
             "broker_allow_write": os.getenv("BROKER_ALLOW_WRITE"),
         }
+        from strategy_factory.api.runner_result import write_runner_result
+
+        write_runner_result("strategy_factory", payload)
         print(json.dumps(payload, ensure_ascii=False, indent=2), flush=True)
         return 0 if payload["db_exists"] else 1
 
@@ -424,9 +455,15 @@ async def _run_async(args: argparse.Namespace) -> int:
         execution_mode=args.execution_mode,
         target_codes=target_codes,
         dispatch_run=args.dispatch_run,
+        dispatch_shard_size=args.dispatch_shard_size,
+        dispatch_default_universe=args.dispatch_default_universe,
+        dispatch_default_universe_limit=args.dispatch_default_universe_limit,
     )
     if args.once:
         result = await runner.run_once()
+        from strategy_factory.api.runner_result import write_runner_result
+
+        write_runner_result("strategy_factory", result)
         if args.json:
             print(json.dumps(result, ensure_ascii=False, indent=2, default=_json_default), flush=True)
         else:
@@ -436,7 +473,10 @@ async def _run_async(args: argparse.Namespace) -> int:
                 flush=True,
             )
         status = str(result.get("status") or "").lower()
-        return 0 if status == "success" else 1
+        return 0 if status in {
+            "success", "success_observe_only", "success_no_submission", "success_no_strategy",
+            "partial", "partial_infra", "partial_llm", "degraded", "blocked", "skipped",
+        } else 1
 
     await runner.run_forever()
     return 0

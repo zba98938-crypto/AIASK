@@ -14,6 +14,7 @@ from typing import Any
 import numpy as np
 
 from .base import EngineStatus, FactorCandidate, SearchBudget
+from ..._factor_search_budget import bounded_search, search_checkpoint, remember_search_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +176,7 @@ class GeneticProgrammingEngine:
         self._last_run_at: str | None = None
         self._last_error: str | None = None
 
+    @bounded_search
     async def generate(
         self,
         context: Any,
@@ -188,6 +190,7 @@ class GeneticProgrammingEngine:
             # 2. 进化循环
             generations = min(self.max_generations, budget.max_iterations)
             for gen in range(generations):
+                search_checkpoint()
                 # 适应度评估（基于编译有效性 + 复杂度）
                 fitness = self._evaluate_fitness(population)
 
@@ -218,8 +221,10 @@ class GeneticProgrammingEngine:
             final_fitness = self._evaluate_fitness(population)
             candidates = self._extract_top_candidates(population, final_fitness, budget.candidate_count)
             candidates = self._blueprint_candidates(context, budget.candidate_count) + candidates
+            remember_search_candidates(candidates)
             candidates = await self._rank_with_quick_evidence(candidates, context)
 
+            search_checkpoint()
             self._success_count += 1
             self._last_run_at = datetime.now(timezone.utc).isoformat()
             self._last_error = None
@@ -239,6 +244,7 @@ class GeneticProgrammingEngine:
         for index, blueprint in enumerate(
             list(getattr(context, "alpha_blueprints", []) or [])[: max(0, count)]
         ):
+            search_checkpoint()
             candidate = candidate_from_blueprint(
                 blueprint,
                 engine_id=self.engine_id,
@@ -271,6 +277,7 @@ class GeneticProgrammingEngine:
         import inspect
 
         for candidate in unique[: max(1, self.population_size // 5)]:
+            search_checkpoint()
             try:
                 evidence = evaluator(candidate)
                 if inspect.isawaitable(evidence):
@@ -310,6 +317,7 @@ class GeneticProgrammingEngine:
 
         # 填充随机个体
         while len(population) < self.population_size:
+            search_checkpoint()
             population.append(_random_tree(max_depth=self.max_depth))
 
         return population[:self.population_size]
@@ -320,6 +328,7 @@ class GeneticProgrammingEngine:
 
         fitness_scores = []
         for tree in population:
+            search_checkpoint()
             dsl = tree.to_dsl()
             score = 0.0
 
@@ -385,6 +394,7 @@ class GeneticProgrammingEngine:
         seen_expressions = set()
 
         for idx in sorted_indices:
+            search_checkpoint()
             if len(candidates) >= k:
                 break
 

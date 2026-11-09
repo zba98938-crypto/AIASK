@@ -214,7 +214,9 @@ class RiskModel:
     def stress_test(
         holdings: List[Dict[str, Any]],
         scenario: str = 'market_crash',
-        custom_shocks: Optional[Dict[str, float]] = None
+        custom_shocks: Optional[Dict[str, float]] = None,
+        *,
+        portfolio_value: Optional[float] = None,
     ) -> Dict[str, Any]:
         """压力测试：按每笔持仓对市场冲击的实际敏感度计算组合损失。
 
@@ -233,6 +235,11 @@ class RiskModel:
         ``custom_shocks`` maps a holding code to its own shock and takes
         precedence over the scenario shock for that holding. A holding covered
         by ``custom_shocks`` needs no beta — the shock is already position-level.
+
+        ``portfolio_value`` includes cash when supplied. The uninvested balance
+        remains unchanged by the equity shock; loss percentages use the actual
+        portfolio net value. Coverage describes the measured invested exposure,
+        so cash cannot make unknown stock sensitivities appear measured.
         """
         scenario_key = str(scenario or '').strip().lower()
         scenario_key = RiskModel._SCENARIO_ALIASES.get(scenario_key, scenario_key)
@@ -251,7 +258,9 @@ class RiskModel:
             scenario_key = 'custom'
 
         rows = [h for h in (holdings or []) if isinstance(h, dict)]
-        portfolio_value = float(sum(float(h.get('value', 0) or 0) for h in rows))
+        invested_value = float(sum(float(h.get('value', 0) or 0) for h in rows))
+        portfolio_value = invested_value if portfolio_value is None else float(portfolio_value)
+        cash_value = portfolio_value - invested_value
 
         base = {
             'scenario': scenario_key,
@@ -259,12 +268,15 @@ class RiskModel:
                 scenario_key, f'自定义压力测试：{scenario_key}'
             ),
             'original_value': portfolio_value,
+            'invested_value': invested_value,
+            'cash_value': cash_value,
+            'coverage_basis': 'invested_value',
             'market_shock': float(market_shock) if market_shock is not None else None,
         }
         if custom_shocks:
             base['custom_shocks'] = dict(custom_shocks)
 
-        if not rows or portfolio_value <= 0:
+        if not rows or invested_value <= 0 or portfolio_value <= 0:
             return {
                 **base,
                 'shocked_value': None,
@@ -274,7 +286,7 @@ class RiskModel:
                 'reason': 'no_positions',
             }
 
-        shocked_value = 0.0
+        shocked_value = cash_value
         covered_value = 0.0
         missing_sensitivity: List[str] = []
 
@@ -304,7 +316,7 @@ class RiskModel:
             shocked_value += value * (1.0 + own_shock)
             covered_value += value
 
-        coverage = covered_value / portfolio_value if portfolio_value > 0 else 0.0
+        coverage = covered_value / invested_value if invested_value > 0 else 0.0
 
         if covered_value <= 0:
             return {

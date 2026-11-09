@@ -123,6 +123,14 @@ class ForwardVerifier:
 
         # 获取信号证据
         evidence_list = await self._load_signal_evidence(db, sid)
+        def evidence_time(item: dict[str, Any]) -> datetime:
+            raw = self._evidence_value(item, "signal_ts") or self._evidence_value(item, "signal_date")
+            try:
+                parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+                return parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezone.utc)
+            except (TypeError, ValueError):
+                return datetime.min.replace(tzinfo=timezone.utc)
+        evidence_list = sorted(evidence_list, key=evidence_time)
         if not evidence_list:
             stats_result = await self._verification_from_signal_stats(db, sid, profile)
             return stats_result or self._empty_result(sid, profile)

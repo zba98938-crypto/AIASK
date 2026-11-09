@@ -6,6 +6,8 @@
 from __future__ import annotations
 
 import json
+import hashlib
+from copy import deepcopy
 
 import logging
 import os
@@ -19,6 +21,7 @@ from ..quality import (
     compute_quality_score,
     evaluate_validation_evidence,
     safe_int,
+    unmeasured_seed_reason,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,12 +50,27 @@ class ActiveFactorPool:
     def __init__(self):
         self._factors: dict[str, dict[str, Any]] = {}  # factor_id → factor record
         self._knowledge_graph = None  # lazy-init to avoid circular imports
+        self.correlation_evaluator = None
+
+    def replace_from_records(self, records: list[dict[str, Any]]) -> None:
+        """Replace the working set, including removing factors retired elsewhere."""
+        refreshed = ActiveFactorPool()
+        refreshed.hydrate(records)
+        self._factors = refreshed._factors
 
     def hydrate(self, records: list[dict[str, Any]]) -> None:
         """Load persisted active factors into the in-memory working set."""
         for record in records or []:
             factor_id = str(record.get("factor_id") or "").strip()
             if not factor_id or record.get("status", "active") != "active":
+                continue
+            from ...factor_evidence_identity import requires_bound_evidence, resolve_factor_evidence_identity
+            if requires_bound_evidence(record) and resolve_factor_evidence_identity(record).get("status") != "bound":
+                logger.warning("ActiveFactorPool: excluded unbound mined factor %s; stored history retained", factor_id)
+                continue
+            seed_reason = unmeasured_seed_reason(record)
+            if seed_reason:
+                logger.warning("ActiveFactorPool: excluded %s (%s); stored history retained", factor_id, seed_reason)
                 continue
             raw_inputs = record.get("inputs") or []
             if isinstance(raw_inputs, str):
@@ -194,7 +212,28 @@ class ActiveFactorPool:
         """批量入池审核。"""
         admitted = []
         for candidate in candidates:
-            result = await self.admit(candidate)
+            try:
+                result = await self.admit(candidate)
+            except Exception as exc:
+                logger.exception("ActiveFactorPool: admission failed for %s", candidate.name)
+                result = {"admitted": False, "reason": "pool_admission_error",
+                          "error_type": type(exc).__name__, "error": str(exc)}
+            identity_payload = {"expression_dsl": candidate.expression_dsl, "inputs": sorted(candidate.inputs)}
+            from ...factor_evidence_identity import resolve_factor_evidence_identity
+
+            evidence_identity = resolve_factor_evidence_identity(candidate.to_validation_dict(), candidate.validation_result or {})
+            decision = deepcopy({k: v for k, v in result.items() if k not in {"record", "retired_records"}})
+            decision.update({
+                "attempted": True, "status": "admitted" if result.get("admitted") else "rejected",
+                "candidate_name": candidate.name,
+                "generation_engine": candidate.generation_engine,
+                "evidence_identity": evidence_identity,
+                "candidate_expression_sha256": hashlib.sha256(json.dumps(identity_payload, sort_keys=True).encode()).hexdigest(),
+                "retired_factor_ids": [r.get("factor_id") for r in result.get("retired_records") or []],
+            })
+            candidate.generation_trace = {**dict(candidate.generation_trace or {}), "pool_admission": decision}
+            if isinstance(result.get("record"), dict):
+                result["record"]["generation_trace"] = deepcopy(candidate.generation_trace)
             if result.get("admitted"):
                 admitted.append(result)
         return admitted
@@ -256,6 +295,11 @@ class ActiveFactorPool:
             }
 
         # 1. IC evidence gate (strict by default; lite may use quick-screen pass)
+        from ...factor_evidence_identity import resolve_factor_evidence_identity
+
+        identity = resolve_factor_evidence_identity(candidate.to_validation_dict(), candidate.validation_result or {})
+        if identity.get("status") != "bound":
+            return {"admitted": False, "reason": identity["reason"], "evidence_identity": identity}
         evidence_gate = self._validation_evidence_gate(candidate.validation_result)
         if not evidence_gate.get("passed"):
             try:
@@ -289,8 +333,22 @@ class ActiveFactorPool:
                 generation_trace.get("evolution_structural_score", 0.0) or 0.0
             ),
         )
-        similarity = self._expression_similarity_details(candidate.expression_dsl)
-        max_corr = float(similarity.get("max_correlation") or 0.0)
+        # Text overlap is useful for search diagnostics, but cannot establish
+        # independence. Admission requires measured factor values on common
+        # (trade date, stock) observations, supplied by the host's DB-only loader.
+        if self._factors:
+            if self.correlation_evaluator is None:
+                return {"admitted": False, "reason": "orthogonality_unavailable"}
+            similarity = await self.correlation_evaluator(candidate, list(self._factors.values()))
+            if not similarity.get("measurable"):
+                return {
+                    "admitted": False,
+                    "reason": "orthogonality_unmeasurable",
+                    "orthogonality": similarity,
+                }
+        else:
+            similarity = {"measurable": True, "max_correlation": 0.0, "basis": "empty_pool"}
+        max_corr = float(similarity["max_correlation"])
         existing_quality = float(similarity.get("existing_quality_score") or 0.0)
         incremental_quality_score = round(quality_score - existing_quality, 4)
         replacement_decision = {
@@ -373,6 +431,7 @@ class ActiveFactorPool:
             "quality_score": quality_score,
             "incremental_quality_score": incremental_quality_score,
             "correlation_to_pool": max_corr,
+            "orthogonality": similarity,
             "replacement_decision": replacement_decision,
             "evidence_summary": dict(evidence.get("summary") or {}),
             "promotion_criteria": dict(PROMOTION_CRITERIA),
@@ -474,6 +533,11 @@ class ActiveFactorPool:
         for record in self._factors.values():
             if record.get("status") != "active":
                 continue
+            if unmeasured_seed_reason(record):
+                continue
+            from ...factor_evidence_identity import requires_bound_evidence, resolve_factor_evidence_identity
+            if requires_bound_evidence(record) and resolve_factor_evidence_identity(record).get("status") != "bound":
+                continue
             validation_summary = dict(record.get("validation_summary") or {})
             quality_status = validation_summary.get("quality_status")
             if quality_status != "promoted":
@@ -550,12 +614,12 @@ class ActiveFactorPool:
         return max_sim
 
     def _expression_similarity_details(self, expression: str) -> dict[str, Any]:
-        """Return nearest pool expression and its quality proxy."""
+        """Return diagnostic text similarity; never use it as correlation."""
         import re
 
         if not self._factors:
             return {
-                "max_correlation": 0.0,
+                "max_similarity": 0.0,
                 "factor_id": None,
                 "existing_quality_score": 0.0,
             }
@@ -563,7 +627,7 @@ class ActiveFactorPool:
         tokens_new = set(re.findall(r"[a-zA-Z_]\w*|\d+", expression.lower()))
         if not tokens_new:
             return {
-                "max_correlation": 0.0,
+                "max_similarity": 0.0,
                 "factor_id": None,
                 "existing_quality_score": 0.0,
             }
@@ -588,7 +652,7 @@ class ActiveFactorPool:
             (best_record or {}).get("fitness"),
         )
         return {
-            "max_correlation": max_sim,
+            "max_similarity": max_sim,
             "factor_id": (best_record or {}).get("factor_id"),
             "existing_quality_score": float(existing_quality or 0.0),
         }

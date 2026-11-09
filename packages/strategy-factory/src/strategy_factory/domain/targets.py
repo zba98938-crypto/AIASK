@@ -63,6 +63,28 @@ _FACTOR_RANK_VALIDATION_SAMPLE_MIN = 12
 _STATISTICAL_PANEL_MIN_STOCKS = 12
 
 
+def _is_index_reference_code(value: Any) -> bool:
+    """Identify explicit mainland index namespaces, without excluding ETFs.
+
+    Bare 000001 is a stock. Exchange-qualified sh000001/000001.SH is an
+    index. Keep index data available for benchmarks; this is a target check.
+    """
+    code = str(value or "").strip().lower()
+    if "." in code:
+        number, market = code.rsplit(".", 1)
+        if market in {"sh", "sz", "bj"}:
+            code = market + number
+    return (
+        len(code) == 8 and code[2:].isdigit()
+        and (code.startswith("sh000") or code.startswith("sz399") or code.startswith("bj899"))
+    ) or (len(code) == 6 and code.isdigit() and code.startswith("399"))
+
+
+def _non_tradable_index_target_codes(payload: Optional[dict]) -> List[str]:
+    return [code for code in _extract_target_codes_from_payload(payload, limit=40)
+            if _is_index_reference_code(code)]
+
+
 def _primary_strategy_family(payload: Optional[dict]) -> str:
     item = dict(payload or {})
     for source in (
@@ -323,7 +345,11 @@ def _normalize_target_codes(values: Any, limit: int = 12) -> List[str]:
             for part in normalized.split(","):
                 visit(part)
             return
-        code = raw.split(".")[0].strip()
+        if _is_index_reference_code(raw) and "." in raw:
+            number, market = raw.lower().rsplit(".", 1)
+            code = market + number
+        else:
+            code = raw.split(".")[0].strip()
         if not code or code in seen:
             return
         seen.add(code)

@@ -186,6 +186,17 @@ class SignalTrackerOrchestrator:
                 result.phase_errors.append(f"{phase_name}: {type(exc).__name__}")
                 logger.exception("SignalTracker phase %s: failed", phase_name)
 
+            unavailable_counter = {
+                "phase_c_forward_returns": "forward_returns_computed",
+                "phase_g_lifecycle_scan": "transitions",
+            }.get(phase_name) if status != "completed" else None
+            if unavailable_counter:
+                # These phases can commit batches before a timeout or failure.
+                # With no returned total, neither zero nor a complete count is
+                # known. Keep the durable records and report that uncertainty.
+                setattr(result, unavailable_counter, None)
+                setattr(result, f"{unavailable_counter}_reason", f"{phase_name}_{status}")
+
             elapsed = (datetime.now() - phase_started).total_seconds()
             after_counters = {
                 key: int(value or 0)
@@ -198,6 +209,8 @@ class SignalTrackerOrchestrator:
                 key: after_counters.get(key, 0) - before_counters.get(key, 0)
                 for key in set(before_counters) | set(after_counters)
             }
+            if unavailable_counter:
+                delta[unavailable_counter] = None
             new_errors = len(result.errors) - before_errors
 
             result.phase_results[phase_name] = {
@@ -314,12 +327,12 @@ class SignalTrackerOrchestrator:
             "phase_c_forward_returns",
             self._provider.backfill_forward_returns(
                 db,
-                forward_days_list=[1, 5, 10, 20],
                 batch_limit=2000,
                 max_rounds=100,
             ),
         ) or {}
-        result.forward_returns_computed = int(forward_return_result.get("computed_count") or 0)
+        if result.forward_returns_computed_reason is None:
+            result.forward_returns_computed = int(forward_return_result.get("computed_count", forward_return_result.get("computed")) or 0)
 
         # Phase D: Sync incubation orders, NAV, and metrics
         logger.info("SignalTracker [%s] Phase D: Sync incubation data", trace_id)
@@ -382,11 +395,22 @@ class SignalTrackerOrchestrator:
             "phase_g_lifecycle_scan",
             self._provider.run_lifecycle_scan(db, strategies),
         ) or {}
+        if lifecycle_result.get("status") == "partial":
+            reason = lifecycle_result.get("reason") or "lifecycle_scan_coverage_incomplete"
+            result.errors.append(reason)
+            result.phase_results["phase_g_lifecycle_scan"]["status"] = "partial"
+            result.phase_results["phase_g_lifecycle_scan"]["error"] = reason
+            result.phase_results["phase_g_lifecycle_scan"]["new_errors"] += 1
+        if lifecycle_result.get("transitions_reason"):
+            result.transitions = None
+            result.transitions_reason = lifecycle_result["transitions_reason"]
+            result.phase_results["phase_g_lifecycle_scan"]["delta"]["transitions"] = None
         # The lifecycle scan reports per-strategy transition records (a list);
         # the akshare provider passes them through as the raw list, while the
         # strategy-factory provider pre-aggregates to an int. Normalize both.
-        transitions_raw = lifecycle_result.get("transitions") or 0
-        result.transitions = len(transitions_raw) if isinstance(transitions_raw, (list, tuple)) else int(transitions_raw)
+        if result.transitions_reason is None:
+            transitions_raw = lifecycle_result.get("transitions") or 0
+            result.transitions = len(transitions_raw) if isinstance(transitions_raw, (list, tuple)) else int(transitions_raw)
 
         # Phase H: Vector registry reconciliation
         logger.info("SignalTracker [%s] Phase H: Vector registry reconciliation", trace_id)

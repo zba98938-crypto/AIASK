@@ -19,6 +19,7 @@ _DEFAULT_MIN_IC = 0.03
 _DEFAULT_MIN_WIN_RATE = 0.55
 _DEFAULT_MIN_DAYS = 20
 _FALLBACK_FACTORS = ["momentum", "value", "quality", "growth", "volatility", "reversal"]
+_BUILTIN_FACTOR_NAMES = frozenset(_FALLBACK_FACTORS)
 
 
 async def select_effective_factors(
@@ -74,7 +75,12 @@ async def select_effective_factors(
         if not factor_name:
             continue
         # 跳过 factor_candidate: 前缀的种子因子（z-score，不是真实因子）
-        if factor_name.startswith("factor_candidate:"):
+        # Mined display labels were reused across different formulas. Bound
+        # evidence keys belong to the pool/DSL path, not a built-in factor name.
+        # Generic research reads only the fixed built-in calculator names.
+        # Mined labels and evidence keys are consumed by the pool/DSL path;
+        # accepting arbitrary names here would reintroduce label collisions.
+        if factor_name not in _BUILTIN_FACTOR_NAMES:
             continue
         if avg_ic >= min_ic and win_rate >= min_win_rate:
             effective.append({

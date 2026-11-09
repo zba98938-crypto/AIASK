@@ -20,6 +20,7 @@ from typing import Any
 import numpy as np
 
 from .base import EngineStatus, FactorCandidate, SearchBudget
+from ..._factor_search_budget import bounded_search, search_checkpoint, remember_search_candidates
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,7 @@ class RLAlphaGenEngine:
         self._last_error: str | None = None
         self._total_episodes = 0
 
+    @bounded_search
     async def generate(
         self,
         context: Any,
@@ -140,16 +142,19 @@ class RLAlphaGenEngine:
             episodes = min(self.episodes_per_run, budget.max_iterations)
 
             for episode in range(episodes):
+                search_checkpoint()
                 expression, trajectory = self._rollout()
 
                 if expression and self._validate(expression):
                     reward = await self._compute_reward(expression, context)
+                    search_checkpoint()
                     # 更新 policy
                     for state, action in trajectory:
                         self._policy.update(state, action, reward)
 
                     if reward > 0.3:  # 只保留高奖励的
                         candidates.append(self._build_candidate(expression, episode, reward))
+                        remember_search_candidates(candidates[-1:])
 
                 self._total_episodes += 1
 
@@ -186,6 +191,7 @@ class RLAlphaGenEngine:
         for index, blueprint in enumerate(
             list(getattr(context, "alpha_blueprints", []) or [])[: max(0, count)]
         ):
+            search_checkpoint()
             candidate = candidate_from_blueprint(
                 blueprint,
                 engine_id=self.engine_id,
@@ -201,6 +207,7 @@ class RLAlphaGenEngine:
                     if evidence.get("passed"):
                         candidate.fitness = float(evidence.get("quality_score") or 0.0) / 20.0
                         candidates.append(candidate)
+                        remember_search_candidates([candidate])
             except Exception as _swallowed:
                 logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/engines/rl_engine.py:205: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue

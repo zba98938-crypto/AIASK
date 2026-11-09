@@ -112,20 +112,20 @@ class DecayMonitor:
             return None
 
         factor_id = str(factor.get("factor_id") or "").strip()
-        factor_name = str(
-            factor.get("name")
-            or factor.get("factor_name")
-            or factor_id
-        ).strip()
+        from ...factor_evidence_identity import resolve_factor_evidence_identity
+
+        identity = resolve_factor_evidence_identity(factor)
+        if identity.get("status") != "bound":
+            logger.warning("DecayMonitor: %s (%s)", identity["reason"], factor_id)
+            return None
+        factor_name = identity["factor_key"]
         if not factor_id or not factor_name:
             return None
 
         rows: list[dict[str, Any]] = []
         resolved_period = None
-        for period in self._candidate_periods(factor):
+        for period in [identity["period"]]:
             rows = await self._load_ic_history(db, factor_name, period=period)
-            if not rows and factor_id != factor_name:
-                rows = await self._load_ic_history(db, factor_id, period=period)
             if rows:
                 resolved_period = period
                 break

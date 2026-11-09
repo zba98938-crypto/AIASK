@@ -1,0 +1,141 @@
+{
+  "measured_at": "2026-11-04T13:45:02.667786+08:00",
+  "database": "/Users/mac/.aiask/data/db/akshare_mcp.sqlite3",
+  "connection": "mode=ro + pragma query_only=ON",
+  "queries": {
+    "quality_stage": "select passed,json_extract(quality_gate,'$.admission_stage') admission_stage,count(*) n from strategy_quality_reports group by 1,2",
+    "latest_readiness": "select run_id,started_at,json_extract(stages,'$.readiness') readiness from strategy_factory_runs order by id desc limit 1",
+    "weekend_paper_trades": "select substr(t.trade_time,1,10) date,count(*) n,sum(e.account_id is not null) excluded from paper_trades t left join paper_evidence_exclusions e on t.account_id=e.account_id where strftime('%w',substr(t.trade_time,1,10)) in ('0','6') group by 1",
+    "orders_age": "select min(created_at) oldest,max(created_at) latest from paper_orders where status='pending'",
+    "factor_ic_columns": "pragma table_info(factor_ic_history)",
+    "factor_runs_recent_counts": "select count(*) n,sum(raw_candidate_count) raw,sum(validated_count) validated,sum(admitted_count) admitted from factor_mining_runs where started_at>='2026-10-31'"
+  },
+  "results": {
+    "quality_stage": [
+      {
+        "passed": 0,
+        "admission_stage": "rejected",
+        "n": 11770
+      },
+      {
+        "passed": 0,
+        "admission_stage": "research",
+        "n": 1138
+      },
+      {
+        "passed": 1,
+        "admission_stage": "incubation",
+        "n": 520
+      },
+      {
+        "passed": 1,
+        "admission_stage": "rejected",
+        "n": 1573
+      },
+      {
+        "passed": 1,
+        "admission_stage": "research",
+        "n": 11
+      }
+    ],
+    "latest_readiness": [
+      {
+        "run_id": "factory_run_1793592309_4d38af76",
+        "started_at": "2026-11-02T12:05:09.390050+08:00",
+        "readiness": "{\"stage\":\"readiness\",\"trace_id\":\"strategy_factory:2aa2c3b822d7\",\"stage_contract_version\":1,\"status\":\"failed\",\"ok\":false,\"hard_failure\":false,\"degraded\":false,\"warning_count\":5,\"blocker_count\":1,\"persistence_failure_count\":0,\"readiness_contract_version\":\"strategy_factory.readiness.v1\",\"runtime_enabled\":true,\"event_runtime_mode\":\"refresh\",\"auto_refresh_enabled\":false,\"hard_block_enabled\":true,\"min_score\":0.55,\"min_completion_ratio\":0.5,\"readiness_score\":0.38,\"can_proceed\":false,\"warnings\":[\"incubating_forward_window_coverage_low\",\"incubating_promotion_ready_gap_high\",\"cohort_promotion_ready_complete_failure\",\"incubating_promotion_review_gap_high\",\"incubating_evidence_debt_elevated\"],\"blockers\":[\"cohort_promotion_ready_complete_failure\"],\"critical_blockers\":[\"cohort_promotion_ready_complete_failure\"],\"critical_blocker_count\":1,\"snapshot_completion_ratio\":1.0,\"snapshot_degraded\":false,\"market_temperature_context\":{\"available\":false,\"degraded\":false},\"market_temperature_context_available\":false,\"event_status\":\"success\",\"event_task_ready_count\":4,\"factor_research_stale\":false,\"factor_research_degraded\":false,\"factor_source_mode\":\"factor_mining_active_pool\",\"governed_candidate_pool_active\":true,\"governed_candidate_pool_runtime_state\":\"governed_pool_active\",\"governed_supply_viable\":true,\"governed_supply_recoverable\":true,\"governed_candidate_pool_mode\":\"factor_mining_active_pool\",\"governed_candidate_pool_provisional\":false,\"governed_candidate_pool_provisional_spillover_policy\":{\"enabled\":true,\"min_strict_count\":6,\"spillover_limit\":3,\"status\":\"empty\",\"decision\":\"empty\",\"strict_count\":0,\"provisional_count\":0,\"provisional_only_count\":0,\"selected_spillover_count\":0,\"pending_provisional_count\":0,\"strict_shortfall_count\":6},\"governed_candidate_pool_provisional_spillover_policy_status\":\"empty\",\"governed_pool_missing_after_scheduler_success\":false,\"active_candidate_count\":10,\"family_preference_order\":[\"multi_factor\",\"macro_timing\",\"margin_divergence\",\"mom\",\"trend\",\"turnover\",\"vol\",\"volume\",\"event_structure_breakout\",\"rotation_balanced\",\"momentum\",\"volatility_breakout\",{\"truncated_item_count\":13}],\"family_preference_source_mode\":\"feedback_router\",\"governed_source_candidate_count\":10,\"governed_blocked_candidate_count\":0,\"governed_blocked_ratio\":0.0,\"governed_pending_candidate_count\":0,\"governed_pending_ratio\":0.0,\"governed_ineligible_candidate_count\":0,\"governed_candidate_pool_provisional_pending_count\":0,\"governed_candidate_pool_strict_shortfall_count\":6,\"budget_feedback_strategy_count\":135,\"budget_feedback_zero_signal_strategy_count\":0,\"budget_feedback_zero_signal_ratio\":0.0,\"budget_feedback_forward_window_coverage_ratio\":0.0,\"budget_feedback_promotion_ready_count\":0,\"budget_feedback_promotion_ready_ratio\":0.0,\"budget_feedback_promotion_review_count\":0,\"budget_feedback_promotion_review_coverage_ratio\":0.0,\"budget_feedback_evidence_debt_strategy_count\":135,\"budget_feedback_evidence_debt_ratio\":0.55,\"paper_observation_backlog_count\":0,\"paper_observation_backlog_status\":\"empty\",\"paper_observation_intake_stale\":false,\"external_llm_provider_suppress_active\":false,\"governed_freshness_days\":2,\"governed_risk_counts\":{},\"active_family_count\":7,\"active_regime_count\":0,\"min_governed_active_candidate_count\":1,\"min_governed_active_family_count\":1,\"stock_family_allocation_count\":0,\"stock_family_allocation_source_mode\":\"stock_universe_projection\",\"scheduler_recent_success\":false,\"factor_refresh_attempted\":false,\"factor_refresh_status\":\"disabled\",\"factor_refresh_recommended\":false,\"authority\":{\"authority_contract_version\":\"strategy_factory.readiness.authority.v1\",\"decision\":\"blocked\",\"blocked\":true,\"hard_gate\":true,\"gate_mode\":\"hard\",\"blocking_stage\":\"readiness\",\"blocking_reason_codes\":[\"cohort_promotion_ready_complete_failure\"],\"effective_blocking_reason_codes\":[\"cohort_promotion_ready_complete_failure\"],\"raw_blocking_reason_codes\":[\"cohort_promotion_ready_complete_failure\"],\"blocking_reason_codes_source\":\"blockers\",\"critical_blocking_reason_codes\":[\"cohort_promotion_ready_complete_failure\"],\"warning_reason_codes\":[\"incubating_forward_window_coverage_low\",\"incubating_promotion_ready_gap_high\",\"cohort_promotion_ready_complete_failure\",\"incubating_promotion_review_gap_high\",\"incubating_evidence_debt_elevated\"],\"skip_reason\":\"readiness_blocked\"},\"authority_contract_version\":\"strategy_factory.readiness.authority.v1\",\"decision\":\"blocked\",\"blocked\":true,\"hard_gate\":true,\"gate_mode\":\"hard\",\"blocking_stage\":\"readiness\",\"blocking_reason_codes\":[\"cohort_promotion_ready_complete_failure\"],\"effective_blocking_reason_codes\":[\"cohort_promotion_ready_complete_failure\"],\"raw_blocking_reason_codes\":[\"cohort_promotion_ready_complete_failure\"],\"blocking_reason_codes_source\":\"blockers\",\"critical_blocking_reason_codes\":[\"cohort_promotion_ready_complete_failure\"],\"warning_reason_codes\":[\"incubating_forward_window_coverage_low\",\"incubating_promotion_ready_gap_high\",\"cohort_promotion_ready_complete_failure\",\"incubating_promotion_review_gap_high\",\"incubating_evidence_debt_elevated\"],\"skip_reason\":\"readiness_blocked\"}"
+      }
+    ],
+    "weekend_paper_trades": [
+      {
+        "date": "2026-10-18",
+        "n": 23,
+        "excluded": 0
+      },
+      {
+        "date": "2026-10-24",
+        "n": 24,
+        "excluded": 0
+      }
+    ],
+    "orders_age": [
+      {
+        "oldest": "2026-10-20 10:30:06",
+        "latest": "2026-11-03 10:30:10"
+      }
+    ],
+    "factor_ic_columns": [
+      {
+        "cid": 0,
+        "name": "id",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 1
+      },
+      {
+        "cid": 1,
+        "name": "factor_name",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 2,
+        "name": "period",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 3,
+        "name": "ic_date",
+        "type": "TEXT",
+        "notnull": 1,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 4,
+        "name": "ic_value",
+        "type": "REAL",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 5,
+        "name": "rank_ic",
+        "type": "REAL",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 6,
+        "name": "stock_count",
+        "type": "INTEGER",
+        "notnull": 0,
+        "dflt_value": null,
+        "pk": 0
+      },
+      {
+        "cid": 7,
+        "name": "computed_at",
+        "type": "TEXT",
+        "notnull": 0,
+        "dflt_value": "CURRENT_TIMESTAMP",
+        "pk": 0
+      }
+    ],
+    "factor_runs_recent_counts": [
+      {
+        "n": 4,
+        "raw": 18,
+        "validated": 3,
+        "admitted": 0
+      }
+    ]
+  }
+}

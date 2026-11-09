@@ -77,6 +77,8 @@ class LegacyIncubationProvider:
         self, db: Any, strategy: dict[str, Any], verification: dict[str, Any]
     ) -> dict[str, Any]:
         result = await self.support._metrics_recorder.record(db, strategy, verification)
+        if result is None:
+            raise RuntimeError("incubation_metric_write_failed: no saved record")
         return dict(result or {})
 
     async def verify_trade_predictions(self, db: Any) -> dict[str, Any]:
@@ -219,8 +221,30 @@ class LegacyIncubationProvider:
             executor=None,
         )
 
-    async def run_accelerator(self, db: Any) -> dict[str, Any]:
-        return await self.support._accelerator.evaluate_batch(db, [], {})
+    async def get_read_only_db(self) -> Any:
+        return await self.support._get_read_only_db()
+
+    async def run_pipeline(self, db: Any, strategies: list[dict[str, Any]]) -> dict[str, Any]:
+        return await self.support._run_pipeline(db, strategies=strategies)
+
+    async def generate_hit_rate_report(
+        self, db: Any, strategies: list[dict[str, Any]],
+        verifications: dict[str, dict[str, Any]], pipeline_result: dict[str, Any],
+        *, trade_prediction_result: dict[str, Any], report_date: Any = None, persist: bool = True,
+    ) -> dict[str, Any]:
+        return await self.support._reporter.generate(
+            db, strategies, verifications, pipeline_result,
+            trade_prediction_result=trade_prediction_result, report_date=report_date, persist=persist,
+        )
+
+    async def write_feedback(self, db: Any, report: dict[str, Any]) -> dict[str, Any]:
+        return await self.support._feedback_writer.write(db, report)
+
+    async def run_accelerator(
+        self, db: Any, strategies: list[dict[str, Any]],
+        verifications: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
+        return await self.support._accelerator.evaluate_batch(db, strategies, verifications)
 
     async def monitor_alerts(self, db: Any) -> dict[str, Any]:
         return await self.support._alert_monitor.check(db, run_result=None)
@@ -494,7 +518,8 @@ class LegacySignalTrackerProvider:
         runner = get_strategy_lifecycle_scan_runner()
         result = await runner(db) if callable(runner) else {}
         transitions = result.get("transitions", 0)
-        return {"transitions": len(transitions) if isinstance(transitions, list) else int(transitions or 0)}
+        return {**result, "transitions": (None if transitions is None else
+                len(transitions) if isinstance(transitions, list) else int(transitions or 0))}
 
     async def reconcile_vector_registry(self, db, strategies):
         service = get_strategy_vector_governance_service()

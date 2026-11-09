@@ -3,6 +3,8 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
+import pytest
+
 from akshare_mcp.services.strategy_lifecycle_shared import closure_review as closure_review_module
 
 
@@ -222,3 +224,86 @@ def test_closure_review_bootstraps_execution_snapshot_when_overview_has_no_snaps
     assert result["data_freshness"]["execution_audit_as_of"] == today
     assert overview["execution_audit_snapshot_id"] == "eas-bootstrap"
     assert overview["execution_audit_gate_status"] == "bootstrap_ready"
+
+
+@pytest.mark.parametrize("mismatch", [
+    None, "strategy", "id", "date", "overview_date", "missing",
+    "current_audit_changed", "current_audit_missing", "snapshot_audit_missing",
+])
+def test_closure_review_resolves_audit_reference_before_bootstrap(monkeypatch, mismatch):
+    """A compact reference can load evidence, but is never itself evidence."""
+    today = datetime.now(timezone.utc).date().isoformat()
+    snapshot = {
+        "strategy_id": "strategy-closure",
+        "snapshot_id": "eas-reference",
+        "as_of": today,
+        "source_action": "incubation_cycle",
+        "verdict": {
+            "status": "failed_metrics",
+            "reasons": ["insufficient_real_paper_round_trips"],
+            "hard_gate_passed": False,
+        },
+        "audit_summary": {"realized_trade_count": 2},
+    }
+    candidate = dict(snapshot)
+    if mismatch == "strategy":
+        candidate["strategy_id"] = "unrelated-strategy"
+    elif mismatch == "id":
+        candidate["snapshot_id"] = "another-audit"
+    elif mismatch == "date":
+        candidate["as_of"] = "2020-01-01"
+    elif mismatch == "snapshot_audit_missing":
+        candidate.pop("audit_summary")
+
+    class ReferenceDb(_ClosureReviewDb):
+        verification_calls = 0
+        snapshot_reads = 0
+
+        async def get_execution_audit_verification(self, strategy_id):
+            assert strategy_id == "strategy-closure"
+            self.verification_calls += 1
+            return {"status": "needs_attention"}
+
+        async def get_latest_execution_audit_snapshot(self, strategy_id):
+            assert strategy_id == "strategy-closure"
+            self.snapshot_reads += 1
+            if self.verification_calls:
+                return snapshot
+            return None if mismatch == "missing" else candidate
+
+    async def latest_quality(db, strategy_id):
+        return {}
+
+    async def overview(db, strategy, **kwargs):
+        return {
+            "strategy_id": "strategy-closure",
+            "as_of": "2020-01-01" if mismatch == "overview_date" else today,
+            "execution_audit_snapshot_id": "eas-reference",
+            "execution_quality": {"audit": (
+                {} if mismatch == "current_audit_missing"
+                else {"realized_trade_count": 3} if mismatch == "current_audit_changed"
+                else dict(snapshot["audit_summary"])
+            )},
+            "execution_audit_snapshot_ref": {
+                "snapshot_id": "eas-reference",
+                "as_of": today,
+                # Even a passing reference must not override the full verdict.
+                "execution_hard_gate_passed": True,
+            },
+        }
+
+    monkeypatch.setattr(closure_review_module, "get_latest_quality_report", latest_quality)
+    monkeypatch.setattr(closure_review_module, "build_incubation_overview", overview)
+    db = ReferenceDb()
+    result = asyncio.run(closure_review_module.build_closure_review(
+        db, {"id": "strategy-closure", "strategy_type": "momentum"},
+        force_recompute=True,
+    ))
+
+    assert db.verification_calls == (0 if mismatch is None else 1)
+    assert db.snapshot_reads >= 1
+    acceptance = result["incubation"]["execution_audit_acceptance"]
+    assert acceptance["execution_audit_gate_status"] == "failed_metrics"
+    assert acceptance["execution_hard_gate_passed"] is False
+    assert acceptance["snapshot"]["source_action"] == "incubation_cycle"
+    assert acceptance["trade_audit_summary"]["realized_trade_count"] == 2

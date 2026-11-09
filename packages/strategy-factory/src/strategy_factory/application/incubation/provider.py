@@ -73,27 +73,24 @@ class IncubationRuntimeSupport(Protocol):
         """
         ...
 
-    async def generate_hit_rate_report(
-        self, db: Any, strategy: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Generate hit rate report for a strategy.
-
-        Returns:
-            dict with keys: hit_rate, sample_size, confidence
-        """
+    async def get_read_only_db(self) -> Any:
+        """Open an existing read-only connection without schema initialization."""
         ...
 
-    async def write_feedback(
-        self,
-        db: Any,
-        strategy: dict[str, Any],
-        verification: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Write feedback for Strategy Factory to consume.
+    async def run_pipeline(self, db: Any, strategies: list[dict[str, Any]]) -> dict[str, Any]:
+        """Evaluate the verified execution cohort and persist lifecycle reviews."""
+        ...
 
-        Returns:
-            dict with keys: feedback_written, feedback_id
-        """
+    async def generate_hit_rate_report(
+        self, db: Any, strategies: list[dict[str, Any]],
+        verifications: dict[str, dict[str, Any]], pipeline_result: dict[str, Any],
+        *, trade_prediction_result: dict[str, Any], report_date: Any = None, persist: bool = True,
+    ) -> dict[str, Any]:
+        """Aggregate measured evidence; persist=False makes reporting read-only."""
+        ...
+
+    async def write_feedback(self, db: Any, report: dict[str, Any]) -> dict[str, Any]:
+        """Persist the report's factory feedback and control recommendations."""
         ...
 
     async def settle_strategy_orders(
@@ -151,7 +148,10 @@ class IncubationRuntimeSupport(Protocol):
         """Persist selective decisions for a target session."""
         ...
 
-    async def run_accelerator(self, db: Any) -> dict[str, Any]:
+    async def run_accelerator(
+        self, db: Any, strategies: list[dict[str, Any]],
+        verifications: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
         """Run incubation accelerator to fast-track high-quality strategies.
 
         Returns:

@@ -5,11 +5,13 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
+import time
 from collections import deque
 from datetime import datetime, timezone
 from typing import Any
 
 from .base import FactorCandidate, SearchBudget, SearchEngine
+from ..._factor_search_budget import SearchRunControl, active_search_control
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,7 @@ class EngineScheduler:
     def __init__(self):
         self._engines: dict[str, SearchEngine] = {}
         self._last_engines_used: list[str] = []
+        self._last_runs: dict[str, dict[str, Any]] = {}
         self._quality_feedback: dict[str, deque[dict[str, int]]] = {}
         self._register_default_engines()
 
@@ -58,22 +61,46 @@ class EngineScheduler:
         return str(getattr(engine, "engine_id", "") or "") in {"gp_classic", "mcts_guided", "rl_alphagen"}
 
     @staticmethod
-    def _run_engine_in_worker_thread(engine: SearchEngine, context: Any, budget: SearchBudget) -> list[FactorCandidate]:
+    def _run_engine_in_worker_thread(engine: SearchEngine, context: Any, budget: SearchBudget, control: SearchRunControl | None = None) -> list[FactorCandidate]:
+        control = control or SearchRunControl(max(0.0, float(budget.max_time_sec)))
         result_box: dict[str, Any] = {}
         error_box: dict[str, BaseException] = {}
+        loop_box: dict[str, Any] = {}
+
+        async def _generate():
+            loop_box["loop"] = asyncio.get_running_loop()
+            loop_box["task"] = asyncio.current_task()
+            token = active_search_control.set(control)
+            try:
+                return await engine.generate(context, budget)
+            finally:
+                active_search_control.reset(token)
 
         def _target() -> None:
             try:
-                result_box["result"] = asyncio.run(engine.generate(context, budget))
+                result_box["result"] = asyncio.run(_generate())
             except BaseException as exc:  # noqa: BLE001 - surfaced to scheduler for uniform degradation
                 error_box["error"] = exc
 
-        worker = threading.Thread(target=_target, name=f"factor-engine-{engine.engine_id}", daemon=True)
+        worker = threading.Thread(target=_target, name=f"factor-engine-{engine.engine_id}")
         worker.start()
-        worker.join(timeout=max(0.1, float(budget.max_time_sec or 0.1)))
+        while worker.is_alive() and not control.cancelled.is_set() and control.remaining() > 0:
+            worker.join(timeout=min(0.05, control.remaining()))
         if worker.is_alive():
-            raise TimeoutError(f"engine {engine.engine_id} exceeded {budget.max_time_sec:.1f}s")
+            control.stop()
+            loop = loop_box.get("loop")
+            task = loop_box.get("task")
+            if loop is not None and task is not None:
+                try:
+                    loop.call_soon_threadsafe(task.cancel)
+                except RuntimeError:  # Worker finished while cancellation was queued.
+                    pass
+            # Never release shared engine/context state while work still runs.
+            # Synchronous calls stop at their next cooperative checkpoint.
+            worker.join()
         if error_box:
+            if isinstance(error_box["error"], asyncio.CancelledError) and control.cancelled.is_set():
+                return list(control.candidates.values())[:budget.candidate_count]
             raise error_box["error"]
         result = result_box.get("result")
         return result if isinstance(result, list) else []
@@ -88,6 +115,8 @@ class EngineScheduler:
         """多引擎并行搜索。"""
         budgets = self._allocate_budgets(context, engines, candidate_count)
         self._last_engines_used = list(budgets.keys())
+        self._last_runs = {}
+        setattr(context, "engine_runs", self._last_runs)
 
         tasks = []
         for engine_id, budget in budgets.items():
@@ -120,22 +149,49 @@ class EngineScheduler:
         budget: SearchBudget,
     ) -> list[FactorCandidate]:
         """运行单个引擎（带超时保护）。"""
+        started = time.monotonic()
+        control = SearchRunControl(max(0.0, float(budget.max_time_sec)))
+        outcome: dict[str, Any] = {"engine_id": engine.engine_id, "status": "running", "budget_seconds": budget.max_time_sec}
+        if not hasattr(self, "_last_runs"):
+            self._last_runs = {}
+        self._last_runs[engine.engine_id] = outcome
         try:
             if self._is_cpu_bound_engine(engine):
-                return await asyncio.to_thread(self._run_engine_in_worker_thread, engine, context, budget)
-            return await asyncio.wait_for(
-                engine.generate(context, budget),
-                timeout=budget.max_time_sec,
-            )
-        except TimeoutError:
+                worker_task = asyncio.create_task(asyncio.to_thread(self._run_engine_in_worker_thread, engine, context, budget, control))
+                try:
+                    result = await asyncio.shield(worker_task)
+                except asyncio.CancelledError:
+                    control.stop("search_cancelled")
+                    await asyncio.shield(worker_task)
+                    raise
+            else:
+                result = await asyncio.wait_for(engine.generate(context, budget), timeout=budget.max_time_sec)
+            outcome.update(status="partial" if control.cancelled.is_set() and result else ("timed_out" if control.cancelled.is_set() else "completed"), candidate_count=len(result), reason=control.stop_reason)
+            if not control.cancelled.is_set() and hasattr(engine, "get_status"):
+                last_error = engine.get_status().last_error
+                if last_error:
+                    outcome.update(status="failed", reason=last_error)
+            if control.cancelled.is_set():
+                for candidate in result:
+                    candidate.generation_trace["search_budget"] = {
+                        "status": "partial", "reason": control.stop_reason,
+                        "quick_evaluated": bool(candidate.quick_evidence),
+                    }
+            return result
+        except (TimeoutError, asyncio.TimeoutError):
+            outcome.update(status="timed_out", candidate_count=0, reason="search_time_budget_exhausted")
             logger.warning("Engine %s timed out after %.1fs", engine.engine_id, budget.max_time_sec)
             return []
-        except asyncio.TimeoutError:
-            logger.warning("Engine %s timed out after %.1fs", engine.engine_id, budget.max_time_sec)
-            return []
+        except asyncio.CancelledError:
+            outcome.update(status="cancelled", reason="search_cancelled")
+            raise
         except Exception as exc:
+            outcome.update(status="failed", candidate_count=0, reason=f"{type(exc).__name__}: {exc}")
             logger.warning("Engine %s failed: %s", engine.engine_id, exc)
             return []
+        finally:
+            outcome["elapsed_seconds"] = round(time.monotonic() - started, 4)
+            outcome["budget_overrun_seconds"] = round(max(0.0, outcome["elapsed_seconds"] - budget.max_time_sec), 4)
 
     def _allocate_budgets(
         self,
@@ -250,6 +306,24 @@ class EngineScheduler:
                 totals[key] += int(stats.get(key, 0) or 0)
         return totals
 
+    def restore_quality_feedback(self, runs: list[dict[str, Any]]) -> None:
+        """Restore persisted per-cycle statistics in oldest-to-newest order.
+
+        Replace, rather than append, so refreshing context does not count a
+        previously observed run twice.
+        """
+        restored: dict[str, deque[dict[str, int]]] = {}
+        for run in runs:
+            for engine, values in run.items():
+                if not isinstance(values, dict):
+                    continue
+                stats = {
+                    key: max(0, int(values.get(key, 0) or 0))
+                    for key in ("raw", "validated", "accepted", "promoted")
+                }
+                restored.setdefault(str(engine), deque(maxlen=20)).append(stats)
+        self._quality_feedback = restored
+
     def status(self) -> dict[str, Any]:
         """所有引擎状态。"""
         engine_status = {
@@ -258,6 +332,7 @@ class EngineScheduler:
         }
         return {
             "engines": engine_status,
+            "last_runs": dict(getattr(self, "_last_runs", {})),
             "quality_feedback": {
                 engine_id: {
                     **self._feedback_totals(engine_id),

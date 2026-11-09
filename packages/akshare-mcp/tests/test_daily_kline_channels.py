@@ -44,6 +44,27 @@ def _response(payload: dict) -> MagicMock:
 
 
 class TestVolumeUnits:
+    def test_sina_does_not_invent_turnover(self, daily_sync):
+        payload = [{"day": "2026-11-05", "open": "10", "high": "12", "low": "9", "close": "11", "volume": "1000"}]
+        with patch("requests.Session.get", return_value=_response(payload)):
+            row = daily_sync._fetch_sina_kline("000001", datalen=1)[0]
+        assert row["amount"] is None
+        assert row["amount_unavailable_reason"] == "source_does_not_publish_amount"
+
+    @pytest.mark.parametrize("raw,expected", [("", None), ("0", 0.0)])
+    def test_eastmoney_distinguishes_missing_amount_and_measured_zero(self, daily_sync, raw, expected):
+        payload = {"data": {"klines": [f"2026-11-05,10,11,12,9,0,{raw}"]}}
+        with patch("requests.Session.get", return_value=_response(payload)):
+            row = daily_sync._fetch_eastmoney_kline("000001", datalen=1)[0]
+        assert row["amount"] == expected
+
+    def test_tencent_does_not_invent_turnover_or_missing_volume(self, daily_sync):
+        payload = {"data": {"sz000001": {"day": [["2026-11-05", "10", "11", "12", "9"]]}}}
+        with patch("requests.Session.get", return_value=_response(payload)):
+            row = daily_sync._fetch_tencent_kline("000001", datalen=1)[0]
+        assert row["amount"] is None
+        assert row["volume"] is None
+
     def test_eastmoney_lots_are_converted_to_shares(self, daily_sync):
         """``f56`` is 手. Written through unconverted it would be 100x too small.
 

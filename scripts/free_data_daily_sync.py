@@ -139,6 +139,24 @@ def _new_session() -> "requests.Session":
     return session
 
 
+def _optional_number(value: Any) -> float | None:
+    if value in (None, "", "-", "--"):
+        return None
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError("nonfinite_provider_number")
+    return result
+
+
+def _provider_evidence(channel: str, code: str, payload: Any) -> dict[str, Any]:
+    directory = os.getenv("FREE_DATA_DAILY_AUDIT_DIR")
+    if not directory:
+        return {}
+    from _daily_kline_ingest import write_evidence
+
+    return write_evidence(Path(directory) / "responses", {"channel": channel, "code": code, "payload": payload})
+
+
 def _fetch_sina_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any]]:
     import requests
 
@@ -147,28 +165,32 @@ def _fetch_sina_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any]]:
         "https://money.finance.sina.com.cn/quotes_service/api/"
         "json_v2.php/CN_MarketData.getKLineData"
     )
-    response = session.get(
-        url,
-        params={
-            "symbol": _sina_symbol(code),
-            "scale": 240,
-            "ma": "no",
-            "datalen": int(datalen),
-        },
-        timeout=20,
-        headers={
-            "Referer": "https://finance.sina.com.cn",
-            "User-Agent": "Mozilla/5.0",
-        },
-    )
-    response.raise_for_status()
-    payload = response.json()
+    try:
+        response = session.get(
+            url,
+            params={
+                "symbol": _sina_symbol(code),
+                "scale": 240,
+                "ma": "no",
+                "datalen": int(datalen),
+            },
+            timeout=20,
+            headers={
+                "Referer": "https://finance.sina.com.cn",
+                "User-Agent": "Mozilla/5.0",
+            },
+        )
+        response.raise_for_status()
+        payload = response.json()
+        response_ref = _provider_evidence("sina", code, payload)
+    finally:
+        session.close()
     rows: list[dict[str, Any]] = []
     for item in list(payload or []):
         if not isinstance(item, dict):
             continue
-        close = float(item.get("close") or 0.0)
-        volume = float(item.get("volume") or 0.0)
+        close = _optional_number(item.get("close"))
+        volume = _optional_number(item.get("volume"))
         rows.append(
             {
                 "date": str(item.get("day") or "")[:10],
@@ -178,7 +200,10 @@ def _fetch_sina_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any]]:
                 "low": float(item.get("low") or 0.0),
                 "close": close,
                 "volume": volume,
-                "amount": close * volume,
+                "amount": None,
+                "amount_unavailable_reason": "source_does_not_publish_amount",
+                "source": "sina",
+                "source_response": response_ref,
             }
         )
     return [row for row in rows if row.get("date")]
@@ -252,23 +277,28 @@ def _fetch_eastmoney_kline(code: str, *, datalen: int = 300) -> list[dict[str, A
     """East money daily bars, unadjusted, with 手 converted to 股."""
 
     session = _new_session()
-    response = session.get(
-        "https://push2his.eastmoney.com/api/qt/stock/kline/get",
-        params={
-            "secid": _eastmoney_secid(code),
-            # f51 date, f52 open, f53 close, f54 high, f55 low, f56 volume(手), f57 amount
-            "fields1": "f1,f2,f3",
-            "fields2": "f51,f52,f53,f54,f55,f56,f57",
-            "klt": 101,
-            "fqt": 0,
-            "end": "20500101",
-            "lmt": int(datalen),
-        },
-        timeout=20,
-        headers={"Referer": "https://quote.eastmoney.com/", "User-Agent": "Mozilla/5.0"},
-    )
-    response.raise_for_status()
-    klines = (response.json().get("data") or {}).get("klines") or []
+    try:
+        response = session.get(
+            "https://push2his.eastmoney.com/api/qt/stock/kline/get",
+            params={
+                "secid": _eastmoney_secid(code),
+                # f51 date, f52 open, f53 close, f54 high, f55 low, f56 volume(手), f57 amount
+                "fields1": "f1,f2,f3",
+                "fields2": "f51,f52,f53,f54,f55,f56,f57",
+                "klt": 101,
+                "fqt": 0,
+                "end": "20500101",
+                "lmt": int(datalen),
+            },
+            timeout=20,
+            headers={"Referer": "https://quote.eastmoney.com/", "User-Agent": "Mozilla/5.0"},
+        )
+        response.raise_for_status()
+        payload = response.json()
+        response_ref = _provider_evidence("eastmoney", code, payload)
+    finally:
+        session.close()
+    klines = (payload.get("data") or {}).get("klines") or []
     rows: list[dict[str, Any]] = []
     for item in klines:
         parts = str(item).split(",")
@@ -284,9 +314,10 @@ def _fetch_eastmoney_kline(code: str, *, datalen: int = 300) -> list[dict[str, A
                 "low": float(parts[4]),
                 "close": close,
                 "volume": float(parts[5]) * LOTS_TO_SHARES,
-                # f57 is the real turnover; the Sina path approximates it as
-                # close × volume, which differs from actual VWAP-based turnover.
-                "amount": float(parts[6] or 0.0) or close * float(parts[5]) * LOTS_TO_SHARES,
+                "amount": _optional_number(parts[6]),
+                "amount_unavailable_reason": "provider_amount_missing" if _optional_number(parts[6]) is None else None,
+                "source": "eastmoney",
+                "source_response": response_ref,
             }
         )
     return rows
@@ -299,24 +330,29 @@ def _fetch_tencent_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any
 
     symbol = _tencent_symbol(code)
     session = _new_session()
-    response = session.get(
-        "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get",
-        params={"param": f"{symbol},day,,,{int(datalen)},"},
-        timeout=20,
-        headers={"Referer": "https://gu.qq.com/", "User-Agent": "Mozilla/5.0"},
-    )
-    response.raise_for_status()
-    payload = (response.json().get("data") or {}).get(symbol) or {}
+    try:
+        response = session.get(
+            "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get",
+            params={"param": f"{symbol},day,,,{int(datalen)},"},
+            timeout=20,
+            headers={"Referer": "https://gu.qq.com/", "User-Agent": "Mozilla/5.0"},
+        )
+        response.raise_for_status()
+        document = response.json()
+        response_ref = _provider_evidence("tencent", code, document)
+    finally:
+        session.close()
+    payload = (document.get("data") or {}).get(symbol) or {}
     rows: list[dict[str, Any]] = []
     for item in payload.get("day") or []:
         if len(item) < 5:
             continue
-        raw_volume = float(item[5]) if len(item) > 5 and item[5] else 0.0
+        raw_volume = _optional_number(item[5]) if len(item) > 5 else None
         # Tencent states 科创板 volume in 股 and every other market in 手, so the
         # conversion is per symbol. A blanket x100 is wrong by 100x for 688xxx —
         # which the fallback guard caught, refusing 57 such symbols rather than
         # writing them.
-        shares = tencent_volume_to_shares(code, raw_volume)
+        shares = tencent_volume_to_shares(code, raw_volume) if raw_volume is not None else None
         close = float(item[2])
         rows.append(
             {
@@ -327,7 +363,10 @@ def _fetch_tencent_kline(code: str, *, datalen: int = 300) -> list[dict[str, Any
                 "low": float(item[4]),
                 "close": close,
                 "volume": shares,
-                "amount": close * shares,
+                "amount": None,
+                "amount_unavailable_reason": "source_does_not_publish_amount",
+                "source": "tencent",
+                "source_response": response_ref,
             }
         )
     return rows
@@ -411,12 +450,20 @@ def _backfill_change_pct() -> dict[str, Any]:
 
 
 async def sync_stock_klines(
-    codes: list[str], *, datalen: int = 300, concurrency: int = 1
+    codes: list[str], *, datalen: int = 300, concurrency: int = 1, append_only: bool = False
 ) -> dict[str, Any]:
-    from akshare_mcp.storage import get_db
+    if append_only:
+        from _daily_kline_ingest import append_daily_rows
 
-    db = get_db()
-    await db.initialize()
+        audit_dir = os.getenv("FREE_DATA_DAILY_AUDIT_DIR")
+        if not audit_dir:
+            raise ValueError("append_only_requires_audit_directory")
+        db = None
+    else:
+        from akshare_mcp.storage import get_db
+
+        db = get_db()
+        await db.initialize()
     out: dict[str, Any] = {}
 
     async def _agreement_with_stored(code: str, rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -541,10 +588,11 @@ async def sync_stock_klines(
         return outcome
 
     async def _one(code: str) -> None:
+        entry: dict[str, Any] = {}
         try:
             fetched = await asyncio.to_thread(fetch_daily_bars, code, datalen=datalen)
             rows = fetched["rows"]
-            entry: dict[str, Any] = {
+            entry = {
                 "fetched": len(rows),
                 "channel": fetched["channel"],
                 "primary": fetched["primary"],
@@ -555,6 +603,13 @@ async def sync_stock_klines(
                 # series — the distinction the old code lost when an empty body
                 # counted as success.
                 entry["error"] = "all_channels_failed: " + "; ".join(a["outcome"] for a in fetched["attempts"])
+                out[code] = entry
+                return
+            if append_only:
+                entry["save"] = await asyncio.to_thread(
+                    append_daily_rows, default_sqlite_path(), code, fetched,
+                    audit_dir=Path(audit_dir),
+                )
                 out[code] = entry
                 return
             if fetched["is_fallback"]:
@@ -588,7 +643,12 @@ async def sync_stock_klines(
         except Exception as exc:
             # Recorded per code, never dropped: a sync that reports "done" while
             # 200 symbols failed is the failure mode this whole file guards against.
-            out[code] = {"error": f"{type(exc).__name__}: {exc}"}
+            out[code] = {**entry, "error": f"{type(exc).__name__}: {exc}"}
+        finally:
+            if append_only:
+                from _daily_kline_ingest import write_evidence
+
+                write_evidence(Path(audit_dir) / "symbol_results", {"code": code, "result": out.get(code, {"error": "missing_symbol_result"})})
 
     # One worker is the documented rate-safe default; the full-market backfill
     # raises it deliberately rather than by accident.
@@ -596,7 +656,7 @@ async def sync_stock_klines(
     if workers == 1:
         for index, code in enumerate(codes, 1):
             await _one(code)
-            time.sleep(0.12)
+            time.sleep(0.5 if append_only else 0.12)
             if index % 200 == 0:
                 print(f"    ... {index}/{len(codes)} symbols fetched")
     else:
@@ -868,65 +928,24 @@ async def compute_factor_ic(codes: list[str], factors: list[str]) -> dict[str, A
 
 
 async def seed_active_factor_pool() -> dict[str, Any]:
-    """Seed active factor pool with compile-valid seed-library expressions."""
-    from datetime import timezone
+    """Leave seed expressions for the mining engine's measured validation path.
+
+    Daily market sync has no validation result, so it cannot assign an IC,
+    grade, fitness or active/promoted status. Existing pool history is retained.
+    """
     from akshare_mcp.services.factor_candidate_seed import _EXPRESSION_BY_FACTOR
-    from akshare_mcp.services.factor_mining_factory.pool.storage import (
-        load_active_pool_from_db,
-        save_factor_to_pool,
-    )
-    from akshare_mcp.storage import get_db
 
-    db = get_db()
-    await db.initialize()
-    now = datetime.now(timezone.utc).isoformat()
-    saved = []
-    for name, (expr, inputs) in list(_EXPRESSION_BY_FACTOR.items())[:10]:
-        rec = {
-            "factor_id": f"rule_seed_{name}",
-            "name": f"rule_seed_{name}",
-            "family": name.split("_")[0] if "_" in name else name,
-            "expression_dsl": expr,
-            "inputs": json.dumps(list(inputs or [])),
-            "status": "active",
-            "admission_date": now,
-            "admission_ic": 0.02,
-            "current_ic": 0.02,
-            "admission_grade": "B",
-            "fitness": 0.60,
-            "generation_engine": "rule_seed",
-            "generation_trace": json.dumps({"source": "free_data_daily_sync"}),
-            "validation_summary": {
-                "quality_status": "promoted",
-                "quality_score": 0.60,
-                "artifact_id": f"rule_seed_{name}",
-                "evidence_summary": {},
-            },
-            "hypothesis": f"seed library factor {name}",
-            "last_evaluated_at": now,
-            "updated_at": now,
-            "created_at": now,
-        }
-        saved.append(await save_factor_to_pool(db, rec))
-    # retire known-invalid free seeds
-    try:
-        async with db.acquire() as conn:
-            await conn.execute(
-                "UPDATE factor_pool_active SET status='retired', retired_reason='compile_invalid_free_seed', retired_at=$1 WHERE factor_id LIKE 'free_seed_%' AND status='active'",
-                now,
-            )
-    except Exception as _swallowed:
-        logger.warning("scripts/free_data_daily_sync.py:538: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
-        pass
-    pool = await load_active_pool_from_db(db)
-    active = [item for item in pool if str(item.get("status") or "") == "active"]
     return {
-        "saved": saved,
-        "active_pool_size": len(active),
-        "factor_ids": [item.get("factor_id") for item in active[:20]],
+        "saved": [],
+        "written": 0,
+        "status": "deferred",
+        "reason": "seed_validation_evidence_missing",
+        "candidate_count": len(_EXPRESSION_BY_FACTOR),
+        "next_step": "factor_mining_rule_seed_validation",
+        "active_pool_size": None,
+        "active_pool_size_unavailable_reason": "pool_not_read_by_daily_sync",
+        "factor_ids": [],
     }
-
-
 
 
 async def run_evidence_pipeline(*, history_days: int = 8) -> dict[str, Any]:
@@ -1160,7 +1179,8 @@ def _codes_from_db() -> list[str]:
     if not path.exists():
         return []
     try:
-        with contextlib.closing(sqlite3.connect(str(path))) as conn:
+        with contextlib.closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as conn:
+            conn.execute("PRAGMA query_only=ON")
             rows = conn.execute(
                 "SELECT stock_code FROM stocks "
                 "WHERE stock_code IS NOT NULL AND COALESCE(list_status, 'L') = 'L'"
@@ -1182,8 +1202,6 @@ def _resolve_universe(args: argparse.Namespace) -> tuple[list[str], str]:
     identical either way.
     """
 
-    import _db_sync_common as common
-
     if args.universe == "default":
         return list(DEFAULT_CODES), f"default:{len(DEFAULT_CODES)} representative codes"
 
@@ -1194,13 +1212,22 @@ def _resolve_universe(args: argparse.Namespace) -> tuple[list[str], str]:
         return db_codes, f"sqlite:stocks ({len(db_codes)} listed rows)"
 
     # 'auto' trusts the table only when it already covers the market.
-    if args.universe == "auto" and len(db_codes) >= common.MIN_FULL_UNIVERSE:
+    if args.universe == "auto" and len(db_codes) >= 4000:
         return db_codes, f"sqlite:stocks ({len(db_codes)} listed rows)"
 
     try:
-        codes, source = common.fetch_market_symbols()
+        from akshare_mcp.data_source.sina_listing import fetch_all_a_share_symbols
+
+        listing = fetch_all_a_share_symbols()
+        directory = os.getenv("FREE_DATA_DAILY_AUDIT_DIR")
+        if directory:
+            from _daily_kline_ingest import write_evidence
+            write_evidence(Path(directory) / "universe", listing)
+        if not listing.get("complete"):
+            raise ValueError("full_universe_listing_incomplete")
+        codes = sorted({str(item["code"]) for item in listing["symbols"]})
         if codes:
-            return codes, source
+            return codes, "sina:Market_Center[hs_a]"
     except Exception as exc:
         if args.universe == "full":
             raise
@@ -1255,11 +1282,18 @@ def parse_args() -> argparse.Namespace:
                         help="Seed multi-day free signals, snapshots, forward returns, paper path")
     parser.add_argument("--evidence-history-days", type=int, default=30)
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--append-only", action="store_true", help="Audit and append closed stock bars; never rewrite historical dates")
+    parser.add_argument("--channels", nargs="+", choices=tuple(KLINE_FETCHERS), help="Explicit provider priority, recorded in per-symbol evidence")
     return parser.parse_args()
 
 
 async def main() -> int:
+    global KLINE_CHANNELS
     args = parse_args()
+    if args.channels:
+        KLINE_CHANNELS = tuple(args.channels)
+    if args.append_only and (args.with_evidence or not all((args.skip_index, args.skip_sector, args.skip_north, args.skip_ic, args.skip_factor_pool))):
+        raise ValueError("append_only_stock_sync_requires_unrelated_mutations_disabled")
     db_path = _configure_env()
     codes = [item.strip() for item in str(args.codes or "").split(",") if item.strip()]
     universe_source = "cli:--codes" if codes else ""
@@ -1278,7 +1312,7 @@ async def main() -> int:
         "universe_source": universe_source,
         "codes": codes,
         "free_sources": {
-            "stock_kline": "sina",
+            "stock_kline": list(KLINE_CHANNELS),
             "index_kline": "sina_fallback_after_akshare",
             "sector_fund_flow": "akshare.stock_fund_flow_industry",
             "north_fund": "akshare.stock_hsgt_hist_em (+ carry-forward if stale)",
@@ -1291,9 +1325,9 @@ async def main() -> int:
 
     if not args.skip_stocks:
         report["steps"]["stock_klines"] = await sync_stock_klines(
-            codes, concurrency=getattr(args, "concurrency", 1)
+            codes, concurrency=getattr(args, "concurrency", 1), append_only=args.append_only
         )
-    if not args.skip_stocks:
+    if not args.skip_stocks and not args.append_only:
         # `change_pct` is derived, not fetched: no kline channel publishes it, and the
         # column had values for 2,433 of 1.74M rows. Recomputing here means a bar
         # written today carries it tomorrow, instead of the column silently draining
@@ -1324,7 +1358,7 @@ async def main() -> int:
             history_days=max(1, int(args.evidence_history_days or 8))
         )
 
-    report["collector"] = await collector_status()
+    report["collector"] = {"status": "not_requested_append_only"} if args.append_only else await collector_status()
 
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2, default=str))
@@ -1342,6 +1376,8 @@ async def main() -> int:
             return 2
         print("ALL COLLECTOR SOURCES GREEN (completion_ratio="
               f"{report['collector'].get('completion_ratio')})")
+    if args.append_only and any(item.get("error") or item.get("empty") for item in report["steps"].get("stock_klines", {}).values()):
+        return 1
     return 0
 
 

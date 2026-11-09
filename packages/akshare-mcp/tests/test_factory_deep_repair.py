@@ -4,6 +4,8 @@ import asyncio
 import sqlite3
 from datetime import date
 
+from factor_identity_fixtures import bind_record_fixture, identity_outputs
+
 
 def test_decay_monitor_measures_ic_history_and_updates_pool():
     from akshare_mcp.services.factor_mining_factory.feedback.decay_monitor import DecayMonitor
@@ -23,7 +25,7 @@ def test_decay_monitor_measures_ic_history_and_updates_pool():
     pool = ActiveFactorPool()
     pool.hydrate(
         [
-            {
+            bind_record_fixture({
                 "factor_id": "factor-1",
                 "name": "momentum",
                 "family": "momentum",
@@ -32,7 +34,8 @@ def test_decay_monitor_measures_ic_history_and_updates_pool():
                 "fitness": 1.0,
                 "admission_ic": 0.10,
                 "admission_date": "2026-04-18",
-            }
+                "inputs": ["close"],
+            })
         ]
     )
 
@@ -111,7 +114,7 @@ def test_factor_pool_gateway_default_filters_retired_and_quarantine_quality():
             return None
 
         async def _get_db(self):
-            raise RuntimeError("force in-memory pool fallback")
+            return object()
 
         async def _ensure_persistent_pool(self, db):
             return None
@@ -171,7 +174,7 @@ def test_active_pool_rejects_too_simple_expression_and_records_admission_ic():
                 validation_result={
                     "metrics": {"rank_ic_mean": 0.0, "sample_dates": 0},
                     "rating": {"grade": "A"},
-                    "persisted_outputs": {"enabled": True, "ic_history_rows": 0},
+                    "persisted_outputs": {"enabled": True, "ic_history_rows": 0, **identity_outputs("ts_mean(close, 20)")},
                 },
             )
         )
@@ -198,6 +201,7 @@ def test_active_pool_rejects_too_simple_expression_and_records_admission_ic():
                     "coverage": {"avg_cross_section_n": 80},
                     "lookahead_audit": {"risk_level": "low"},
                     "rating": {"grade": "A"},
+                    "persisted_outputs": identity_outputs("ts_mean(close, 20)"),
                 },
             )
         )
@@ -224,7 +228,7 @@ def test_active_pool_rejects_too_simple_expression_and_records_admission_ic():
                     "coverage": {"avg_cross_section_n": 80},
                     "lookahead_audit": {"risk_level": "low"},
                     "rating": {"grade": "A"},
-                    "persisted_outputs": {"enabled": True, "ic_history_rows": 60},
+                    "persisted_outputs": {"enabled": True, "ic_history_rows": 60, **identity_outputs("ts_mean(close, 20)")},
                 },
             )
         )
@@ -329,7 +333,8 @@ def test_factory_validation_persists_factor_ic_history(monkeypatch):
     assert validated == [candidate]
     assert captured["persist_outputs"] is True
     assert captured["persist_ic_history"] is True
-    assert captured["factor_key"] == "factor_x"
+    assert captured["bind_evidence_identity"] is True
+    assert "factor_key" not in captured
     assert captured["min_cross_section"] == 30
 
 

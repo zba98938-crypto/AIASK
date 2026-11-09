@@ -80,15 +80,20 @@ class IncubationOrchestrator:
             *,
             timeout: float = STRATEGY_TIMEOUT_SEC,
             failure_statuses: set[str] | None = None,
+            writes: bool = True,
         ) -> dict[str, Any] | None:
             """Run a single phase with timeout and error capture."""
             phase_start = datetime.now(timezone.utc)
+            if dry_run and writes:
+                result = {"status": "skipped_dry_run", "reason": "read_only_cycle"}
+                phases.append(IncubationPhaseResult(name, True, 0, 0.0, metadata=result))
+                return result
             try:
-                result = await asyncio.wait_for(coro_factory(), timeout=timeout)
+                result = await asyncio.wait_for(coro_factory(), timeout=timeout) or {}
                 phase_end = datetime.now(timezone.utc)
                 duration = (phase_end - phase_start).total_seconds()
-                if isinstance(result, dict) and str(result.get("status") or "").lower() in (failure_statuses or set()):
-                    error = str(result.get("reason") or result.get("status"))
+                if isinstance(result, dict) and (result.get("success") is False or str(result.get("status") or "").lower() in ({"failed", "partial", "error"} | (failure_statuses or set()))):
+                    error = str(result.get("error") or result.get("reason") or result.get("status"))
                     phase_failures.append({"phase": name, "error": error})
                     phases.append(
                         IncubationPhaseResult(
@@ -157,7 +162,7 @@ class IncubationOrchestrator:
             return None
 
         # Get DB connection (assumed to be provided by support)
-        db = await self._get_db()
+        db = await self._get_db(dry_run=dry_run)
         session_label: dict[str, Any]
         try:
             from aiask_quant_core.market_session import resolve_session_date
@@ -249,6 +254,8 @@ class IncubationOrchestrator:
             # Phase 3: Signal generation, verification, and metrics
             logger.info("IncubationOrchestrator [%s] Phase 3: Verification Cycle", run_id)
             verifications: dict[str, dict[str, Any]] = {}
+            processed_ids: set[str] = set()
+            strategy_failure_ids: set[str] = set()
             metrics_recorded = 0
             signals_generated_total = 0
             orders_filled_total = 0
@@ -268,12 +275,23 @@ class IncubationOrchestrator:
                 if not sid:
                     continue
 
+                def require_success(phase: str, result: Any) -> None:
+                    if isinstance(result, dict) and (
+                        result.get("success") is False
+                        or result.get("status") in {"failed", "error", "partial"}
+                        or result.get("error")
+                    ):
+                        raise RuntimeError(f"{phase}: {result.get('error') or result.get('reason') or result.get('status')}")
+
                 try:
                     # Generate signals
-                    signal_result = await asyncio.wait_for(
-                        self._support.generate_signals(db, strategy),
-                        timeout=STRATEGY_TIMEOUT_SEC,
-                    )
+                    signal_result = {"status": "skipped_dry_run", "signals_generated": 0}
+                    if not dry_run:
+                        signal_result = await asyncio.wait_for(
+                            self._support.generate_signals(db, strategy),
+                            timeout=STRATEGY_TIMEOUT_SEC,
+                        )
+                        require_success("signal_generation", signal_result)
                     signals_generated_total += int(
                         signal_result.get("signals_generated") or 0
                     )
@@ -376,6 +394,7 @@ class IncubationOrchestrator:
                                 ),
                                 timeout=STRATEGY_TIMEOUT_SEC,
                             )
+                            require_success("settlement", settlement)
                             orders_filled_total += int(
                                 settlement.get("filled_count") or 0
                             )
@@ -383,6 +402,8 @@ class IncubationOrchestrator:
                                 settlement.get("rejected_count") or 0
                             )
                         except Exception as exc:
+                            strategy_failure_ids.add(sid)
+                            phase_failures.append({"phase": "settlement", "strategy_id": sid, "error": str(exc), "error_type": type(exc).__name__})
                             logger.warning(
                                 "IncubationOrchestrator [%s]: order settlement failed for %s: %s",
                                 run_id,
@@ -395,23 +416,33 @@ class IncubationOrchestrator:
                         self._support.verify_forward_returns(db, strategy),
                         timeout=STRATEGY_TIMEOUT_SEC,
                     )
+                    require_success("forward_verification", verification)
                     verifications[sid] = verification
 
                     # Record metrics
                     if not dry_run:
-                        await asyncio.wait_for(
+                        metric_result = await asyncio.wait_for(
                             self._support.record_metrics(db, strategy, verification),
                             timeout=STRATEGY_TIMEOUT_SEC,
                         )
+                        if metric_result is None:
+                            raise RuntimeError("incubation_metric_write_failed: no saved record")
+                        require_success("metrics", metric_result)
                         metrics_recorded += 1
+                    if sid not in strategy_failure_ids:
+                        processed_ids.add(sid)
 
                 except asyncio.TimeoutError:
+                    strategy_failure_ids.add(sid)
+                    phase_failures.append({"phase": "strategy_processing", "strategy_id": sid, "error": "timeout"})
                     logger.warning(
                         "IncubationOrchestrator [%s]: timeout processing strategy %s",
                         run_id,
                         sid,
                     )
                 except Exception as exc:
+                    strategy_failure_ids.add(sid)
+                    phase_failures.append({"phase": "strategy_processing", "strategy_id": sid, "error": str(exc), "error_type": type(exc).__name__})
                     logger.exception(
                         "IncubationOrchestrator [%s]: failed processing strategy %s: %s",
                         run_id,
@@ -532,28 +563,6 @@ class IncubationOrchestrator:
                 item.isoformat() for item in prediction_target_dates
             )
 
-            # Phase 5: Accelerator
-            logger.info("IncubationOrchestrator [%s] Phase 5: Accelerator", run_id)
-            accelerator_result = (
-                await _run_phase(
-                    "accelerator",
-                    lambda: self._support.run_accelerator(db),
-                    timeout=BATCH_TIMEOUT_SEC,
-                )
-                or {}
-            )
-
-            # Phase 6: Alert monitoring
-            logger.info("IncubationOrchestrator [%s] Phase 6: Alert Monitoring", run_id)
-            alert_result = (
-                await _run_phase(
-                    "alert_monitoring",
-                    lambda: self._support.monitor_alerts(db),
-                    timeout=BATCH_TIMEOUT_SEC,
-                )
-                or {}
-            )
-
             # Phase 7: Refresh execution audit verdicts.  Without this the
             # daemon path would close paper positions but leave the hard gate
             # reading stale/missing verdicts.
@@ -573,11 +582,65 @@ class IncubationOrchestrator:
                     or {}
                 )
 
+            # Use this cycle's successfully processed cohort, so a failed
+            # signal/settlement/metric cannot be promoted using stale evidence.
+            execution_cohort = [
+                item for item in incubating + paper_observation
+                if str(item.get("id")) in processed_ids
+            ]
+            pipeline_result = await _run_phase(
+                "pipeline", lambda: self._support.run_pipeline(db, execution_cohort),
+                timeout=BATCH_TIMEOUT_SEC,
+            ) or {}
+            raw_session_date = session_label.get("date")
+            report_date = date.fromisoformat(str(raw_session_date)[:10]) if raw_session_date else None
+            report_result = await _run_phase(
+                "hit_rate_report",
+                lambda: self._support.generate_hit_rate_report(
+                    db, all_strategies, verifications, pipeline_result,
+                    trade_prediction_result=trade_pred_result, report_date=report_date,
+                    persist=not dry_run,
+                ),
+                timeout=BATCH_TIMEOUT_SEC, writes=False,
+            )
+            feedback_result = {}
+            if report_result is not None and report_result.get("status") not in {"failed", "error"}:
+                feedback_result = await _run_phase(
+                    "feedback_write", lambda: self._support.write_feedback(db, report_result),
+                    timeout=BATCH_TIMEOUT_SEC,
+                ) or {}
+
+            # Phase 5: Accelerator
+            logger.info("IncubationOrchestrator [%s] Phase 5: Accelerator", run_id)
+            accelerator_result = (
+                await _run_phase(
+                    "accelerator",
+                    lambda: self._support.run_accelerator(
+                        db, [item for item in incubating if str(item.get("id")) in processed_ids], verifications
+                    ),
+                    timeout=BATCH_TIMEOUT_SEC,
+                )
+                or {}
+            )
+
+            # Phase 6: Alert monitoring
+            logger.info("IncubationOrchestrator [%s] Phase 6: Alert Monitoring", run_id)
+            alert_result = (
+                await _run_phase(
+                    "alert_monitoring",
+                    lambda: self._support.monitor_alerts(db),
+                    timeout=BATCH_TIMEOUT_SEC,
+                )
+                or {}
+            )
+
             # Determine overall status
             end_time = datetime.now(timezone.utc)
             duration_sec = (end_time - start_time).total_seconds()
 
-            if phase_failures:
+            if strategy_failure_ids and not processed_ids:
+                status = "failed"
+            elif phase_failures:
                 status = "partial"
             else:
                 status = "completed"
@@ -592,7 +655,7 @@ class IncubationOrchestrator:
                 phases=phases,
                 strategies_intake=intake_result.get("accepted_count", 0),
                 strategies_verified=len(verifications),
-                strategies_promoted=accelerator_result.get("promoted_count", 0),
+                strategies_promoted=int(accelerator_result.get("promoted_count") or 0) + int(pipeline_result.get("auto_promoted") or 0),
                 paper_orders_filled=orders_filled_total,
                 paper_orders_rejected=orders_rejected_total,
                 phase_failures=phase_failures,
@@ -614,6 +677,14 @@ class IncubationOrchestrator:
             # phase metadata.
             summary_dict.update(
                 {
+                    "dry_run": dry_run,
+                    "intake": intake_result,
+                    "verification": {"verified": len(verifications), "metrics_recorded": metrics_recorded, "errors": len(strategy_failure_ids)},
+                    "pipeline": pipeline_result,
+                    "report": report_result or {},
+                    "feedback": feedback_result,
+                    "acceleration": accelerator_result,
+                    "execution_audit_acceptance": execution_audit_result,
                     "session_date": session_label.get("date"),
                     "session_source": session_label.get("source"),
                     "warnings": session_warnings,
@@ -651,8 +722,13 @@ class IncubationOrchestrator:
             )
 
             return self._summary_to_dict(summary)
+        finally:
+            if dry_run:
+                closer = getattr(db, "close", None)
+                if callable(closer):
+                    await closer()
 
-    async def _get_db(self) -> Any:
+    async def _get_db(self, *, dry_run: bool = False) -> Any:
         """Resolve the database connection through the provider protocol.
 
         Prefers the public ``get_db()`` declared on ``IncubationProvider``. The
@@ -660,6 +736,11 @@ class IncubationOrchestrator:
         it is the last private reach-through on this path and should disappear
         once every host exposes ``get_db``.
         """
+        if dry_run:
+            readonly = getattr(self._support, "get_read_only_db", None)
+            if not callable(readonly):
+                raise RuntimeError("dry_run_requires_read_only_database_provider")
+            return await readonly()
         public = getattr(self._support, "get_db", None)
         if callable(public):
             return await public()

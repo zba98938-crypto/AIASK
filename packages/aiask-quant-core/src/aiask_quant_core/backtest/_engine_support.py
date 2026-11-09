@@ -1040,7 +1040,7 @@ def _simulate_trades_from_masks(
                             "price_source": "next_session_open",
                         }
                     )
-                equity[i] = cash
+                equity[i + 1] = cash
                 continue
             approx_price = exec_price * (1 + commission_rate + per_side_extra_cost_rate)
             max_entry_notional = max(0.0, (cash + shares * closes[i]) * position_pct)
@@ -1087,7 +1087,7 @@ def _simulate_trades_from_masks(
                             "signal_time": _trade_time(i),
                         }
                     )
-                equity[i] = cash
+                equity[i + 1] = cash
                 continue
             if fill_info.get("partial_fill"):
                 partial_fill_count += 1
@@ -1160,7 +1160,7 @@ def _simulate_trades_from_masks(
 
         elif (pending_exit or exit_mask[i] or i in reduce_units_by_index) and shares > 0 and tradable and next_tradable:
             if t_plus_one and buy_index >= 0 and (i + 1) <= buy_index:
-                equity[i] = cash + shares * closes[i]
+                equity[i + 1] = cash + shares * closes[i + 1]
                 continue
             pending_exit = True
             exec_price = _resolve_execution_price(
@@ -1191,7 +1191,7 @@ def _simulate_trades_from_masks(
                             "price_source": "next_session_open",
                         }
                     )
-                equity[i] = cash + shares * closes[i]
+                equity[i + 1] = cash + shares * closes[i + 1]
                 continue
             requested_exit_shares = shares
             if i in reduce_units_by_index:
@@ -1240,7 +1240,7 @@ def _simulate_trades_from_masks(
                             "signal_time": _trade_time(i),
                         }
                     )
-                equity[i] = cash + shares * closes[i]
+                equity[i + 1] = cash + shares * closes[i + 1]
                 continue
             if fill_info.get("partial_fill"):
                 partial_fill_count += 1
@@ -1330,7 +1330,8 @@ def _simulate_trades_from_masks(
             elif i in reduce_units_by_index:
                 pending_exit = False
 
-        equity[i] = cash + shares * closes[i]
+        # Fills execute on i + 1; never apply them to signal-day equity.
+        equity[i + 1] = cash + shares * closes[i + 1]
     equity[n - 1] = cash + shares * float(closes[n - 1])
 
     if shares > 0 and bool(args.get("force_liquidate_at_end", True)):

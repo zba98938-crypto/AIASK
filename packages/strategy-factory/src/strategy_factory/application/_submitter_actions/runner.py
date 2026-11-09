@@ -82,6 +82,7 @@ from ...domain.constants import (
     SUBMIT_CONCURRENCY,
 )
 from ...domain.targets import _build_task_signature, _normalize_research_task_contract, _normalize_target_codes
+from ...domain.targets import _non_tradable_index_target_codes
 from ...infrastructure.mcp_services import (
     build_strategy_vector_profile,
     get_strategy_promotion_pipeline_service,
@@ -2944,94 +2945,38 @@ class _StrategySubmitterActionsMixin:
                 or candidate.get("strategy_type")
                 or "active_factor_pool"
             ).strip()
-            report = dict(base_report or {})
-            report["strategy_validation_report"] = dict(base_report or {})
-            report["factor_name"] = factor_name
-            report["n_periods"] = int(sample_dates or 0)
-            report["n_stocks"] = int(
-                cls._factor_pool_summary_float(
-                    evidence.get("avg_cross_section_n"),
-                    quality_summary.get("avg_cross_section_n"),
-                    quick.get("avg_cross_section_n"),
-                    quick_evidence.get("avg_cross_section_n"),
-                )
-                or 0
-            )
-            report["walk_forward"] = {
-                **dict(report.get("walk_forward") or {}),
-                "method": "active_factor_pool_governed_oos",
-                "oos_rank_ic_mean": round(float(rank_ic_mean), 6),
-                "oos_rank_ic_ir": round(float(rank_ic_ir), 6),
-            }
-            report["purged_kfold"] = {
-                **dict(report.get("purged_kfold") or {}),
-                "method": "active_factor_pool_governed_cross_section",
-                "oos_rank_ic_mean": round(float(rank_ic_mean), 6),
-                "oos_rank_ic_ir": round(float(rank_ic_ir), 6),
-            }
-            report["bootstrap_ci"] = {
-                **dict(report.get("bootstrap_ci") or {}),
-                "ci_lower": round(float(bootstrap_ci_lower), 6),
-                "ic_mean": round(float(rank_ic_mean), 6),
-                "sample_size": int(sample_dates or 0),
-                "source": "active_factor_pool_validation_summary",
-            }
-            report["multiple_testing"] = {
-                **dict(report.get("multiple_testing") or {}),
-                "deflated_sharpe": {
-                    "available": governance_raw.get("deflated_sharpe") is not None,
-                    "dsr": cls._factor_pool_summary_float(governance_raw.get("deflated_sharpe")),
-                },
-                "pbo": {
-                    "available": governance_raw.get("pbo") is not None,
-                    "pbo": cls._factor_pool_summary_float(governance_raw.get("pbo")),
-                },
-                "white_reality_check": {
-                    "available": governance_raw.get("white_reality_check_p_value") is not None,
-                    "p_value": cls._factor_pool_summary_float(governance_raw.get("white_reality_check_p_value")),
-                },
-                "hansen_spa": {
-                    "available": governance_raw.get("hansen_spa_p_value") is not None,
-                    "p_value": cls._factor_pool_summary_float(governance_raw.get("hansen_spa_p_value")),
-                },
-            }
-            report["rating"] = rating or dict(report.get("rating") or {})
-            statistical_metrics = {
-                **dict(report.get("statistical_metrics") or {}),
-                "wf_ic_ir": {"value": round(float(rank_ic_ir), 6), "source": "active_factor_pool_validation_summary"},
-                "pkf_ic": {"value": round(float(rank_ic_mean), 6), "source": "active_factor_pool_validation_summary"},
-                "bootstrap_ci_lower": {
-                    "value": round(float(bootstrap_ci_lower), 6),
-                    "source": "active_factor_pool_validation_summary",
-                    "derived": bool(rank_ic_std is not None),
-                },
-            }
-            if avg_stability_ratio is not None:
-                statistical_metrics["param_sensitivity"] = {
-                    "value": round(max(0.0, min(1.0, 1.0 - float(avg_stability_ratio))), 6),
-                    "source": "active_factor_pool_governance.avg_stability_ratio",
-                    "derived": True,
-                }
-            if avg_degradation is not None:
-                statistical_metrics["period_robustness"] = {
-                    "value": {
-                        "first_half_ic": round(float(rank_ic_mean), 6),
-                        "second_half_ic": round(float(rank_ic_mean) - abs(float(avg_degradation)), 6),
-                    },
-                    "source": "active_factor_pool_governance.avg_degradation",
-                    "derived": True,
-                }
-            report["statistical_metrics"] = statistical_metrics
-            report["active_factor_pool_validation"] = {
+            # Factor-pool statistics describe the FACTOR on its own cross-section
+            # (one IC series shared by every strategy built on it), not this strategy.
+            # They used to overwrite walk_forward / purged_kfold / bootstrap_ci /
+            # statistical_metrics, so 378/378 incubation admissions carried the same
+            # wf_ic_ir=0.5941 while their own validation measured ~0. Keep the
+            # strategy's own report as the gate input; attach the factor evidence
+            # under a separate key for audit only.
+            if base_report is None:
+                return None
+            report = dict(base_report)
+            report["factor_pool_evidence"] = {
+                "scope": "factor_level_not_strategy_level",
+                "binding": "advisory",
+                "factor_name": factor_name,
                 "source": "factor_pool_validation_summary",
                 "quality_status": quality_status,
                 "quality_score": summary.get("quality_score"),
-                "sample_dates": sample_dates,
+                "sample_dates": int(sample_dates or 0),
                 "ic_history_rows": persisted.get("ic_history_rows_total") or persisted.get("ic_history_rows"),
+                "rank_ic_mean": round(float(rank_ic_mean), 6),
+                "rank_ic_ir": round(float(rank_ic_ir), 6),
+                "rank_ic_std": round(float(rank_ic_std), 6) if rank_ic_std is not None else None,
+                "bootstrap_ci_lower": round(float(bootstrap_ci_lower), 6),
+                "avg_stability_ratio": avg_stability_ratio,
+                "avg_degradation": avg_degradation,
+                "deflated_sharpe": cls._factor_pool_summary_float(governance_raw.get("deflated_sharpe")),
+                "pbo": cls._factor_pool_summary_float(governance_raw.get("pbo")),
+                "white_reality_check_p_value": cls._factor_pool_summary_float(governance_raw.get("white_reality_check_p_value")),
+                "hansen_spa_p_value": cls._factor_pool_summary_float(governance_raw.get("hansen_spa_p_value")),
                 "source_candidate_artifact_id": (params or {}).get("source_candidate_artifact_id"),
                 "source_validation_artifact_id": (params or {}).get("source_validation_artifact_id"),
             }
-            report["validation_report_source"] = "active_factor_pool_validation_summary"
             return report
 
         async def _evaluate_reports(self, candidate: dict, db) -> tuple[Optional[dict], Optional[dict]]:
@@ -3051,15 +2996,32 @@ class _StrategySubmitterActionsMixin:
                     return None
 
             async def _run_risk():
+                failure_reason = "target_risk_report_missing"
                 try:
-                    return await self._get_risk_gateway().run_risk_report(
+                    report = await self._get_risk_gateway().run_risk_report(
                         candidate["strategy_type"],
                         report_params,
                         db,
                     )
+                    if report is not None:
+                        return report
                 except Exception as exc:
                     logger.warning("StrategySubmitter: risk report failed for %s: %s", candidate.get("strategy_type"), exc)
-                    return None
+                    failure_reason = "target_risk_report_failed"
+                binding = dict(report_params.get("target_risk_contract") or {})
+                return {
+                    "var_percent": None, "cvar_percent": None, "stress_loss_percent": None,
+                    "var_measurable": False, "stress_measurable": False,
+                    "var_reason": failure_reason, "stress_reason": failure_reason,
+                    "target_risk_binding": {
+                        "contract_version": "target_risk.v1", "status": "missing",
+                        "scope": "actual_target_portfolio", "reason": failure_reason,
+                        "target_codes": list(binding.get("target_codes") or []),
+                        "used_target_codes": [],
+                        "allocation_weights": dict(binding.get("allocation_weights") or {}),
+                        "tested_object_hash": binding.get("tested_object_hash"),
+                    },
+                }
 
             validation_report, risk_report = await _asyncio.gather(_run_validation(), _run_risk())
             validation_report = self._factor_pool_validation_report_from_params(
@@ -3768,6 +3730,7 @@ class _StrategySubmitterActionsMixin:
                 "out_of_sample_profit_factor",
             )
             hard_fail_fragments = (
+                "non_tradable_index_target",
                 "trade_prediction_contract_not_ready",
                 "missing_runtime_contract",
                 "runtime_contract_missing",
@@ -3799,6 +3762,9 @@ class _StrategySubmitterActionsMixin:
                 if any(fragment in reason for fragment in hard_fail_fragments)
                 and not any(fragment in reason for fragment in audit_only_fragments)
             ]
+            index_targets = _non_tradable_index_target_codes(payload)
+            if index_targets:
+                pre_observe_hard_reasons.append("non_tradable_index_target")
             if trade_prediction_ready:
                 pre_observe_hard_reasons = [
                     reason

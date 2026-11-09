@@ -1,0 +1,1881 @@
+{
+  "audit_version": 1,
+  "since": "2026-11-01T22:05:58+08:00",
+  "screen_policy": {
+    "min_post_cost_sharpe": 0.35,
+    "total_return_positive": true,
+    "min_trade_count": 30,
+    "max_drawdown": 0.25,
+    "min_parameter_perturbation_trade_stability": 0.5,
+    "requires_strict_incubation_evaluation": true
+  },
+  "target_unique_high_quality_strategies": 30,
+  "report_count": 81,
+  "stage_counts": {
+    "rejected": 77,
+    "research": 3,
+    "incubation": 1
+  },
+  "screen_passed_reports": 0,
+  "screen_passed_unique_tested_objects": 0,
+  "requires_independent_replay_and_forward_review": true,
+  "goal_completion_verified": false,
+  "top_screen_blockers": {
+    "weak_post_cost_sharpe": 81,
+    "strict_incubation_evaluation_not_passed": 80,
+    "admission_blockers_present": 80,
+    "weak_trade_count": 65,
+    "weak_total_return": 44,
+    "missing_parameter_perturbation_trade_stability": 24,
+    "diagnostic_only": 14
+  },
+  "shortlist": [],
+  "reports": [
+    {
+      "strategy_id": "factory_1793542005_58a440a3",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "000001+000002·动量突破·20日",
+      "tested_object_hash": "6ad7cc9871c53ca50406e7c78def13189fd4c99c",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.5140991485616611,
+        "total_return": 0.004154911860272392,
+        "trade_count": 36.0,
+        "max_drawdown": 0.08635444650903036,
+        "parameter_perturbation_trade_stability": 0.9375
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542005_7ebe3d58",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "002815·事件结构突破·20日",
+      "tested_object_hash": "8fdd70632d62cb7c3d729fc2c38bbb41bffa98b3",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.4055467083090252,
+        "total_return": -0.036042983041086406,
+        "trade_count": 1.0,
+        "max_drawdown": 0.04732154705810878,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "diagnostic_only",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542005_4013ef20",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "动量突破·60日",
+      "tested_object_hash": "9000331461301c214884092d3d758176532de4a0",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.8650444714443246,
+        "total_return": -0.011972840796989459,
+        "trade_count": 80.0,
+        "max_drawdown": 0.030632263854699207,
+        "parameter_perturbation_trade_stability": 0.8295
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542011_6ace6f90",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "多因子seed_volume_ratio主导(60日)",
+      "tested_object_hash": "1900ffed48fe265d405bc8816d0819f8e32759f3",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": 0.0,
+        "total_return": 0.0,
+        "trade_count": 0.0,
+        "max_drawdown": 0.0,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542011_4f2cb340",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "动量突破·60日",
+      "tested_object_hash": "733bf7f105cc077d595e351e9b77342fc904c89e",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.8650444714443246,
+        "total_return": -0.011972840796989459,
+        "trade_count": 80.0,
+        "max_drawdown": 0.030632263854699207,
+        "parameter_perturbation_trade_stability": 0.8295
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542011_1c4285b9",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "002815·事件结构突破·60日",
+      "tested_object_hash": "a346df5f301015a16043fe11c86e2a866d8000a4",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.5296049769287307,
+        "total_return": -0.006483290437396354,
+        "trade_count": 26.0,
+        "max_drawdown": 0.042175491623056297,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "diagnostic_only",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542014_2639c856",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "000006+000007·动量突破·16日",
+      "tested_object_hash": "de8156a0bb8312283ba25378bb886d59a1706367",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": 0.3223741061632143,
+        "total_return": 0.044931668867508545,
+        "trade_count": 35.0,
+        "max_drawdown": 0.05109492732044612,
+        "parameter_perturbation_trade_stability": 0.9464
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542014_88a51e33",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "000001+000002·宏观择时·恐贪(34/65)",
+      "tested_object_hash": "f15576f5d61d4bfbbdde345dc59fb0fe03ad356b",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.5148378744383716,
+        "total_return": -0.02623117151433796,
+        "trade_count": 3.0,
+        "max_drawdown": 0.12368069732199129,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542014_43045ab1",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "000006+000007·动量突破·20日",
+      "tested_object_hash": "910c49cb48f0b218091a51c69c5910ee902a9c47",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": 0.2018292639841968,
+        "total_return": 0.0360674573770805,
+        "trade_count": 22.0,
+        "max_drawdown": 0.05853665712501524,
+        "parameter_perturbation_trade_stability": 0.8333
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542022_e8d92ca0",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "000006+000007·均线交叉·快6慢20",
+      "tested_object_hash": "de860ea192f5b9784f336c9d850f642eac0b352b",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": 0.16121814376108073,
+        "total_return": 0.03324206691221665,
+        "trade_count": 23.0,
+        "max_drawdown": 0.047834441079470574,
+        "parameter_perturbation_trade_stability": 0.8906
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542022_e8523b0f",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "000001+000002·均线交叉·快5慢20",
+      "tested_object_hash": "e06d53994f56f0afa2c417d1ccdfa53458472120",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.9251046637025122,
+        "total_return": -0.014300936613555915,
+        "trade_count": 35.0,
+        "max_drawdown": 0.05963891779689159,
+        "parameter_perturbation_trade_stability": 0.85
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542022_0f4a68d1",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "000001+000002·多因子",
+      "tested_object_hash": "178bea04b5718fb96c0c710a1144fa4761cdd62d",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.830195539073998,
+        "total_return": -0.004684341561145167,
+        "trade_count": 23.0,
+        "max_drawdown": 0.05478078319286595,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542027_47b5e02c",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "000006+000007·多因子",
+      "tested_object_hash": "086320cedea8f02e37b0bc25d98bbeb35bf61040",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.380393653829088,
+        "total_return": -0.044618480576267494,
+        "trade_count": 12.0,
+        "max_drawdown": 0.07649066925875261,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542027_5d53ca1a",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "000001+000002·波动突破·20日",
+      "tested_object_hash": "121c2309e712078e1a6c3c795ec2511b6271e873",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.7336967982987375,
+        "total_return": -0.0028398473426904935,
+        "trade_count": 34.0,
+        "max_drawdown": 0.052083615269775896,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542028_1f8d9634",
+      "factory_run_id": "factory_run_1793541961_86396ced",
+      "name": "000006+000007·波动突破·20日",
+      "tested_object_hash": "b83377ead4123e4292810dbfb147ef849589f26f",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": 0.19224567799804937,
+        "total_return": 0.03493690563048224,
+        "trade_count": 25.0,
+        "max_drawdown": 0.041044866259776984,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542318_08de8b5a",
+      "factory_run_id": "factory_run_1793542261_cf2a53b3",
+      "name": "000001+000021·动量突破·20日",
+      "tested_object_hash": "7a418988b8ca6648ef9bab3c123d18689b62e3d4",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.1718526990491373,
+        "total_return": 0.027453982555795342,
+        "trade_count": 29.0,
+        "max_drawdown": 0.07175397866123459,
+        "parameter_perturbation_trade_stability": 0.9375
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542318_38afaa67",
+      "factory_run_id": "factory_run_1793542261_cf2a53b3",
+      "name": "002815·事件结构突破·20日",
+      "tested_object_hash": "10f4d6fba37a9caaad00ba911bf28aa8266c21e6",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.4055467083090252,
+        "total_return": -0.036042983041086406,
+        "trade_count": 1.0,
+        "max_drawdown": 0.04732154705810878,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "diagnostic_only",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542318_9ea9cb4a",
+      "factory_run_id": "factory_run_1793542261_cf2a53b3",
+      "name": "多因子gp_classic_momentum_slope_60_20_3_mut主导(60日)",
+      "tested_object_hash": "e6778a173f14b7645b47e6e143ec2152188c7e7b",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": 0.0,
+        "total_return": 0.0,
+        "trade_count": 0.0,
+        "max_drawdown": 0.0,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542329_c418d2e5",
+      "factory_run_id": "factory_run_1793542261_cf2a53b3",
+      "name": "002815·事件结构突破·60日",
+      "tested_object_hash": "a0eae2b3e7c73805a8ba24fa172fea6ac9cde89d",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.5296049769287307,
+        "total_return": -0.006483290437396354,
+        "trade_count": 26.0,
+        "max_drawdown": 0.042175491623056297,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "diagnostic_only",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542329_7b735798",
+      "factory_run_id": "factory_run_1793542261_cf2a53b3",
+      "name": "002815·事件结构突破·13日",
+      "tested_object_hash": "d28e68bb2123eb6e3eae6d15efa5222168bc07ff",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.465395906298498,
+        "total_return": -0.041189786393361426,
+        "trade_count": 1.0,
+        "max_drawdown": 0.041189786393361426,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "diagnostic_only",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542329_2cadc756",
+      "factory_run_id": "factory_run_1793542261_cf2a53b3",
+      "name": "000002+000006·宏观择时·恐贪(26/68)",
+      "tested_object_hash": "393afd66dfebc9d5178e6c502fcc95dd1c46a0c5",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.0850748029446946,
+        "total_return": -0.046719164321945894,
+        "trade_count": 3.0,
+        "max_drawdown": 0.1109485586183406,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542344_837d63db",
+      "factory_run_id": "factory_run_1793542261_cf2a53b3",
+      "name": "000002+000006·动量突破·20日",
+      "tested_object_hash": "f2fb2f72280c328ecdabe2d1e50fecbedbcf183f",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.46074665147624155,
+        "total_return": 0.012768386681557331,
+        "trade_count": 29.0,
+        "max_drawdown": 0.05272344743553473,
+        "parameter_perturbation_trade_stability": 0.7692
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542344_af9ad1dc",
+      "factory_run_id": "factory_run_1793542261_cf2a53b3",
+      "name": "000001+000021·均线交叉·快6慢20",
+      "tested_object_hash": "34333657d01af80758e762ae8cbd6554636b651a",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.6190563677202399,
+        "total_return": 0.0069448138740320076,
+        "trade_count": 28.0,
+        "max_drawdown": 0.046717328383279855,
+        "parameter_perturbation_trade_stability": 0.9062
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542344_dd8bfaa6",
+      "factory_run_id": "factory_run_1793542261_cf2a53b3",
+      "name": "000002+000006·均线交叉·快5慢20",
+      "tested_object_hash": "8ba822215120964597bc4667b2da641a23d0130b",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.38896405179429916,
+        "total_return": 0.016606484432043267,
+        "trade_count": 28.0,
+        "max_drawdown": 0.05196145608867642,
+        "parameter_perturbation_trade_stability": 0.8942
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542347_ec380266",
+      "factory_run_id": "factory_run_1793542261_cf2a53b3",
+      "name": "000002+000006·多因子",
+      "tested_object_hash": "a39751885057a110a4ec21b4aaea3a522c5d70cf",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -2.3794349307274762,
+        "total_return": -0.06988612684561513,
+        "trade_count": 16.0,
+        "max_drawdown": 0.08601706409716955,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542347_e0a3475a",
+      "factory_run_id": "factory_run_1793542261_cf2a53b3",
+      "name": "000001+000021·多因子",
+      "tested_object_hash": "cfe2eaf750dd23016d1e001cfa766903f00acba5",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.38604724193303686,
+        "total_return": 0.020583304708202466,
+        "trade_count": 19.0,
+        "max_drawdown": 0.03528777584803485,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542347_c790e5cd",
+      "factory_run_id": "factory_run_1793542261_cf2a53b3",
+      "name": "000002+000006·波动突破·20日",
+      "tested_object_hash": "55eb7912cc0c0f7bba3de15b2280382fb02897fd",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.48973540346568584,
+        "total_return": 0.012323853526475803,
+        "trade_count": 30.0,
+        "max_drawdown": 0.046920840558796965,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542357_8c75b4d9",
+      "factory_run_id": "factory_run_1793542261_cf2a53b3",
+      "name": "000001+000021·波动突破·20日",
+      "tested_object_hash": "9c232209ec047b7d2e7e38a3981353691e128f83",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.35062210998312415,
+        "total_return": 0.019773204761315943,
+        "trade_count": 29.0,
+        "max_drawdown": 0.04131068645756102,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542602_27518399",
+      "factory_run_id": "factory_run_1793542561_dc804eb1",
+      "name": "000002+000006·动量突破·20日",
+      "tested_object_hash": "115982b3ebb4d596068818887b4d720d239e1e88",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.46074665147624155,
+        "total_return": 0.012768386681557331,
+        "trade_count": 29.0,
+        "max_drawdown": 0.05272344743553473,
+        "parameter_perturbation_trade_stability": 0.8846
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542602_3c675dd2",
+      "factory_run_id": "factory_run_1793542561_dc804eb1",
+      "name": "002815·事件结构突破·20日",
+      "tested_object_hash": "ddedd48519b69a32cf5b23a8687e054d6b04ce20",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.4055467083090252,
+        "total_return": -0.036042983041086406,
+        "trade_count": 1.0,
+        "max_drawdown": 0.04732154705810878,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "diagnostic_only",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542602_0aac81fb",
+      "factory_run_id": "factory_run_1793542561_dc804eb1",
+      "name": "动量突破·60日",
+      "tested_object_hash": "406e2c44fef1d379aeb666b2e2863b1715730d51",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.865044471444326,
+        "total_return": -0.011972840796989459,
+        "trade_count": 80.0,
+        "max_drawdown": 0.03063226385469935,
+        "parameter_perturbation_trade_stability": 0.8125
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542607_b6cbf14b",
+      "factory_run_id": "factory_run_1793542561_dc804eb1",
+      "name": "多因子seed_volume_ratio主导(60日)",
+      "tested_object_hash": "1900ffed48fe265d405bc8816d0819f8e32759f3",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": 0.0,
+        "total_return": 0.0,
+        "trade_count": 0.0,
+        "max_drawdown": 0.0,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542607_bb029435",
+      "factory_run_id": "factory_run_1793542561_dc804eb1",
+      "name": "动量突破·60日",
+      "tested_object_hash": "861981e269f16b498566f0303ff300955d31e398",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.865044471444326,
+        "total_return": -0.011972840796989459,
+        "trade_count": 80.0,
+        "max_drawdown": 0.03063226385469935,
+        "parameter_perturbation_trade_stability": 0.8125
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542607_22604504",
+      "factory_run_id": "factory_run_1793542561_dc804eb1",
+      "name": "002815·事件结构突破·60日",
+      "tested_object_hash": "3e2971f1671b43589ccd4444eed22cd0bdddc9b9",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.5296049769287307,
+        "total_return": -0.006483290437396354,
+        "trade_count": 26.0,
+        "max_drawdown": 0.042175491623056297,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "diagnostic_only",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542610_7c45ffa3",
+      "factory_run_id": "factory_run_1793542561_dc804eb1",
+      "name": "000001+000021·动量突破·22日",
+      "tested_object_hash": "9ac0d624b06b027551ee6e19df5bcf890cb0d2b3",
+      "admission_stage": "research",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": 0.06788978132979578,
+        "total_return": 0.04401350164405149,
+        "trade_count": 24.0,
+        "max_drawdown": 0.06430616787186899,
+        "parameter_perturbation_trade_stability": 0.8438
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542610_85f20a2b",
+      "factory_run_id": "factory_run_1793542561_dc804eb1",
+      "name": "000002+000006·宏观择时·恐贪(30/67)",
+      "tested_object_hash": "079075c2259e8a220f47e5af52631947f0e46af8",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.1808260846732195,
+        "total_return": -0.05189713756435721,
+        "trade_count": 3.0,
+        "max_drawdown": 0.1086693647233396,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542610_cd9963f6",
+      "factory_run_id": "factory_run_1793542561_dc804eb1",
+      "name": "000001+000021·均线交叉·快6慢20",
+      "tested_object_hash": "c8d5802daafb07c3f9ad85f2a3b14bcbef5cfb71",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.6190563677202399,
+        "total_return": 0.0069448138740320076,
+        "trade_count": 28.0,
+        "max_drawdown": 0.046717328383279855,
+        "parameter_perturbation_trade_stability": 0.9062
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542618_df3cde70",
+      "factory_run_id": "factory_run_1793542561_dc804eb1",
+      "name": "000002+000006·均线交叉·快5慢20",
+      "tested_object_hash": "cfcf44597dafaec8847ece8badb637150d5e50ff",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.38896405179429916,
+        "total_return": 0.016606484432043267,
+        "trade_count": 28.0,
+        "max_drawdown": 0.05196145608867642,
+        "parameter_perturbation_trade_stability": 0.8942
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542618_32b7d43a",
+      "factory_run_id": "factory_run_1793542561_dc804eb1",
+      "name": "000002+000006·多因子",
+      "tested_object_hash": "7c1f4f6c2c0dcf6eb68c4c1192fb3f50d56ddfcd",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -2.3794349307274762,
+        "total_return": -0.06988612684561513,
+        "trade_count": 16.0,
+        "max_drawdown": 0.08601706409716955,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542618_dde80aad",
+      "factory_run_id": "factory_run_1793542561_dc804eb1",
+      "name": "000001+000021·多因子",
+      "tested_object_hash": "e2e0e7ae1bc94cb0d8a1e36e2a73f0bf1baa909e",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.38604724193303686,
+        "total_return": 0.020583304708202466,
+        "trade_count": 19.0,
+        "max_drawdown": 0.03528777584803485,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542625_1fb87c18",
+      "factory_run_id": "factory_run_1793542561_dc804eb1",
+      "name": "000002+000006·波动突破·20日",
+      "tested_object_hash": "fba2df60e56ad6233edfa016532de2ea4f03860a",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.48973540346568584,
+        "total_return": 0.012323853526475803,
+        "trade_count": 30.0,
+        "max_drawdown": 0.046920840558796965,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542625_8b4c62f5",
+      "factory_run_id": "factory_run_1793542561_dc804eb1",
+      "name": "000001+000021·波动突破·20日",
+      "tested_object_hash": "449a5906609ab8ffe2150cacc53a22f47ad660e3",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.35062210998312415,
+        "total_return": 0.019773204761315943,
+        "trade_count": 29.0,
+        "max_drawdown": 0.04131068645756102,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542913_c6dc0b5d",
+      "factory_run_id": "factory_run_1793542861_baa5f7f2",
+      "name": "000001+000007·动量突破·20日",
+      "tested_object_hash": "362bfd0c1e717ae3a4747fca0e16bedc1b1c1489",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.6630454257026734,
+        "total_return": 0.006955954866099567,
+        "trade_count": 29.0,
+        "max_drawdown": 0.05610197785434624,
+        "parameter_perturbation_trade_stability": 0.875
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542913_28c561ac",
+      "factory_run_id": "factory_run_1793542861_baa5f7f2",
+      "name": "002815·事件结构突破·20日",
+      "tested_object_hash": "325b2f0a2f83f2f3de8c7093a4f143b598092134",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.4055467083090252,
+        "total_return": -0.036042983041086406,
+        "trade_count": 1.0,
+        "max_drawdown": 0.04732154705810878,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "diagnostic_only",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542913_0cba4eaa",
+      "factory_run_id": "factory_run_1793542861_baa5f7f2",
+      "name": "多因子gp_classic_momentum_slope_60_20_3_mut主导(60日)",
+      "tested_object_hash": "360dee5973fd048a42b322693a5e6204287d0187",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": 0.0,
+        "total_return": 0.0,
+        "trade_count": 0.0,
+        "max_drawdown": 0.0,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542916_9671d54c",
+      "factory_run_id": "factory_run_1793542861_baa5f7f2",
+      "name": "002815·事件结构突破·60日",
+      "tested_object_hash": "e62dbdf06bdad74dc73c20d19b1ea3969d896ca9",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.5296049769287307,
+        "total_return": -0.006483290437396354,
+        "trade_count": 26.0,
+        "max_drawdown": 0.042175491623056297,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "diagnostic_only",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542916_9b33b411",
+      "factory_run_id": "factory_run_1793542861_baa5f7f2",
+      "name": "000002+000006·宏观择时·恐贪(37/67)",
+      "tested_object_hash": "7d5dd6a56d3771fababf340faea14514c6c6c16f",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.764795717232744,
+        "total_return": -0.040686811033354364,
+        "trade_count": 3.0,
+        "max_drawdown": 0.12415703494220995,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542916_3fd23980",
+      "factory_run_id": "factory_run_1793542861_baa5f7f2",
+      "name": "000002+000006·动量突破·20日",
+      "tested_object_hash": "4546b4a13ce4c6b26847658da1240b8487af151d",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.07265266966261044,
+        "total_return": 0.03326641437125333,
+        "trade_count": 29.0,
+        "max_drawdown": 0.0800270221673199,
+        "parameter_perturbation_trade_stability": 0.8571
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542926_46b3205a",
+      "factory_run_id": "factory_run_1793542861_baa5f7f2",
+      "name": "000001+000007·均线交叉·快6慢20",
+      "tested_object_hash": "90cf1d9cd7e67091cb18c8c60b16df9870804017",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.585807514870274,
+        "total_return": 0.016124185769527566,
+        "trade_count": 28.0,
+        "max_drawdown": 0.03940385598379284,
+        "parameter_perturbation_trade_stability": 0.9107
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542926_a23af351",
+      "factory_run_id": "factory_run_1793542861_baa5f7f2",
+      "name": "000002+000006·均线交叉·快5慢20",
+      "tested_object_hash": "7aea577d0f15b44071d329356040f72f07550a4a",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.5069877735278279,
+        "total_return": 0.003317166972360397,
+        "trade_count": 28.0,
+        "max_drawdown": 0.06652619039823914,
+        "parameter_perturbation_trade_stability": 0.9286
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542926_bd10b8a5",
+      "factory_run_id": "factory_run_1793542861_baa5f7f2",
+      "name": "000002+000006·多因子",
+      "tested_object_hash": "2bc39b9345f5434e7618c0c2f4185b526d4f3abb",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.2031573014608241,
+        "total_return": -0.028962068079815495,
+        "trade_count": 16.0,
+        "max_drawdown": 0.057958665688068955,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542931_fafed18b",
+      "factory_run_id": "factory_run_1793542861_baa5f7f2",
+      "name": "000001+000007·多因子",
+      "tested_object_hash": "ac46cbbc921ec444294132ac30ea65c08b67446c",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.5152347801073007,
+        "total_return": -0.020340754057597277,
+        "trade_count": 19.0,
+        "max_drawdown": 0.066256508365186,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542931_f78ad1d0",
+      "factory_run_id": "factory_run_1793542861_baa5f7f2",
+      "name": "000002+000006·波动突破·20日",
+      "tested_object_hash": "274bccb393a1f4869fcc9be51e40d9a1984992fa",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.33231659224135796,
+        "total_return": 0.01640563857352162,
+        "trade_count": 31.0,
+        "max_drawdown": 0.06493799961834339,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793542931_ecae2e6e",
+      "factory_run_id": "factory_run_1793542861_baa5f7f2",
+      "name": "000001+000007·波动突破·20日",
+      "tested_object_hash": "9aec4886938e0c94905f001f9010d69b43fd95f9",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.5457672987375531,
+        "total_return": 0.01569141971427035,
+        "trade_count": 28.0,
+        "max_drawdown": 0.039161837016394904,
+        "parameter_perturbation_trade_stability": null
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count",
+        "missing_parameter_perturbation_trade_stability"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543141_68bf80a5",
+      "factory_run_id": "factory_run_1793543107_bc33654e",
+      "name": "000001+000007·动量突破·20日",
+      "tested_object_hash": "da10f4b86fa742ce4d84b0711bdaf5c9ab65a674",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.6630454257026734,
+        "total_return": 0.006955954866099567,
+        "trade_count": 29.0,
+        "max_drawdown": 0.05610197785434624,
+        "parameter_perturbation_trade_stability": 0.875
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543141_45db377c",
+      "factory_run_id": "factory_run_1793543107_bc33654e",
+      "name": "002815·事件结构突破·20日",
+      "tested_object_hash": "75a2dc8875ea52d89aa556f60ddc487aee9bb2ee",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.4055467083090252,
+        "total_return": -0.036042983041086406,
+        "trade_count": 1.0,
+        "max_drawdown": 0.04732154705810878,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "diagnostic_only",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543141_cf936f57",
+      "factory_run_id": "factory_run_1793543107_bc33654e",
+      "name": "动量突破·60日",
+      "tested_object_hash": "76c452a9bf650b86984bfc7c525134410bfb4135",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.8650444714443211,
+        "total_return": -0.011972840796989459,
+        "trade_count": 80.0,
+        "max_drawdown": 0.030632263854699207,
+        "parameter_perturbation_trade_stability": 0.5417
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543145_6df01827",
+      "factory_run_id": "factory_run_1793543107_bc33654e",
+      "name": "多因子seed_volume_ratio主导(60日)",
+      "tested_object_hash": "1900ffed48fe265d405bc8816d0819f8e32759f3",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": 0.0,
+        "total_return": 0.0,
+        "trade_count": 0.0,
+        "max_drawdown": 0.0,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543145_50d904db",
+      "factory_run_id": "factory_run_1793543107_bc33654e",
+      "name": "动量突破·60日",
+      "tested_object_hash": "1cc8f0257b7e86c67e8479feaac81973e05d27a0",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.8650444714443211,
+        "total_return": -0.011972840796989459,
+        "trade_count": 80.0,
+        "max_drawdown": 0.030632263854699207,
+        "parameter_perturbation_trade_stability": 0.5417
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543145_e9704776",
+      "factory_run_id": "factory_run_1793543107_bc33654e",
+      "name": "002815·事件结构突破·60日",
+      "tested_object_hash": "4c8152a1965a65843642e949d844e749f625d153",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.5296049769287307,
+        "total_return": -0.006483290437396354,
+        "trade_count": 26.0,
+        "max_drawdown": 0.042175491623056297,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "diagnostic_only",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543148_c41e76da",
+      "factory_run_id": "factory_run_1793543107_bc33654e",
+      "name": "000002+000006·动量突破·21日",
+      "tested_object_hash": "6a4462e786998d544a4711d4def1087237c9cbf7",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.3239947025613251,
+        "total_return": 0.013602405658343919,
+        "trade_count": 24.0,
+        "max_drawdown": 0.08621990802517547,
+        "parameter_perturbation_trade_stability": 0.725
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543148_5605e92d",
+      "factory_run_id": "factory_run_1793543107_bc33654e",
+      "name": "000001+000007·宏观择时·恐贪(28/63)",
+      "tested_object_hash": "7917fa9831859512614b40dd782be27fc9983a15",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.17774064391103778,
+        "total_return": 0.01710882296733951,
+        "trade_count": 3.0,
+        "max_drawdown": 0.10193176475405426,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543148_926442e4",
+      "factory_run_id": "factory_run_1793543107_bc33654e",
+      "name": "000002+000006·均线交叉·快6慢20",
+      "tested_object_hash": "973fc054d84cbef54c1703a03021885cda9718b4",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.5767927857315397,
+        "total_return": -0.0018699964776809352,
+        "trade_count": 27.0,
+        "max_drawdown": 0.0729925744471944,
+        "parameter_perturbation_trade_stability": 0.9464
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543155_a0e865af",
+      "factory_run_id": "factory_run_1793543107_bc33654e",
+      "name": "000001+000007·均线交叉·快5慢20",
+      "tested_object_hash": "da28acb9b03c9bb1764ba137b60b17459f3e1cfe",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.1137183891544378,
+        "total_return": -0.006347422976180628,
+        "trade_count": 30.0,
+        "max_drawdown": 0.06010504461049364,
+        "parameter_perturbation_trade_stability": 0.9286
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543155_35fc7040",
+      "factory_run_id": "factory_run_1793543107_bc33654e",
+      "name": "000001+000007·多因子",
+      "tested_object_hash": "fb61b969ee628c049f97f2dda1644f8c48d66f05",
+      "admission_stage": "research",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.5152347801073007,
+        "total_return": -0.020340754057597277,
+        "trade_count": 19.0,
+        "max_drawdown": 0.066256508365186,
+        "parameter_perturbation_trade_stability": 0.95
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543155_a1aeea9d",
+      "factory_run_id": "factory_run_1793543107_bc33654e",
+      "name": "000002+000006·多因子",
+      "tested_object_hash": "e20c1634e064e16fc0188233d1897d27f83aa888",
+      "admission_stage": "research",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.2031573014608241,
+        "total_return": -0.028962068079815495,
+        "trade_count": 16.0,
+        "max_drawdown": 0.057958665688068955,
+        "parameter_perturbation_trade_stability": 0.85
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543162_c3bd3699",
+      "factory_run_id": "factory_run_1793543107_bc33654e",
+      "name": "000001+000007·波动突破·20日",
+      "tested_object_hash": "a11c577b9ba39d132ba094201817c6f72840e98e",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.5457672987375531,
+        "total_return": 0.01569141971427035,
+        "trade_count": 28.0,
+        "max_drawdown": 0.039161837016394904,
+        "parameter_perturbation_trade_stability": 0.9688
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543162_20ee0488",
+      "factory_run_id": "factory_run_1793543107_bc33654e",
+      "name": "000002+000006·波动突破·20日",
+      "tested_object_hash": "b040e358c09909985c0247037d81ba76d2ecc956",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.33231659224135796,
+        "total_return": 0.01640563857352162,
+        "trade_count": 31.0,
+        "max_drawdown": 0.06493799961834339,
+        "parameter_perturbation_trade_stability": 0.9444
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543461_ba95cd67",
+      "factory_run_id": "factory_run_1793543407_5147b936",
+      "name": "000001+000021·动量突破·20日",
+      "tested_object_hash": "3f8e373319a762b294fc7eb437199d27eeba9c86",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.1718526990491373,
+        "total_return": 0.027453982555795342,
+        "trade_count": 29.0,
+        "max_drawdown": 0.07175397866123459,
+        "parameter_perturbation_trade_stability": 0.9375
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543461_5884e6f7",
+      "factory_run_id": "factory_run_1793543407_5147b936",
+      "name": "002815·事件结构突破·20日",
+      "tested_object_hash": "a18a1188c471e74776f0d385bc155d9b37744163",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.4055467083090252,
+        "total_return": -0.036042983041086406,
+        "trade_count": 1.0,
+        "max_drawdown": 0.04732154705810878,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "diagnostic_only",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543461_24fe0ae8",
+      "factory_run_id": "factory_run_1793543407_5147b936",
+      "name": "多因子gp_classic_momentum_slope_60_20_3_mut主导(60日)",
+      "tested_object_hash": "b04722066d5ed9a77f5b4f2053bda45aa2d16f16",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": 0.0,
+        "total_return": 0.0,
+        "trade_count": 0.0,
+        "max_drawdown": 0.0,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543464_95b1e8c3",
+      "factory_run_id": "factory_run_1793543407_5147b936",
+      "name": "002815·事件结构突破·60日",
+      "tested_object_hash": "af139b5289200406bd07cbae075f2b67bbe1bac3",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.5296049769287307,
+        "total_return": -0.006483290437396354,
+        "trade_count": 26.0,
+        "max_drawdown": 0.042175491623056297,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "diagnostic_only",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543464_fbb6c214",
+      "factory_run_id": "factory_run_1793543407_5147b936",
+      "name": "002815·事件结构突破·12日",
+      "tested_object_hash": "63676bece2a6d9117d6ceba16e09f225f50a75d2",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.9774859517489116,
+        "total_return": -0.1567794189738581,
+        "trade_count": 3.0,
+        "max_drawdown": 0.1567794189738581,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "diagnostic_only",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543464_1fb3673d",
+      "factory_run_id": "factory_run_1793543407_5147b936",
+      "name": "000002+000006·宏观择时·恐贪(33/74)",
+      "tested_object_hash": "f98d21775f0dd32e7c82d0a8660a1ff7808bb22c",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -1.0767371195149786,
+        "total_return": -0.04602567040055905,
+        "trade_count": 3.0,
+        "max_drawdown": 0.110876846994911,
+        "parameter_perturbation_trade_stability": 1.0
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543477_e5e0a1bc",
+      "factory_run_id": "factory_run_1793543407_5147b936",
+      "name": "000002+000006·动量突破·20日",
+      "tested_object_hash": "8a871239824cabf9d67d5c0a12fd68a8cc69a5d4",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.46074665147624155,
+        "total_return": 0.012768386681557331,
+        "trade_count": 29.0,
+        "max_drawdown": 0.05272344743553473,
+        "parameter_perturbation_trade_stability": 0.8846
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543477_db77270e",
+      "factory_run_id": "factory_run_1793543407_5147b936",
+      "name": "000001+000021·均线交叉·快6慢20",
+      "tested_object_hash": "46912eadca764ee32f73e394f465e86ff7abd242",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.6190563677202399,
+        "total_return": 0.0069448138740320076,
+        "trade_count": 28.0,
+        "max_drawdown": 0.046717328383279855,
+        "parameter_perturbation_trade_stability": 0.9062
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543477_b316587c",
+      "factory_run_id": "factory_run_1793543407_5147b936",
+      "name": "000002+000006·均线交叉·快5慢20",
+      "tested_object_hash": "e5a8d11b2f42e90c243c7518ebb3511ab9642267",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.38896405179429916,
+        "total_return": 0.016606484432043267,
+        "trade_count": 28.0,
+        "max_drawdown": 0.05196145608867642,
+        "parameter_perturbation_trade_stability": 0.8942
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543480_64e78a0c",
+      "factory_run_id": "factory_run_1793543407_5147b936",
+      "name": "000001+000021·多因子",
+      "tested_object_hash": "9ab54dd8b6eec1c8417bb8d07b5bf597fb616515",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.38604724193303686,
+        "total_return": 0.020583304708202466,
+        "trade_count": 19.0,
+        "max_drawdown": 0.03528777584803485,
+        "parameter_perturbation_trade_stability": 0.9375
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543480_a914e1c0",
+      "factory_run_id": "factory_run_1793543407_5147b936",
+      "name": "000002+000006·波动突破·20日",
+      "tested_object_hash": "16b08570b94aca591ef1525fc69e7339b5c99d51",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.48973540346568584,
+        "total_return": 0.012323853526475803,
+        "trade_count": 30.0,
+        "max_drawdown": 0.046920840558796965,
+        "parameter_perturbation_trade_stability": 0.8654
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543491_3f142ca0",
+      "factory_run_id": "factory_run_1793543407_5147b936",
+      "name": "000001+000021·波动突破·20日",
+      "tested_object_hash": "9b93049bfbca6b042eb5dcbf854b67e8757325bd",
+      "admission_stage": "rejected",
+      "submission_lane": "deferred_submission",
+      "metrics": {
+        "post_cost_sharpe": -0.35062210998312415,
+        "total_return": 0.019773204761315943,
+        "trade_count": 29.0,
+        "max_drawdown": 0.04131068645756102,
+        "parameter_perturbation_trade_stability": 0.9219
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "strict_incubation_evaluation_not_passed",
+        "admission_blockers_present",
+        "weak_post_cost_sharpe",
+        "weak_trade_count"
+      ]
+    },
+    {
+      "strategy_id": "factory_1793543480_8ced72a1",
+      "factory_run_id": "factory_run_1793543407_5147b936",
+      "name": "000002+000006·多因子",
+      "tested_object_hash": "daf5f8b8a90fa3316aa9e6cdfe96f07ec285424e",
+      "admission_stage": "incubation",
+      "submission_lane": "formal_incubation",
+      "metrics": {
+        "post_cost_sharpe": -2.3794349307274762,
+        "total_return": -0.06988612684561513,
+        "trade_count": 16.0,
+        "max_drawdown": 0.08601706409716955,
+        "parameter_perturbation_trade_stability": 0.7812
+      },
+      "screen_passed": false,
+      "screen_reasons": [
+        "weak_post_cost_sharpe",
+        "weak_total_return",
+        "weak_trade_count"
+      ]
+    }
+  ]
+}

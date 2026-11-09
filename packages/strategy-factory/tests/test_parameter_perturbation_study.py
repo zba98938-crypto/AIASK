@@ -250,3 +250,124 @@ def test_insufficient_successful_runs_only_stability_available():
 def _run_async(coro):
     import asyncio
     return asyncio.run(coro)
+
+
+# --- BacktestFilter wiring --------------------------------------------------
+# Regression: _test_one stores each code's engine ``data`` payload directly in
+# primary_results, but the baseline index read a nested ``data`` key and got {}
+# for every code. 3,943/3,943 submission reports (2026-10-30..11-01) therefore
+# carried reason=baseline_trades_unavailable with trades_count present.
+
+
+def test_per_code_baseline_reads_flat_engine_payload():
+    from strategy_factory.application.backtest_filter import BacktestFilter
+
+    primary_results = [
+        {"code": "000006", "trades_count": 31, "total_return": 0.085},
+        {"code": "000007", "trades_count": 12, "total_return": -0.01},
+    ]
+    index = BacktestFilter._per_code_baseline_metrics(primary_results)
+
+    assert index["000006"]["trades_count"] == 31
+    assert index["000007"]["total_return"] == -0.01
+
+
+class _RecordingEngine:
+    def __init__(self):
+        self.params_seen = []
+
+    def run_backtest(self, code, klines, strategy, params, return_trades):
+        self.params_seen.append(dict(params))
+        return {"success": True, "data": {"trades_count": 30, "total_return": 0.08}}
+
+
+def test_filter_study_measures_from_real_baseline_and_keeps_assumptions_fixed():
+    import asyncio
+
+    from strategy_factory.application.backtest_filter import BacktestFilter
+
+    bf = BacktestFilter()
+    bf._kline_cache["000006"] = [{"close": 10.0, "volume": 1000, "time": "2026-01-05"}] * 120
+    engine = _RecordingEngine()
+    assumptions = {"commission": 0.0003, "adv_ratio_limit": 0.1, "initial_capital": 100000.0}
+    baseline = BacktestFilter._per_code_baseline_metrics(
+        [{"code": "000006", "trades_count": 31, "total_return": 0.085}]
+    )["000006"]
+
+    out = asyncio.run(
+        bf._run_parameter_perturbation_study(
+            {"strategy_type": "momentum", "params": {"lookback": 20, "threshold": 0.02}},
+            engine,
+            primary_code="000006",
+            strategy_type="momentum",
+            assumptions_kwargs=assumptions,
+            baseline_metrics=baseline,
+        )
+    )
+
+    study = out["parameter_perturbation_study"]
+    assert study["reason"] != "baseline_trades_unavailable"
+    assert study["variants_run"] > 0
+    assert out["parameter_perturbation_trade_stability"] is not None
+    # Every variant runs with the real execution assumptions, unperturbed.
+    assert engine.params_seen
+    for seen in engine.params_seen:
+        for key, value in assumptions.items():
+            assert seen[key] == value
+    # Only strategy params were perturbed.
+    perturbed = {k for seen in engine.params_seen for k in ("lookback", "threshold") if seen[k] not in (20, 0.02)}
+    assert perturbed == {"lookback", "threshold"}
+
+
+class _RoundTripEngine:
+    """Raw fills (18) differ from closed round trips (9), like the real engine."""
+
+    def __init__(self):
+        self.params_seen = []
+
+    def run_backtest(self, code, klines, strategy, params, return_trades):
+        self.params_seen.append(dict(params))
+        trips = [
+            {"status": "closed", "realized_pnl": 10.0, "realized_return": 0.01, "hold_days": 3}
+            for _ in range(9)
+        ]
+        return {
+            "success": True,
+            "data": {"trades_count": 18, "total_return": 0.05, "round_trip_positions": trips, "initial_capital": 100000},
+        }
+
+
+def test_filter_study_ignores_metadata_and_compares_like_with_like():
+    import asyncio
+
+    from strategy_factory.application.backtest_filter import BacktestFilter
+
+    bf = BacktestFilter()
+    bf._kline_cache["000006"] = [{"close": 10.0, "volume": 1000, "time": "2026-01-05"}] * 120
+    engine = _RoundTripEngine()
+    raw = engine.run_backtest("000006", [], "momentum", {}, True)["data"]
+    baseline = BacktestFilter._merge_trade_profile_metrics(raw)  # what _test_one stores
+    engine.params_seen.clear()
+
+    out = asyncio.run(
+        bf._run_parameter_perturbation_study(
+            {
+                "strategy_type": "momentum",
+                # numeric metadata that sorts before the real tunables
+                "params": {"lookback": 20, "threshold": 0.02, "commission": 0.00025, "confidence": 0.77},
+            },
+            engine,
+            primary_code="000006",
+            strategy_type="momentum",
+            assumptions_kwargs={"commission": 0.00025},
+            baseline_metrics=baseline,
+        )
+    )
+
+    # Unchanged strategy -> unchanged closed-trade count -> fully stable.
+    assert out["parameter_perturbation_trade_stability"] == 1.0
+    changed = {
+        k for seen in engine.params_seen for k in ("lookback", "threshold", "confidence")
+        if seen.get(k) not in (20, 0.02, 0.77)
+    }
+    assert changed == {"lookback", "threshold"}

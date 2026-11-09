@@ -12,8 +12,44 @@ P1-5 fix (诊断报告 §S19-F12 / §S21 quality_baseline):
 
 from __future__ import annotations
 
+import json
+import math
 import os
 from typing import Any
+
+
+def unmeasured_seed_reason(record: dict[str, Any]) -> str | None:
+    """Reject legacy seed promotion labels without measured validation evidence.
+
+    Daily sync historically wrote active/B/IC=0.02 constants. Keep those rows
+    intact for audit, but never use their labels as measured factor evidence.
+    """
+    trace = record.get("generation_trace") or {}
+    for _ in range(2):
+        if not isinstance(trace, str):
+            break
+        try:
+            trace = json.loads(trace)
+        except (TypeError, ValueError):
+            trace = {}
+    is_seed = str(record.get("factor_id") or "").startswith(("rule_seed_", "free_seed_"))
+    is_seed = is_seed or (isinstance(trace, dict) and trace.get("source") == "free_data_daily_sync")
+    if not is_seed:
+        return None
+    summary = record.get("validation_summary") or {}
+    evidence = summary.get("evidence_summary") if isinstance(summary, dict) else None
+    if not isinstance(evidence, dict):
+        return "seed_validation_evidence_missing"
+    # Presence only: the existing quality thresholds remain authoritative.
+    for field in ("sample_dates", "avg_cross_section_n", "ic_history_rows"):
+        value = evidence.get(field)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+            return "seed_validation_evidence_missing"
+    for field in ("rank_ic_mean", "rank_ic_ir"):
+        value = evidence.get(field)
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            return "seed_validation_evidence_missing"
+    return None
 
 
 # 默认严苛阈值 (生产标准)
@@ -189,6 +225,13 @@ def evaluate_validation_evidence(
         "lookahead_risk": lookahead_risk,
         "direction_normalized": True,
     }
+    if metrics.get("available", summary.get("available")) is False:
+        reason = str(metrics.get("reason") or summary.get("reason") or "no_measurable_rank_ic")
+        reasons.append(reason)
+        evidence_summary.update(
+            available=False, reason=reason, rank_ic_mean=None,
+            rank_ic_ir=None, rank_ic_ir_raw=None, positive_ratio=None,
+        )
     return {
         "passed": not reasons,
         "reasons": reasons,

@@ -55,6 +55,10 @@ class MultiFactorStrategy(IStrategy):
     def set_parameters(self, params: Dict[str, Any]) -> None:
         fw = params.get("factor_weights")
         if isinstance(fw, dict) and fw:
+            unsupported = sorted(str(name) for name, weight in fw.items()
+                                 if weight != 0 and name not in _get_factor_map())
+            if unsupported:
+                raise ValueError("unsupported_factor_weights:" + ",".join(unsupported))
             total = sum(fw.values()) or 1.0
             self._factor_weights = {k: v / total for k, v in fw.items()}
         self._lookback = max(10, int(params.get("lookback", self._lookback)))
@@ -69,32 +73,45 @@ class MultiFactorStrategy(IStrategy):
 
         fmap = _get_factor_map()
         composite = np.zeros(n)
+        complete = np.ones(n, dtype=bool)
         total_weight = 0.0
 
         for fname, weight in self._factor_weights.items():
+            if weight == 0:
+                continue
             klass = fmap.get(fname)
             if klass is None:
-                continue
+                raise ValueError("unsupported_factor_weights:" + str(fname))
             inst = klass()
             inst.set_parameters({"lookback": self._lookback})
             fvals = inst._compute_factor(closes, volumes)
-            # z-score 标准化
-            valid_mask = np.isfinite(fvals)
-            if np.sum(valid_mask) < 10:
-                continue
-            mean_v = float(np.mean(fvals[valid_mask]))
-            std_v = float(np.std(fvals[valid_mask]))
-            if std_v > 0:
-                normed = np.where(valid_mask, (fvals - mean_v) / std_v, 0.0)
-                composite += weight * normed
-                total_weight += weight
+            # Each observation uses only its own trailing history. Future
+            # variance must not change past scaling or enable earlier trades.
+            normed = np.full(n, np.nan)
+            for i in range(n):
+                if not np.isfinite(fvals[i]):
+                    continue
+                window = fvals[max(0, i - self._lookback + 1):i + 1]
+                valid = window[np.isfinite(window)]
+                if len(valid) < 10:
+                    continue
+                std_v = float(np.std(valid))
+                if std_v > 0:
+                    normed[i] = (fvals[i] - float(np.mean(valid))) / std_v
+            available = np.isfinite(normed)
+            complete &= available
+            composite[available] += weight * normed[available]
+            total_weight += weight
 
         if total_weight <= 0:
             return signals
 
         composite /= total_weight
+        composite[~complete] = np.nan
 
         for i in range(self._lookback, n):
+            if not np.isfinite(composite[i]):
+                continue
             window = composite[max(0, i - self._lookback):i + 1]
             valid = window[np.isfinite(window)]
             if len(valid) < 5:

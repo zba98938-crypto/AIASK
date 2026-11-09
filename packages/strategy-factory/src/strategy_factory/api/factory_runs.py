@@ -44,7 +44,7 @@ TERMINAL_FACTORY_RUN_STATES = frozenset(
 
 FACTORY_RUN_TRANSITIONS: dict[FactoryRunState, frozenset[FactoryRunState]] = {
     FactoryRunState.QUEUED: frozenset(
-        {FactoryRunState.RUNNING, FactoryRunState.BLOCKED, FactoryRunState.CANCELLED}
+        {FactoryRunState.RUNNING, FactoryRunState.BLOCKED, FactoryRunState.FAILED, FactoryRunState.CANCELLED}
     ),
     FactoryRunState.RUNNING: frozenset(
         {

@@ -60,6 +60,7 @@ class HitRateReporter:
         *,
         report_date: Optional[date] = None,
         trade_prediction_result: Optional[dict[str, Any]] = None,
+        persist: bool = True,
     ) -> dict[str, Any]:
         """
         生成命中率报告。
@@ -129,7 +130,8 @@ class HitRateReporter:
         }
 
         # 持久化报告
-        await self._persist_report(db, report)
+        if persist:
+            await self._persist_report(db, report)
 
         return report
 
@@ -496,7 +498,7 @@ class HitRateReporter:
     async def _persist_report(self, db: Any, report: dict[str, Any]) -> None:
         """持久化命中率报告。"""
         if not hasattr(db, "save_strategy_domain_event"):
-            return
+            raise RuntimeError("incubation_report_store_unavailable")
         try:
             await db.save_strategy_domain_event({
                 "strategy_id": None,
@@ -508,4 +510,4 @@ class HitRateReporter:
                 "payload": report,
             })
         except Exception as exc:
-            logger.debug("HitRateReporter: persist report failed: %s", exc)
+            raise RuntimeError(f"incubation_report_write_failed: {exc}") from exc

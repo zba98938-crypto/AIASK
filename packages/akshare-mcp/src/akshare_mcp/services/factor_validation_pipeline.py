@@ -11,6 +11,7 @@ import pandas as pd
 
 from ..data_source import data_source
 from .cost_model import build_cost_model
+from ._factor_search_budget import search_checkpoint
 from .factor_analysis import FactorAnalyzer
 from .factor_candidate_compiler import compile_factor_candidate, evaluate_compiled_factor
 from .signal_quality_registry import get_default_signal_quality_registry
@@ -79,7 +80,7 @@ def _build_validation_rating(
     lookahead_audit: dict[str, Any],
     multiple_testing_report: dict[str, Any],
 ) -> dict[str, Any]:
-    cross_score = min(20.0, abs(float(cross_section_summary.get("rank_ic_mean", 0.0))) * 100.0)
+    cross_score = min(20.0, abs(_safe_float(cross_section_summary.get("rank_ic_mean"))) * 100.0)
 
     oos_rating = (oos_report.get("rating") or {}) if oos_report.get("available") else {}
     oos_score = min(20.0, float(oos_rating.get("total_score", 0.0)) / 5.0)
@@ -306,6 +307,7 @@ async def validate_factor_candidate_pipeline(
     factor_key: str | None = None,
     persist_ic_history: bool = True,
     recorded_trial_count: int | None = None,
+    bind_evidence_identity: bool = False,
 ) -> dict[str, Any]:
     """对候选因子执行编译、验证并输出 P1 级治理报告。"""
 
@@ -343,9 +345,21 @@ async def validate_factor_candidate_pipeline(
         or candidate.get("name")
         or "candidate_factor"
     ).strip()
+    evidence_identity = None
+    if bind_evidence_identity:
+        from .factor_evidence_identity import build_factor_evidence_identity
+
+        evidence_identity = build_factor_evidence_identity(
+            compiled, codes=codes, horizon_days=horizon_days,
+            lookback_bars=lookback_bars, max_dates=max_dates,
+            min_cross_section=min_cross_section,
+        )
+        resolved_factor_key = evidence_identity["factor_key"]
 
     for code in [str(item).strip() for item in list(codes or []) if str(item).strip()]:
+        search_checkpoint()
         frame, one_source_chain, reason = await _load_validation_frame(db, code, lookback_bars)
+        search_checkpoint()
         source_chain.extend(one_source_chain)
         if reason:
             validation_warnings.append(f"{code}: {reason}")
@@ -444,13 +458,14 @@ async def validate_factor_candidate_pipeline(
     else:
         factor_value_rows = []
 
+    search_checkpoint()
     cross_section = _cross_section_summary(eligible_cross_section_rows)
     for key, value in dict(cross_section.get("diagnostic_counts") or {}).items():
         diagnostic_counts[str(key)] += int(value or 0)
     latest_snapshot = _extract_latest_snapshot(eligible_cross_section_rows, cross_section)
     cross_section_sizes = [
         int(item.get("sample_size") or 0)
-        for item in list(cross_section.get("dates") or [])
+        for item in list(cross_section.get("dates") or []) + list(cross_section.get("unmeasurable_dates") or [])
         if int(item.get("sample_size") or 0) > 0
     ]
     avg_cross_section_n = (
@@ -463,6 +478,8 @@ async def validate_factor_candidate_pipeline(
         "ic_history_rows": 0,
         "errors": [],
     }
+    if evidence_identity is not None:
+        persisted_outputs["evidence_identity"] = evidence_identity
     if persist_outputs and resolved_factor_key:
         if factor_value_rows and hasattr(db, "save_factor_values_batch"):
             try:
@@ -510,6 +527,7 @@ async def validate_factor_candidate_pipeline(
     close_df = _build_panel(close_series_map)
     amount_df = _build_panel(amount_series_map)
     return_df = _build_horizon_return_panel(close_df, horizon_days) if not close_df.empty else pd.DataFrame()
+    search_checkpoint()
     lookahead_audit = _build_lookahead_audit(
         compiled,
         frame_map,
@@ -520,6 +538,7 @@ async def validate_factor_candidate_pipeline(
     if lookahead_audit.get("available"):
         source_chain.append("services.factor_validation_pipeline.lookahead_audit")
 
+    search_checkpoint()
     oos_report = _build_oos_validation_report(
         factor_df,
         return_df,
@@ -528,19 +547,23 @@ async def validate_factor_candidate_pipeline(
     if oos_report.get("available"):
         source_chain.append("services.validation.FactorValidationPipeline")
 
+    search_checkpoint()
     robustness_report = _build_robustness_report(
         factor_df,
         close_df,
         base_horizon=horizon_days,
     )
 
+    search_checkpoint()
     similarity_report = _build_similarity_report(
         compiled,
         frame_map,
         factor_df,
     )
 
+    search_checkpoint()
     turnover_report = _build_turnover_report(factor_df)
+    search_checkpoint()
     cost_capacity_report = _build_cost_capacity_report(
         factor_df,
         amount_df,
@@ -549,6 +572,7 @@ async def validate_factor_candidate_pipeline(
     if cost_capacity_report.get("available"):
         source_chain.append("services.cost_model")
 
+    search_checkpoint()
     multiple_testing_report = _build_multiple_testing_report(
         compiled,
         frame_map,
@@ -559,6 +583,7 @@ async def validate_factor_candidate_pipeline(
     if multiple_testing_report.get("available"):
         source_chain.append("services.factor_validation_pipeline.multiple_testing")
 
+    search_checkpoint()
     rating = _build_validation_rating(
         cross_section.get("summary") or {},
         oos_report,

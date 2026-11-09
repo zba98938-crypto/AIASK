@@ -336,6 +336,38 @@ class _StrategySubmitterHelpersMixin:
                 payload.get("constraint_check"),
                 params.get("constraint_check"),
             )
+            # Risk must replay the same target allocation and execution costs as
+            # the primary backtest, not the statistical peer panel.
+            outcome = dict(payload.get("backtest_outcome") or {})
+            metrics = dict(payload.get("backtest_metrics") or {})
+            primary = str(outcome.get("primary_validation_layer") or outcome.get("primary_layer") or metrics.get("primary_validation_layer") or "")
+            target_metrics = dict((dict(outcome.get("layers") or {}).get("target") or {}).get("metrics") or {})
+            targets = _normalize_target_codes(params.get("target_symbols") or [])
+            weights = dict(target_metrics.get("allocation_weights") or metrics.get("allocation_weights") or {})
+            allocation_source = "target_backtest_allocation_weights"
+            if not weights and len(targets) == 1 and primary == "target":
+                weights = {targets[0]: 1.0}
+                allocation_source = "single_target_backtest"
+            assumptions = dict(outcome.get("backtest_assumptions") or metrics.get("backtest_assumptions") or {})
+            required = ("initial_capital", "commission_rate", "slippage_bps", "execution_price_policy", "market_ruleset", "sell_tax_rate", "min_trade_lot", "t_plus_one")
+            missing = [key for key in required if assumptions.get(key) is None]
+            execution = dict(assumptions)
+            if not missing:
+                execution["commission"] = assumptions["commission_rate"]
+                execution["slippage"] = float(assumptions["slippage_bps"]) / 10000.0
+            params["target_risk_contract"] = {
+                "version": "target_risk.v1",
+                "target_codes": targets,
+                "primary_layer": primary,
+                "allocation_weights": weights,
+                "allocation_source": allocation_source,
+                "execution_kwargs": execution,
+                "missing_execution_fields": missing,
+                "portfolio_engine_used": bool(target_metrics.get("portfolio_engine_used") or metrics.get("portfolio_engine_used") or outcome.get("portfolio_backtest_mode") == "portfolio_engine_shared_cash" or metrics.get("portfolio_backtest_mode") == "portfolio_engine_shared_cash"),
+                "tested_object_hash": outcome.get("tested_object_hash") or payload.get("tested_object_hash"),
+                "current_tested_object_hash": payload.get("tested_object_hash") or params.get("tested_object_hash"),
+                "benchmark_code": str(params.get("benchmark_code") or "sh000300"),
+            }
             return params
 
         @classmethod

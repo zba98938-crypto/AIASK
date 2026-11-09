@@ -25,6 +25,7 @@ from ...domain.constants import (
 )
 from ...domain.market_evidence import apply_evidence_first_candidate, summarize_generation_quality
 from ...domain.strategy_profile import apply_candidate_strategy_profile
+from ...domain.targets import _is_index_reference_code
 from ..services.readiness_service import resolve_factor_refresh_trigger
 
 logger = logging.getLogger(__name__)
@@ -428,7 +429,7 @@ class ResearchPlaneRunner:
         codes: list[str] = []
         for value in values:
             code = str(value or "").strip()
-            if not code or code in codes:
+            if not code or code in codes or _is_index_reference_code(code):
                 continue
             codes.append(code)
             if len(codes) >= max(1, int(limit or 24)):
@@ -480,6 +481,17 @@ class ResearchPlaneRunner:
         snapshot: dict[str, Any],
     ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
         topn_codes = cls._topn_target_codes(full_market_topn)
+        excluded_target_codes = list(dict.fromkeys(
+            str(value or "").strip()
+            for value in [
+                *list(full_market_topn.get("target_symbols") or []),
+                *(item.get("code") or item.get("symbol") if isinstance(item, dict) else item
+                  for item in list(full_market_topn.get("constituents") or [])),
+            ]
+            if _is_index_reference_code(value)
+        ))
+        target_exclusion = {"excluded_target_codes": excluded_target_codes,
+                            "target_exclusion_reason": "non_tradable_index_target" if excluded_target_codes else None}
         if not candidates or not topn_codes:
             return list(candidates or []), {
                 "enabled": bool(topn_codes),
@@ -487,6 +499,7 @@ class ResearchPlaneRunner:
                 "available_code_count": len(topn_codes),
                 "injected_candidate_count": 0,
                 "injected_symbol_count": 0,
+                **target_exclusion,
             }
 
         as_of = cls._snapshot_as_of(snapshot, full_market_topn)
@@ -694,6 +707,7 @@ class ResearchPlaneRunner:
             "available_code_count": len(topn_codes),
             "injected_candidate_count": injected_candidate_count,
             "injected_symbol_count": injected_symbol_count,
+            **target_exclusion,
         }
 
     @classmethod

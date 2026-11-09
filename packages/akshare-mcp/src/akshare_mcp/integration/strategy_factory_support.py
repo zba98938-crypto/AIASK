@@ -25,6 +25,10 @@ class IncubationFactoryRunnerAdapter:
         self._accelerator = getattr(runner, "_accelerator", None)
         self._alert_monitor = getattr(runner, "_alert_monitor", None)
 
+    @property
+    def dry_run(self) -> bool:
+        return bool(getattr(self._runner, "dry_run", False))
+
     async def _get_db(self) -> Any:
         """Get DB connection from runner."""
         return await self._runner._get_db()
@@ -74,27 +78,34 @@ class IncubationFactoryRunnerAdapter:
     ) -> dict[str, Any]:
         """Record metrics."""
         if self._metrics_recorder is None:
-            return {"metrics_recorded": 0}
-        return await self._metrics_recorder.record(db, strategy, verification)
+            raise RuntimeError("incubation_metrics_recorder_unavailable")
+        result = await self._metrics_recorder.record(db, strategy, verification)
+        if result is None:
+            raise RuntimeError("incubation_metric_write_failed: no saved record")
+        return result
+
+    async def get_read_only_db(self) -> Any:
+        return await self._runner._get_read_only_db()
+
+    async def run_pipeline(self, db: Any, strategies: list[dict[str, Any]]) -> dict[str, Any]:
+        return await self._runner._run_pipeline(db, strategies=strategies)
 
     async def generate_hit_rate_report(
-        self, db: Any, strategy: dict[str, Any]
+        self, db: Any, strategies: list[dict[str, Any]],
+        verifications: dict[str, dict[str, Any]], pipeline_result: dict[str, Any],
+        *, trade_prediction_result: dict[str, Any], report_date: Any = None, persist: bool = True,
     ) -> dict[str, Any]:
-        """Generate hit rate report."""
         if self._reporter is None:
-            return {"hit_rate": 0.0}
-        return await self._reporter.generate_report(db, strategy)
+            raise RuntimeError("incubation_reporter_unavailable")
+        return await self._reporter.generate(
+            db, strategies, verifications, pipeline_result,
+            trade_prediction_result=trade_prediction_result, report_date=report_date, persist=persist,
+        )
 
-    async def write_feedback(
-        self,
-        db: Any,
-        strategy: dict[str, Any],
-        verification: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Write feedback."""
+    async def write_feedback(self, db: Any, report: dict[str, Any]) -> dict[str, Any]:
         if self._feedback_writer is None:
-            return {"feedback_written": 0}
-        return await self._feedback_writer.write(db, strategy, verification)
+            raise RuntimeError("incubation_feedback_writer_unavailable")
+        return await self._feedback_writer.write(db, report)
 
     async def settle_strategy_orders(
         self,
@@ -195,23 +206,13 @@ class IncubationFactoryRunnerAdapter:
             db, signal_date=signal_date
         )
 
-    async def run_accelerator(self, db: Any) -> dict[str, Any]:
-        """Run accelerator."""
+    async def run_accelerator(
+        self, db: Any, strategies: list[dict[str, Any]],
+        verifications: dict[str, dict[str, Any]],
+    ) -> dict[str, Any]:
         if self._accelerator is None:
-            return {"accelerated_count": 0, "promoted_count": 0}
-        accelerator = self._accelerator
-        # evaluate_batch requires strategies/verifications from a full pipeline;
-        # when called from lightweight runtime.once, return a structured skip.
-        if hasattr(accelerator, "evaluate_batch"):
-            return {
-                "accelerated_count": 0,
-                "promoted_count": 0,
-                "status": "skipped",
-                "reason": "evaluate_batch_requires_strategies_and_verifications",
-            }
-        if hasattr(accelerator, "run"):
-            return await accelerator.run(db)
-        return {"accelerated_count": 0, "promoted_count": 0, "error": "accelerator_method_missing"}
+            raise RuntimeError("incubation_accelerator_unavailable")
+        return await self._accelerator.evaluate_batch(db, strategies, verifications)
 
     async def monitor_alerts(self, db: Any) -> dict[str, Any]:
         """Monitor alerts."""

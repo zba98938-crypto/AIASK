@@ -162,6 +162,18 @@ class SubmissionAdmissionAuthority:
             fallback_conditions = ["manual_review_if_contract_changes"]
             next_step = "existing_status_preserved"
             completed = True
+        elif pre_observe_hard_reject_reasons:
+            # Structural invalidity is not an advisory quality verdict. Check it
+            # before every new-intake lane, even when policy sets passed=True.
+            # Refresh deliberately retains the existing status above.
+            action_type = "research_only"
+            submission_lane = "rejected"
+            final_status = "rejected"
+            trigger = "pre_observe_hard_reject"
+            gaps = list(dict.fromkeys([*admission_block_reasons, *pre_observe_hard_reject_reasons]))
+            fallback_conditions = ["repair_structural_contract_and_replay_submission"]
+            next_step = "research"
+            completed = True
         elif gate_a_decision == "revise" and not bool(normalized_gate.get("passed")):
             action_type = "research_only"
             submission_lane = "deferred_submission"
@@ -222,35 +234,10 @@ class SubmissionAdmissionAuthority:
             next_step = "runtime_review"
             completed = False
         elif not bool(normalized_gate.get("passed")):
-            # Formerly the main `quality_gate_failed` → rejected path.
-            #
-            # A-class promotion gates were removed, so a quality verdict no
-            # longer rejects. Two things are still not the quality gate, and are
-            # deliberately kept apart from it:
-            #
-            #  * a structurally invalid candidate (semantic hard fail, invalid
-            #    trade-prediction contract) is not a promotion question — it
-            #    cannot execute, so it still terminates here. This takes
-            #    precedence over the formal-track deferral below, because an
-            #    unexecutable candidate cannot be admitted to any lane;
-            #  * an operator's explicit request for the formal (real-capital)
-            #    track must not be silently reinterpreted as a zero-capital
-            #    observe admission — it stays deferred, with its blockers
-            #    recorded.
-            if pre_observe_hard_reject_reasons:
-                action_type = "research_only"
-                submission_lane = "rejected"
-                final_status = "rejected"
-                trigger = "pre_observe_hard_reject"
-                gaps = list(
-                    dict.fromkeys(
-                        [*admission_block_reasons, *pre_observe_hard_reject_reasons]
-                    )
-                )
-                fallback_conditions = ["repair_structural_contract_and_replay_submission"]
-                next_step = "research"
-                completed = True
-            elif formal_track_requested:
+            # Quality alone never rejects a structurally valid candidate.
+            # An explicit formal-track request still stays deferred rather than
+            # being silently reinterpreted as zero-capital observe admission.
+            if formal_track_requested:
                 action_type = "research_only"
                 submission_lane = "deferred_submission"
                 final_status = "submitted"
@@ -461,6 +448,14 @@ class SubmissionAdmissionAuthority:
     ) -> str:
         if read_only or action_type == "read_only" or submission_lane == "read_only":
             return "read_only"
+        # New-intake structural rejection outranks advisory revise/provisional
+        # flags. Refresh keeps its existing decision/status semantics.
+        if (
+            submission_lane != "refresh_existing"
+            and action_type != "refresh_existing"
+            and (final_status == "rejected" or submission_lane == "rejected")
+        ):
+            return "reject"
         if str(gate.get("gate_a_decision") or "").strip().lower() == "revise" and not bool(gate.get("passed")):
             return "revise"
         if submission_lane == "diagnostic_observation" or action_type == "diagnostic":
@@ -472,8 +467,8 @@ class SubmissionAdmissionAuthority:
         if submission_lane == "observe_incubation":
             return "observe_only"
         # A-class promotion gates were removed, so a quality verdict can no
-        # longer turn an admission into a rejection; only an explicit rejected
-        # lane (which resolve() no longer produces) can.
+        # longer turn an admission into a rejection. This fallback preserves
+        # the legacy refresh verdict when the existing status is rejected.
         if final_status == "rejected" or submission_lane == "rejected":
             return "reject"
         if submission_lane in {"formal_incubation", "live_ready_review", "refresh_existing"}:

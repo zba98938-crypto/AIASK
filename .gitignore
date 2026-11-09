@@ -50,3 +50,9 @@ tmp/
 .aiask-local/
 scripts_local_bootstrap/
 .learnings/
+
+# Generated continuous-quality runtime reports, evidence snapshots and archives.
+docs/strategy-factory-quality/continuous-*/evidence/
+docs/strategy-factory-quality/continuous-*/runs/
+docs/strategy-factory-quality/continuous-*/*.json
+docs/strategy-factory-quality/continuous-*/*.jsonl

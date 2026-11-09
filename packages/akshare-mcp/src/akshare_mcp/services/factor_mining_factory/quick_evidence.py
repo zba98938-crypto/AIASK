@@ -5,6 +5,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from .._factor_search_budget import search_checkpoint
+
 from .quality import (
     QUALITY_PROFILE_ACTIVE,
     evaluate_validation_evidence,
@@ -65,6 +67,7 @@ class QuickEvidenceEvaluator:
     async def evaluate(self, candidate: Any) -> dict[str, Any]:
         """Return structured quick evidence and attach it to the candidate."""
 
+        search_checkpoint()
         expression = str(getattr(candidate, "expression_dsl", "") or "").strip()
         cache_key = expression or str(getattr(candidate, "name", "") or "")
         if cache_key in self._cache:
@@ -107,6 +110,7 @@ class QuickEvidenceEvaluator:
                 factor_key=getattr(candidate, "name", None),
                 persist_ic_history=False,
             )
+            search_checkpoint()
             evidence = self._from_validation_result(result)
         except Exception as exc:
             logger.debug(
@@ -154,15 +158,15 @@ class QuickEvidenceEvaluator:
             "stage": "quick",
             "passed": bool(evidence.get("passed")),
             "fail_reasons": list(evidence.get("reasons") or []),
-            "rank_ic_mean": safe_float(
+            "rank_ic_mean": None if metrics.get("available") is False else safe_float(
                 evidence_summary.get("rank_ic_mean"),
                 safe_float(metrics.get("rank_ic_mean"), safe_float(summary.get("rank_ic_mean"))),
             ),
-            "rank_ic_ir": safe_float(
+            "rank_ic_ir": None if metrics.get("available") is False else safe_float(
                 evidence_summary.get("rank_ic_ir"),
                 safe_float(metrics.get("rank_ic_ir"), safe_float(summary.get("rank_ic_ir"))),
             ),
-            "positive_ratio": safe_float(
+            "positive_ratio": None if metrics.get("available") is False else safe_float(
                 evidence_summary.get("positive_ratio"),
                 safe_float(metrics.get("positive_ratio"), safe_float(summary.get("positive_ratio"))),
             ),
@@ -202,9 +206,9 @@ class QuickEvidenceEvaluator:
             "stage": "quick",
             "passed": False,
             "fail_reasons": [reason],
-            "rank_ic_mean": 0.0,
-            "rank_ic_ir": 0.0,
-            "positive_ratio": 0.0,
+            "rank_ic_mean": None,
+            "rank_ic_ir": None,
+            "positive_ratio": None,
             "sample_dates": 0,
             "avg_cross_section_n": 0.0,
             "eligible_code_count": int(extra.pop("eligible_code_count", 0) or 0),

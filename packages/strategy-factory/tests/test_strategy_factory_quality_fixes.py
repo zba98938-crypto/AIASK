@@ -89,6 +89,7 @@ def test_incubation_admission_requires_configured_s_grade(monkeypatch):
         "sharpe_ratio": 1.1,
         "total_return": 0.24,
         "target_layer_oos_return": 0.18,
+        "oos_validation": {"status": "measured", "source": "frozen_candidate_holdout_replay", "sealed": True, "excluded_from_selection": True},
         "max_drawdown": 0.08,
         "trade_count": 24,
         "trades_count": 24,
@@ -120,16 +121,7 @@ def test_incubation_admission_requires_configured_s_grade(monkeypatch):
 
 
 def test_statistical_admission_distinguishes_missing_from_zero():
-    """P1 update (R5.1, audit P1-prep): explicit 0.0 is now classified
-    as ``missing`` rather than ``weak``. The audit observed that
-    ``factor_validation_bootstrap`` writes 0.0 as a placeholder when an
-    empty walk-forward / bootstrap run happens, so 0.0 should not be
-    treated as "weak signal" — it's "no signal at all".
-
-    The old assertion (``walk_forward_ic_ir 0.000 < ...``) is preserved
-    here as a regression guard, but flipped: we now assert it is *not*
-    emitted, and instead the per-metric ``missing_<m>`` codes are.
-    """
+    """A finite zero and an absent observation have different semantics."""
     from strategy_factory.application.submission_gate import runner
 
     missing = runner._evaluate_statistical_admission(
@@ -153,17 +145,11 @@ def test_statistical_admission_distinguishes_missing_from_zero():
         },
     )
 
-    # Post-P1: explicit 0.0 -> missing (placeholder semantics).
-    assert any(reason.startswith("missing_statistical_metrics") for reason in explicit_zero["reasons"])
-    # And the per-metric structured codes appear:
-    for m in ("wf_ic_ir", "pkf_ic", "bootstrap_ci_lower", "param_sensitivity"):
-        assert f"missing_{m}" in explicit_zero["reasons"]
-    # Threshold-comparison messages should NOT appear, because the value is
-    # now classified as missing not present-real.
-    assert not any(reason.startswith("walk_forward_ic_ir 0.000")
-                   for reason in explicit_zero["reasons"])
-    assert not any(reason.startswith("purged_kfold_ic 0.000")
-                   for reason in explicit_zero["reasons"])
+    assert not explicit_zero["missing_statistical_metrics"]
+    assert "weak_wf_ic_ir" in explicit_zero["reasons"]
+    assert "weak_pkf_ic" in explicit_zero["reasons"]
+    assert "missing_param_sensitivity" not in explicit_zero["reasons"]
+    assert "weak_param_sensitivity" not in explicit_zero["reasons"]
 
 
 def test_statistical_gate_uses_validation_and_backtest_metrics():
@@ -300,7 +286,8 @@ def test_factor_pool_broad_validation_expands_narrow_diagnostic_targets():
     assert any(code in evaluated_codes for code in representative_codes)
 
 
-def test_factor_pool_validation_summary_becomes_gate3_statistical_report():
+def test_factor_pool_validation_summary_is_advisory_not_strategy_evidence():
+    """Factor-level IC must not replace the strategy's own OOS validation."""
     from strategy_factory.application._submitter_actions.runner import (
         _StrategySubmitterActionsMixin,
     )
@@ -347,21 +334,53 @@ def test_factor_pool_validation_summary_becomes_gate3_statistical_report():
         },
     }
 
+    own = {
+        "factor_name": "strategy:momentum",
+        "walk_forward": {"measurable": True, "oos_rank_ic_mean": 0.0, "oos_rank_ic_ir": 0.0},
+        "purged_kfold": {"measurable": True, "oos_rank_ic_mean": 0.0},
+        "bootstrap_ci": {"ci_lower": -0.01, "ci_upper": 0.01},
+    }
     report = _StrategySubmitterActionsMixin._factor_pool_validation_report_from_params(
         params,
         {"strategy_type": "momentum", "factor_pool_metadata": {"factor_name": "gp_factor_5"}},
-        {"factor_name": "strategy:momentum"},
+        own,
     )
 
-    assert report["validation_report_source"] == "active_factor_pool_validation_summary"
-    assert report["factor_name"] == "gp_factor_5"
-    assert report["walk_forward"]["oos_rank_ic_ir"] == 1.460668
-    assert report["purged_kfold"]["oos_rank_ic_mean"] == 0.206818
-    assert report["bootstrap_ci"]["ci_lower"] > 0.0
-    assert report["statistical_metrics"]["param_sensitivity"]["value"] == 0.07
-    assert report["statistical_metrics"]["period_robustness"]["value"]["second_half_ic"] == 0.196818
-    assert report["multiple_testing"]["deflated_sharpe"]["dsr"] == 1.0
-    assert report["active_factor_pool_validation"]["ic_history_rows"] == 73
+    # The strategy's own measurements survive untouched.
+    assert report["walk_forward"] == own["walk_forward"]
+    assert report["purged_kfold"] == own["purged_kfold"]
+    assert report["bootstrap_ci"] == own["bootstrap_ci"]
+    assert "statistical_metrics" not in report
+    assert "validation_report_source" not in report
+    # Factor evidence is attached for audit only.
+    evidence = report["factor_pool_evidence"]
+    assert evidence["scope"] == "factor_level_not_strategy_level"
+    assert evidence["binding"] == "advisory"
+    assert evidence["factor_name"] == "gp_factor_5"
+    assert evidence["rank_ic_ir"] == 1.460668
+    assert evidence["ic_history_rows"] == 73
+
+
+def test_factor_pool_summary_does_not_fabricate_missing_strategy_validation():
+    from strategy_factory.application._submitter_actions.runner import (
+        _StrategySubmitterActionsMixin,
+    )
+
+    report = _StrategySubmitterActionsMixin._factor_pool_validation_report_from_params(
+        {
+            "factor_pool_validation_summary": {
+                "quality_status": "promoted",
+                "metrics": {"sample_dates": 60, "rank_ic_mean": 0.2, "rank_ic_std": 0.1, "rank_ic_ir": 1.0},
+                "rating": {"recommendation": "promote"},
+            }
+        },
+        {"strategy_type": "momentum"},
+        None,
+    )
+
+    # Strategy validation failed -> stays missing (hard-fails at incubation),
+    # instead of being filled in from factor-level IC.
+    assert report is None
 
 
 def test_factor_pool_validation_summary_does_not_override_qc_blocked_summary():

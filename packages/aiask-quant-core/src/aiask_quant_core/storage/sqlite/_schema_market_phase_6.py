@@ -1,4 +1,5 @@
 from ._schema_market_common import _run_market_migration_once, logger
+from .schema_base import ensure_schema_object
 
 
 async def init_market_tables_phase_6(conn) -> None:
@@ -91,12 +92,8 @@ async def init_market_tables_phase_6(conn) -> None:
         DROP CONSTRAINT IF EXISTS strategy_signal_evidence_signal_id_evidence_id_key;
         """
     )
-    await conn.execute(
-        """
-        DROP INDEX IF EXISTS ux_strategy_signal_evidence_signal_evidence_claim;
-        """
-    )
-    await conn.execute(
+    await ensure_schema_object(
+        conn, "INDEX", "ux_strategy_signal_evidence_signal_evidence_claim",
         """
         CREATE UNIQUE INDEX IF NOT EXISTS ux_strategy_signal_evidence_signal_evidence_claim
             ON strategy_signal_evidence(

@@ -8,6 +8,26 @@ import json
 import pytest
 
 
+@pytest.mark.asyncio
+async def test_preloaded_duplicate_input_remains_explicitly_unmeasurable():
+    from strategy_factory.application.backtest_filter import BacktestFilter
+
+    class AmbiguousDb:
+        async def get_klines(self, code, limit):
+            raise ValueError(f"duplicate_trade_dates:{code}:20260601")
+
+    class MustNotExecute:
+        def run_backtest(self, *args):
+            raise AssertionError("ambiguous history reached the engine")
+
+    bf = BacktestFilter()
+    await bf.preload_klines(AmbiguousDb(), ["600519"])
+    result = await bf._test_one({"strategy_type": "ma_cross", "params": {}, "target_symbols": ["600519"]}, AmbiguousDb(), MustNotExecute())
+    assert result["passed"] is False
+    assert result["skipped_codes"][0]["reason"] == "duplicate_trade_dates:600519:20260601"
+    assert result["successful_code_count"] == 0
+
+
 def test_backtest_filter_import():
     from strategy_factory.application.backtest_filter import BacktestFilter
 

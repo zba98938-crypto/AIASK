@@ -6,6 +6,7 @@ import math
 from collections import Counter
 from typing import Any, Mapping, Sequence
 import logging
+from ..domain.targets import _is_index_reference_code
 
 logger = logging.getLogger(__name__)
 
@@ -295,6 +296,8 @@ def select_full_market_topn_constituents(
         key=_score_sort_key,
     ):
         row = dict(raw or {})
+        if _is_index_reference_code(row.get("code")):
+            continue
         if not bool(row.get("eligible", True)):
             continue
         industry = _string(row.get("industry")).lower() or "__unknown__"
@@ -378,6 +381,11 @@ def build_full_market_topn_payload(
     dominant_component = _dominant_component(constituents)
     score_contract = _string(score_contract_version) or FULL_MARKET_TOPN_CONTRACT_VERSION
     metadata = {
+        "excluded_target_codes": [_string(row.get("code")) for row in normalized_rows
+                                  if _is_index_reference_code(row.get("code"))],
+        "target_exclusion_reason": "non_tradable_index_target" if any(
+            _is_index_reference_code(row.get("code")) for row in normalized_rows
+        ) else None,
         "score_contract_version": score_contract,
         "score_quality": score_quality,
         "active_factors": normalized_active_factors,

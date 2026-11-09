@@ -15,6 +15,18 @@ class _HitrateSupport:
     async def get_db(self):
         return object()
 
+    async def get_read_only_db(self):
+        return object()
+
+    async def run_pipeline(self, _db, _strategies):
+        return {}
+
+    async def generate_hit_rate_report(self, *_args, **_kwargs):
+        return {}
+
+    async def write_feedback(self, _db, _report):
+        return {}
+
     async def scan_and_accept_strategies(self, _db):
         return {"accepted_count": 0}
 
@@ -67,7 +79,7 @@ class _HitrateSupport:
         self.calls.append(("gate", signal_date))
         return {"status": "ok", "signal_date": signal_date.isoformat()}
 
-    async def run_accelerator(self, _db):
+    async def run_accelerator(self, _db, _strategies, _verifications):
         return {}
 
     async def monitor_alerts(self, _db):
@@ -118,7 +130,8 @@ async def test_hitrate_hooks_are_disabled_and_dry_run_is_write_free(monkeypatch)
 
     support = _HitrateSupport()
     result = await IncubationOrchestrator(support).run_cycle(trigger="test", dry_run=True)
-    assert support.signal_calls == 1
+    assert support.signal_calls == 0
+    assert support.calls == []
     assert not [item for item in support.calls if item[0] in {"writer", "horizon", "calibration", "gate"}]
     assert result["daily_predictions"]["enabled"] is False
     assert result["horizon_scoring"]["status"] == "disabled"

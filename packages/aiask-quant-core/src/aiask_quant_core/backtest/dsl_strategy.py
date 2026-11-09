@@ -34,6 +34,7 @@ class DslRuleStrategy(IStrategy):
         })
         self.risk_rules = dict(risk_rules or {})
         self.runtime_playbook = dict(runtime_playbook or {})
+        self._signal_start_index = 0
 
     @classmethod
     def name(cls) -> str:
@@ -55,6 +56,7 @@ class DslRuleStrategy(IStrategy):
         self.dsl = normalize_strategy_dsl(payload.get("dsl") or self.dsl)
         self.risk_rules = dict(payload.get("risk_rules") or self.risk_rules or {})
         self.runtime_playbook = dict(payload.get("runtime_playbook") or self.runtime_playbook or {})
+        self._signal_start_index = max(0, int(payload.get("trade_start_index") or 0))
 
     def _exit_policy(self) -> Dict[str, Any]:
         runtime = dict(self.runtime_playbook or {})
@@ -143,7 +145,10 @@ class DslRuleStrategy(IStrategy):
         state = _PositionState()
         reduced_thresholds: set[tuple[int, float]] = set()
 
-        for idx in range(len(closes)):
+        # Indicators use the full warmup frame, while position/cooldown state
+        # starts flat at the first eligible signal. Otherwise a warmup entry
+        # suppresses the holdout's entry even though the fill engine is cash.
+        for idx in range(self._signal_start_index, len(closes)):
             if state.cooldown_left > 0 and not state.in_position:
                 state.cooldown_left -= 1
             price = float(closes[idx] or 0.0)

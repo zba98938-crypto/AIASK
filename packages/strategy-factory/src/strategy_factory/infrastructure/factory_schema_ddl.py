@@ -25,6 +25,7 @@ inventory, not by file boundaries.
 from __future__ import annotations
 
 import logging
+from aiask_quant_core.storage.sqlite.schema_base import ensure_schema_object
 
 logger = logging.getLogger(__name__)
 
@@ -153,6 +154,14 @@ async def init_strategy_tables(conn, sqlite_python_enabled: bool = False) -> Non
         ALTER TABLE strategy_signals
         ADD COLUMN IF NOT EXISTS signal_metadata TEXT DEFAULT '{}';
     """)
+    # Market phase 7 precedes this schema owner on a new database. Create the
+    # indexes here as well so the first bootstrap finishes the fresh schema.
+    await conn.execute("""
+        CREATE INDEX IF NOT EXISTS idx_strategy_signals_semantic_mode
+            ON strategy_signals(execution_semantic_mode, signal_date DESC);
+        CREATE INDEX IF NOT EXISTS idx_strategy_signals_action_source
+            ON strategy_signals(action_source, signal_date DESC);
+    """)
     await conn.execute("""
         CREATE TABLE IF NOT EXISTS strategy_signal_event_snapshots (
             id INTEGER PRIMARY KEY,
@@ -183,8 +192,7 @@ async def init_strategy_tables(conn, sqlite_python_enabled: bool = False) -> Non
         CREATE INDEX IF NOT EXISTS idx_strategy_signal_event_snapshots_strategy
             ON strategy_signal_event_snapshots(strategy_id, as_of_date DESC, updated_at DESC);
     """)
-    await conn.execute("""
-        DROP VIEW IF EXISTS strategy_signal_event_snapshots_latest;
+    await ensure_schema_object(conn, "VIEW", "strategy_signal_event_snapshots_latest", """
         CREATE VIEW IF NOT EXISTS strategy_signal_event_snapshots_latest AS
         SELECT
             id,

@@ -83,3 +83,20 @@ def test_legacy_policy_remains_explicitly_close_based():
     # Legacy behavior is close-based and therefore materially differs from
     # the certified next-session-open policy.
     assert float(fills[0]["price"]) < 11.01
+
+
+def test_daily_equity_applies_each_fill_only_on_its_execution_session():
+    rows = _bars()
+    result = _simulate("next_open", rows)
+    cash, shares = 10_000.0, 0
+    expected = []
+    for index, row in enumerate(rows):
+        for fill in result["fills"]:
+            if fill["index"] != index or not fill.get("filled_shares"):
+                continue
+            quantity = fill["filled_shares"]
+            cash -= fill["signal"] * quantity * fill["price"]
+            shares += fill["signal"] * quantity
+        expected.append(cash + shares * row["close"])
+    assert expected[0] == 10_000.0  # Signal exists; tomorrow's fill has not happened.
+    np.testing.assert_allclose(result["equity"], expected)

@@ -128,6 +128,7 @@ class FactorMiningOrchestrator:
                 validated,
                 admitted,
                 context,
+                quick_passed=quick_passed,
             )
 
             # Phase 6: Reappraise quarantine factors
@@ -234,42 +235,15 @@ class FactorMiningOrchestrator:
         validated: list[Any],
         admitted: list[Any],
         context: Any,
+        *,
+        quick_passed: list[Any] | None = None,
     ) -> dict[str, Any]:
         """Build quality summary aggregating metrics across phases.
 
         This is owned by the orchestrator, not the provider.
         """
-        # Calculate rejection counts
-        rejected_after_evolution = len(raw_candidates) - len(evolved)
-        rejected_after_quick = len(evolved) - len(validated)
-        rejected_after_validation = len(validated) - len(admitted)
+        from .quality_summary import build_quality_summary
 
-        # Extract metadata from candidates
-        quarantine_count = sum(
-            1
-            for factor in validated
-            if getattr(factor, "status", None) == "quarantine"
-        )
-        active_promoted_count = sum(
-            1
-            for factor in admitted
-            if getattr(factor, "status", None) == "active"
-        )
-
-        return {
-            "quality_funnel": {
-                "raw": len(raw_candidates),
-                "evolved": len(evolved),
-                "quick_passed": len(validated),
-                "validated": len(validated),
-                "admitted": len(admitted),
-                "promoted": active_promoted_count,
-            },
-            "rejection_counts": {
-                "evolution": rejected_after_evolution,
-                "quick_evidence": rejected_after_quick,
-                "validation": rejected_after_validation,
-            },
-            "quarantine_count": quarantine_count,
-            "active_promoted_count": active_promoted_count,
-        }
+        if quick_passed is None:
+            quick_passed = [candidate for candidate in evolved if (getattr(candidate, "quick_evidence", None) or {}).get("passed")]
+        return build_quality_summary(raw_candidates, evolved, quick_passed, validated, admitted, context)

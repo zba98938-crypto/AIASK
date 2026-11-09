@@ -158,6 +158,7 @@ _CORE_BACKTEST_METRIC_FIELDS = (
     "post_cost_sharpe",
     "total_return",
     "target_layer_oos_return",
+    "oos_validation",
     "target_layer_abnormal_return",
     "trade_count",
     "trades_count",
@@ -2421,7 +2422,16 @@ def _evaluate_trade_profile(
 
     post_cost_sharpe = _optional_metric_value(metrics, "post_cost_sharpe", "sharpe_ratio")
     total_return = safe_metric_value(metrics, "total_return", "target_layer_oos_return")
-    target_layer_oos_return = safe_metric_value(metrics, "target_layer_oos_return", "total_return")
+    target_layer_oos_return = _optional_metric_value(metrics, "target_layer_oos_return")
+    holdout = dict(metrics.get("oos_validation") or {})
+    if target_layer_oos_return is not None and not (
+        holdout.get("status") == "measured"
+        and holdout.get("source") == "frozen_candidate_holdout_replay"
+        and holdout.get("sealed") is True
+        and holdout.get("excluded_from_selection") is True
+    ):
+        target_layer_oos_return = None
+        reasons.append("unverified_target_layer_oos_return")
     target_layer_abnormal_return = safe_metric_value(metrics, "target_layer_abnormal_return", "target_layer_oos_return", "total_return")
     trade_count = _optional_metric_value(metrics, "trade_count", "trades_count")
     max_drawdown_raw = _optional_metric_value(metrics, "max_drawdown")
@@ -2462,7 +2472,9 @@ def _evaluate_trade_profile(
         reasons.append(f"trade_count {trade_count:.0f} < {thresholds['trade_count_min']:.0f}")
     if total_return < thresholds["total_return_min"]:
         warnings.append(f"total_return {total_return:.3f} < {thresholds['total_return_min']:.3f}")
-    if target_layer_oos_return < thresholds["target_layer_oos_return_min"]:
+    if target_layer_oos_return is None:
+        reasons.append("missing_target_layer_oos_return")
+    elif target_layer_oos_return < thresholds["target_layer_oos_return_min"]:
         target_layer_reason = (
             f"target_layer_oos_return {target_layer_oos_return:.3f} < {thresholds['target_layer_oos_return_min']:.3f}"
         )
@@ -2640,7 +2652,8 @@ def _evaluate_trade_profile(
             "avg_holding_days": round(avg_holding_days, 4),
             "turnover_proxy": round(turnover_proxy, 4),
             "post_cost_sharpe": None if post_cost_sharpe is None else round(post_cost_sharpe, 4),
-            "target_layer_oos_return": round(target_layer_oos_return, 4),
+            "target_layer_oos_return": round(target_layer_oos_return, 4) if target_layer_oos_return is not None else None,
+            "oos_validation": holdout,
             "target_layer_abnormal_return": round(target_layer_abnormal_return, 4),
             "event_window_hit_ratio": None if event_window_hit_ratio is None else round(event_window_hit_ratio, 4),
             "post_event_decay": None if post_event_decay is None else round(post_event_decay, 4),
@@ -2708,20 +2721,10 @@ def _optional_metric_value(payload: Optional[dict], *keys: str) -> float | None:
 
 
 def _classify_gate3_metric_value(value: float | None) -> str:
-    """Classify a Gate-3 statistical metric reading.
+    """Finite zero is a measurement, not a missing-value sentinel.
 
-    Returns one of:
-        - ``missing``: value is None / NaN / inf, or upstream returned a
-          structural 0.0 placeholder (the P1-prep audit observed that
-          ``factor_validation_bootstrap`` writes 0.0 when it can't run a
-          real fold/bootstrap, so 0.0 is *not* "weak signal" — it's
-          "no signal at all").
-        - ``present_real``: a finite non-zero value the gate can compare
-          against its threshold.
-
-    Treating placeholder 0.0 as ``missing`` rather than ``weak`` is the
-    explicit fix from R5.1 informed by the P1-prep audit; otherwise Gate-3
-    would penalize candidates for an upstream bootstrap pipeline failure.
+    Unmeasurable producers must use None or an explicit availability record;
+    e.g. zero parameter sensitivity means the measured strategy is stable.
     """
     if value is None:
         return "missing"
@@ -2730,8 +2733,6 @@ def _classify_gate3_metric_value(value: float | None) -> str:
     except Exception:
         return "missing"
     if f != f or not np.isfinite(f):  # NaN / inf
-        return "missing"
-    if abs(f) < 1e-12:
         return "missing"
     return "present_real"
 
@@ -3330,6 +3331,59 @@ def _review_stage_blockers(
     return blockers, context
 
 
+def _target_risk_binding_reasons(strategy: dict, risk_report: Optional[dict], backtest_metrics: Optional[dict] = None) -> list[str]:
+    """New target risk evidence is binding for every admission profile."""
+    risk = dict(risk_report or {})
+    binding = dict(risk.get("target_risk_binding") or {})
+    if not binding:
+        # Historical reports have no target contract. Preserve compatibility;
+        # absence of this new contract must not be described as verified risk.
+        return []
+    reasons = []
+    target_codes = set(_extract_target_codes_from_payload(strategy))
+    if binding.get("status") != "measured":
+        reasons.append(str(binding.get("reason") or "target_risk_binding_unavailable"))
+    if binding.get("scope") != "actual_target_portfolio" or not target_codes or set(binding.get("target_codes") or []) != target_codes or set(binding.get("used_target_codes") or []) != target_codes:
+        reasons.append("target_risk_target_mismatch")
+    if set(dict(binding.get("allocation_weights") or {})) != target_codes:
+        reasons.append("target_risk_allocation_mismatch")
+    outcome = dict(strategy.get("backtest_outcome") or {})
+    metrics = dict(backtest_metrics if backtest_metrics is not None else strategy.get("backtest_metrics") or {})
+    candidate_params = dict(strategy.get("params") or {})
+    expected_hash = strategy.get("tested_object_hash") or candidate_params.get("tested_object_hash") or outcome.get("tested_object_hash")
+    if not expected_hash or binding.get("tested_object_hash") != expected_hash:
+        reasons.append("target_risk_tested_object_mismatch")
+    target_metrics = dict((dict(outcome.get("layers") or {}).get("target") or {}).get("metrics") or {})
+    expected_weights = dict(target_metrics.get("allocation_weights") or metrics.get("allocation_weights") or {})
+    primary = outcome.get("primary_validation_layer") or outcome.get("primary_layer") or metrics.get("primary_validation_layer")
+    if not expected_weights and len(target_codes) == 1 and primary == "target":
+        expected_weights = {next(iter(target_codes)): 1.0}
+    try:
+        actual_weights = dict(binding.get("allocation_weights") or {})
+        if set(expected_weights) != target_codes or any(not math.isfinite(float(actual_weights[code])) or not math.isclose(float(actual_weights[code]), float(expected_weights[code]), rel_tol=1e-9, abs_tol=1e-9) for code in target_codes):
+            reasons.append("target_risk_allocation_mismatch")
+    except (ValueError, TypeError, KeyError):
+        reasons.append("target_risk_allocation_mismatch")
+    assumptions = dict(outcome.get("backtest_assumptions") or metrics.get("backtest_assumptions") or {})
+    actual_execution = dict(binding.get("execution_kwargs") or {})
+    execution_keys = ("initial_capital", "commission_rate", "slippage_bps", "execution_price_policy", "market_ruleset", "sell_tax_rate", "min_trade_lot", "t_plus_one")
+    if any(assumptions.get(key) is None for key in execution_keys) or any(key not in actual_execution or actual_execution[key] != value for key, value in assumptions.items()):
+        reasons.append("target_risk_execution_assumptions_mismatch")
+    try:
+        if float(actual_execution.get("commission")) != float(assumptions["commission_rate"]) or float(actual_execution.get("slippage")) != float(assumptions["slippage_bps"])/10000.0:
+            reasons.append("target_risk_execution_assumptions_mismatch")
+    except (ValueError, TypeError, KeyError):
+        reasons.append("target_risk_execution_assumptions_mismatch")
+    stress = _optional_metric_value(risk, "stress_loss_percent")
+    if stress is None or not risk.get("stress_measurable"):
+        reasons.append("missing_stress_loss_percent")
+    elif stress <= -25.0:
+        reasons.append(f"stress_loss_percent {stress:.2f} <= -25.00")
+    if _optional_metric_value(risk, "var_percent") is None or not risk.get("var_measurable"):
+        reasons.append("missing_var_percent")
+    return list(dict.fromkeys(reasons))
+
+
 def _attach_admission_evaluations(
     strategy: dict,
     profile: dict[str, Any],
@@ -3469,6 +3523,11 @@ def _attach_admission_evaluations(
         )
         stage_reasons = _merge_text_items(stage_result.get("reasons"), review_blockers)
         stage_warnings = list(stage_result.get("warnings") or [])
+        target_risk_reasons = _target_risk_binding_reasons(strategy, risk_report, materialized_backtest_metrics)
+        if admission_level in {"incubation", "live"}:
+            stage_reasons = _merge_text_items(stage_reasons, target_risk_reasons)
+        else:
+            stage_warnings = _merge_text_items(stage_warnings, target_risk_reasons)
         if research_protocol_available:
             if research_protocol_review_decision in {"revise", "reject"}:
                 stage_reasons = _merge_text_items(stage_reasons, research_protocol_blockers)
@@ -3732,6 +3791,10 @@ def _copy_statistical_metric_records(
             continue
         record = source.get(field_name)
         record_payload = dict(record or {}) if isinstance(record, dict) else {}
+        if record_payload and (record_payload.get("available") is False or record_payload.get("measurable") is False or record_payload.get("status") in {"missing", "unavailable", "unmeasurable"}):
+            payload[field_name] = None
+            audit[field_name] = f"{source_name}.{field_name}:unavailable"
+            continue
         value = record_payload.get("value") if record_payload else record
         derived = bool(record_payload.get("derived")) if record_payload else False
         record_source = str(record_payload.get("source") or "").strip()

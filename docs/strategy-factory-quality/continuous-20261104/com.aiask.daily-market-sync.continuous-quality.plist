@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>AIASK_RUNTIME_HOME</key>
+		<string>/Users/mac/.aiask</string>
+		<key>AIASK_SQLITE_PATH</key>
+		<string>/Users/mac/.aiask/data/db/akshare_mcp.sqlite3</string>
+		<key>AKSHARE_QUALITY_PROFILE</key>
+		<string>strict</string>
+		<key>BROKER_ALLOW_WRITE</key>
+		<string>0</string>
+		<key>BROKER_READ_ONLY</key>
+		<string>1</string>
+		<key>LIVE_TRADING_ALLOW_WRITE</key>
+		<string>0</string>
+		<key>LIVE_TRADING_ENABLED</key>
+		<string>0</string>
+		<key>LIVE_TRADING_READ_ONLY</key>
+		<string>1</string>
+		<key>MARKET_EVENT_INGEST_ENABLED</key>
+		<string>1</string>
+		<key>MARKET_EVENT_INGEST_INTERVAL_SEC</key>
+		<string>1800</string>
+		<key>PATH</key>
+		<string>/opt/miniconda3/envs/aiask/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+		<key>STRATEGY_FACTORY_FORWARD_RETURN_PROVIDER_REFRESH_ENABLED</key>
+		<string>0</string>
+	</dict>
+	<key>ExitTimeOut</key>
+	<integer>45</integer>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.aiask.daily-market-sync.continuous-quality</string>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/opt/miniconda3/envs/aiask/bin/python</string>
+		<string>-u</string>
+		<string>/Users/mac/Desktop/张勇/AIASK/scripts/factories/run_daily_market_sync.py</string>
+		<string>--daemon</string>
+		<string>--run-time</string>
+		<string>16:10</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/mac/Desktop/张勇/AIASK/docs/strategy-factory-quality/continuous-20261104/evidence/launchd-deploy-20261109T095003/daily_market_sync.stderr.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/mac/Desktop/张勇/AIASK/docs/strategy-factory-quality/continuous-20261104/evidence/launchd-deploy-20261109T095003/daily_market_sync.stdout.log</string>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>WorkingDirectory</key>
+	<string>/Users/mac/.aiask</string>
+</dict>
+</plist>

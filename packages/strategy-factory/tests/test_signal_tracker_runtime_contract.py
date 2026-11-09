@@ -259,7 +259,7 @@ async def test_signal_tracker_runtime_phase_b_does_not_require_private_forward_a
     assert result["phase_results"]["B"]["status"] == "completed"
     assert result["phase_error_count"] == 0
     assert captured == {
-        "forward_days_list": [1, 5, 10, 20],
+        "forward_days_list": [],  # provider owns configured horizons
         "batch_limit": 2000,
         "max_rounds": 100,
     }

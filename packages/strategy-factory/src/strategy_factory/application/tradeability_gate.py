@@ -14,6 +14,7 @@ import json
 import math
 from datetime import datetime, timedelta, timezone
 from typing import Any, Mapping, Sequence
+from ..domain.targets import _is_index_reference_code
 
 
 TRADEABILITY_PROFILE_VERSION = "strategy_factory.a_share_daily_tradeability.v1"
@@ -226,6 +227,8 @@ def validate_tradeability_profile(profile: Mapping[str, Any] | None) -> dict[str
     universe = _as_mapping(data.get("universe"))
     if not universe.get("symbols"):
         missing.append("target_universe_missing")
+    if any(_is_index_reference_code(code) for code in (universe.get("symbols") or [])):
+        missing.append("non_tradable_index_target")
     for key in ("membership_policy", "point_in_time_source", "delisted_security_coverage"):
         if not _is_present(universe.get(key)):
             missing.append(f"universe_{key}_missing")

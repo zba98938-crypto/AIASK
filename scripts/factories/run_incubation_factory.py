@@ -165,6 +165,9 @@ async def _run_once(args: argparse.Namespace) -> None:
     runtime = _build_runtime(args)
     result = await runtime.run_once()
 
+    from strategy_factory.api.runner_result import write_runner_result
+
+    write_runner_result("incubation", result)
     print("\n" + "=" * 60)
     print("Incubation Factory Result")
     print("=" * 60)
@@ -203,13 +206,14 @@ async def _run_once(args: argparse.Namespace) -> None:
 
 async def _run_daemon(args: argparse.Namespace) -> None:
     runtime = _build_runtime(args)
+    interval = int(getattr(args, "interval", 0) or 0)
     print(
-        f"Incubation Factory daemon started (run_time={args.run_time}, dry_run={args.dry_run})"
+        f"Incubation Factory daemon started (run_time={args.run_time}, interval_sec={interval}, dry_run={args.dry_run})"
     )
     print("Press Ctrl+C to stop")
 
     try:
-        await runtime.run_daemon()
+        await runtime.run_daemon(interval_sec=interval)
     except KeyboardInterrupt:
         print("\nIncubation Factory daemon stopped")
 
@@ -289,6 +293,10 @@ def main() -> int:
         help="daily daemon run time in HH:MM format",
     )
     parser.add_argument(
+        "--interval", type=int, default=0,
+        help="daemon: run immediately, then wait this many seconds after each cycle; 0 keeps daily scheduling",
+    )
+    parser.add_argument(
         "--status",
         action="store_true",
         help="show current incubation status",
@@ -306,6 +314,8 @@ def main() -> int:
     )
 
     args = parser.parse_args()
+    if args.interval < 0:
+        parser.error("--interval must be non-negative")
     ensure_runtime_dirs()
     sqlite_path = default_sqlite_path()
     os.environ.setdefault("AIASK_SQLITE_PATH", str(sqlite_path))

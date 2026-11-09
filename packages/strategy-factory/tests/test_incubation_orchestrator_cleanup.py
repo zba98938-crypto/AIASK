@@ -44,7 +44,16 @@ class _Support:
     async def verify_trade_predictions(self, _db):
         return {}
 
-    async def run_accelerator(self, _db):
+    async def run_accelerator(self, _db, _strategies, _verifications):
+        return {}
+
+    async def run_pipeline(self, _db, _strategies):
+        return {}
+
+    async def generate_hit_rate_report(self, *_args, **_kwargs):
+        return {}
+
+    async def write_feedback(self, _db, _report):
         return {}
 
     async def monitor_alerts(self, _db):
@@ -66,7 +75,7 @@ class _Support:
 @pytest.mark.asyncio
 async def test_orchestrator_runs_both_position_cleanup_phases():
     support = _Support()
-    result = await IncubationOrchestrator(support).run_cycle(trigger="test", dry_run=True)
+    result = await IncubationOrchestrator(support).run_cycle(trigger="test", dry_run=False)
 
     assert support.rejected_cleanup_calls == 1
     assert support.stale_cleanup_calls == [[]]

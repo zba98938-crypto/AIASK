@@ -1,0 +1,17 @@
+{
+  "pytest": {
+    "passed": 3520,
+    "skipped": 22,
+    "warnings": 8,
+    "duration_seconds": 282.36,
+    "command": "/opt/miniconda3/envs/aiask/bin/python -m pytest -q",
+    "hermetic": true
+  },
+  "compileall": {
+    "exit_code": 0,
+    "command": "/opt/miniconda3/envs/aiask/bin/python -m compileall -q packages scripts tools"
+  },
+  "python_files_unchanged_during_final_tests": 72,
+  "production_factories_started": false,
+  "production_business_data_modified": false
+}

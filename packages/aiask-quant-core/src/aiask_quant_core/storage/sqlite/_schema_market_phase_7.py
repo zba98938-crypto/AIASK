@@ -1,4 +1,5 @@
 from ._schema_market_common import _run_market_migration_once, logger
+from .schema_base import ensure_schema_object
 
 
 async def init_market_tables_phase_7(conn) -> None:
@@ -28,9 +29,9 @@ async def init_market_tables_phase_7(conn) -> None:
         """
     )
 
-    await conn.execute(
+    await ensure_schema_object(
+        conn, "VIEW", "strategy_signal_event_snapshots_latest",
         """
-        DROP VIEW IF EXISTS strategy_signal_event_snapshots_latest;
         CREATE VIEW IF NOT EXISTS strategy_signal_event_snapshots_latest AS
         SELECT
             id,

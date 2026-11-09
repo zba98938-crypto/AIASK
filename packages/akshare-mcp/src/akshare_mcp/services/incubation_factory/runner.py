@@ -2627,7 +2627,7 @@ class IncubationFactoryRunner:
             )
         except Exception as exc:
             logger.warning("IncubationFactory: pipeline run failed: %s", exc)
-            return {"count": 0, "auto_promoted": 0, "stage_counts": {}, "items": []}
+            return {"status": "failed", "error": str(exc), "count": 0, "auto_promoted": 0, "stage_counts": {}, "items": []}
 
     async def _heartbeat(self, db: Any, run_id: str) -> None:
         """写入健康检查心跳。"""
@@ -2659,6 +2659,15 @@ class IncubationFactoryRunner:
         from akshare_mcp.storage import get_db
 
         db = get_db()
+        await db.initialize()
+        return db
+
+    async def _get_read_only_db(self) -> Any:
+        """Open an existing store without migrations or maintenance writes."""
+        from akshare_mcp.storage import get_db
+        from aiask_quant_core.storage.sqlite import SQLiteAdapter
+
+        db = SQLiteAdapter(path=get_db().path, read_only=True)
         await db.initialize()
         return db
 

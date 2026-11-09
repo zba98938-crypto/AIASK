@@ -15,6 +15,7 @@ from pathlib import Path
 
 
 ERROR_BACKOFF_SEC = 300
+HEARTBEAT_SECONDS = 60
 
 
 def _configure_stdio_utf8() -> None:
@@ -167,11 +168,14 @@ async def _run_once_inner(verbose: bool = False) -> dict:
         logger.info("SignalTracker: invoking run_once()")
         result = await tracker.run_once()
     except Exception as exc:  # noqa: BLE001 - persist failure before propagating
+        finished_at = datetime.now().astimezone().isoformat(timespec="seconds")
         _write_status({
             "name": "signal_tracker",
             "status": "failed",
             "started_at": started_at,
-            "finished_at": datetime.now().isoformat(timespec="seconds"),
+            "finished_at": finished_at,
+            "last_run_at": finished_at,
+            "last_run_status": "failed",
             "pid": os.getpid(),
             "error": f"{type(exc).__name__}: {exc}",
         })
@@ -199,11 +203,15 @@ async def _run_once_inner(verbose: bool = False) -> dict:
         "started_at": started_at,
         "finished_at": datetime.now().isoformat(timespec="seconds"),
         "last_run_at": datetime.now().isoformat(timespec="seconds"),
+        "last_run_status": "completed" if not errors else "degraded",
         "pid": os.getpid(),
         "summary": {
             "signals_generated": result.get("signals_generated"),
             "signal_event_snapshots": result.get("signal_event_snapshots"),
             "forward_returns_computed": result.get("forward_returns_computed"),
+            "forward_returns_computed_reason": result.get("forward_returns_computed_reason"),
+            "transitions": result.get("transitions"),
+            "transitions_reason": result.get("transitions_reason"),
             "incubation_orders": result.get("incubation_orders"),
             "incubation_metrics": result.get("incubation_metrics"),
             "risk_events": result.get("risk_events"),
@@ -222,62 +230,102 @@ async def _run_once(args: argparse.Namespace) -> None:
 async def _run_daemon(args: argparse.Namespace) -> None:
     logger = logging.getLogger("signal_tracker_runner")
     hh, mm = _parse_run_time(args.run_time)
+    interval_seconds = int(getattr(args, "interval", 0) or 0)
+    if interval_seconds < 0:
+        raise ValueError("--interval must be non-negative")
     logger.info(
-        "SignalTracker daemon started (run_time=%02d:%02d, retry_backoff=%ds)",
+        "SignalTracker daemon started (run_time=%02d:%02d, interval=%ds, retry_backoff=%ds)",
         hh,
         mm,
+        interval_seconds,
         ERROR_BACKOFF_SEC,
     )
-    _write_status({
+    daemon_status = {
         "name": "signal_tracker",
         "status": "running",
         "pid": os.getpid(),
-        "heartbeat_period_seconds": 60,
-        "started_at": datetime.now().isoformat(timespec="seconds"),
+        "heartbeat_period_seconds": HEARTBEAT_SECONDS,
+        "daemon_started_at": datetime.now().astimezone().isoformat(timespec="seconds"),
         "run_time": f"{hh:02d}:{mm:02d}",
+        "interval_seconds": interval_seconds,
+    }
+    _write_status({
+        **daemon_status, "phase": "starting",
+        "started_at": daemon_status["daemon_started_at"],
+        "updated_at": daemon_status["daemon_started_at"],
     })
+
+    def publish(phase: str, **extra) -> None:
+        # A completed run writes its own result. Heartbeats must retain that
+        # evidence while describing the daemon's current activity separately.
+        try:
+            previous = json.loads(_status_path().read_text(encoding="utf-8"))
+            if not isinstance(previous, dict):
+                previous = {}
+        except (OSError, ValueError):
+            previous = {}
+        _write_status({
+            **previous, **daemon_status,
+            "phase": phase,
+            "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+            **extra,
+        })
+
+    async def wait_with_heartbeat(seconds: float, *, phase: str) -> None:
+        while seconds > 0:
+            publish(phase)
+            duration = min(float(HEARTBEAT_SECONDS), seconds)
+            await asyncio.sleep(duration)
+            seconds -= duration
+
+    async def run_with_heartbeat() -> dict:
+        publish("executing")
+        task = asyncio.create_task(_run_once_inner(verbose=args.verbose))
+        try:
+            while True:
+                done, _ = await asyncio.wait({task}, timeout=HEARTBEAT_SECONDS)
+                if done:
+                    return await task
+                publish("executing")
+        finally:
+            if not task.done():
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
+
+    cycles = 0
     try:
         while True:
-            now = datetime.now()
-            target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-            if now >= target:
-                target += timedelta(days=1)
-            wait_seconds = (target - now).total_seconds()
+            if interval_seconds:
+                wait_seconds = interval_seconds if cycles else 0
+            else:
+                now = datetime.now()
+                target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+                if now >= target:
+                    target += timedelta(days=1)
+                wait_seconds = (target - now).total_seconds()
             logger.info(
-                "SignalTracker: next run at %s (waiting %.0fs)",
-                target.strftime("%Y-%m-%d %H:%M"),
+                "SignalTracker: waiting %.0fs before next cycle",
                 wait_seconds,
             )
-            while wait_seconds > 0:
-                _write_status({
-                    "name": "signal_tracker",
-                    "status": "running",
-                    "pid": os.getpid(),
-                    "heartbeat_period_seconds": 60,
-                    "updated_at": datetime.now().astimezone().isoformat(timespec="seconds"),
-                    "run_time": f"{hh:02d}:{mm:02d}",
-                })
-                interval = min(60.0, wait_seconds)
-                await asyncio.sleep(interval)
-                wait_seconds -= interval
+            await wait_with_heartbeat(wait_seconds, phase="waiting")
+            cycles += 1
             try:
-                await _run_once_inner(verbose=args.verbose)
+                await run_with_heartbeat()
             except Exception as exc:
                 logger.exception("SignalTracker: run_once failed: %s", exc)
                 logger.warning("SignalTracker: retrying in %ds", ERROR_BACKOFF_SEC)
-                await asyncio.sleep(ERROR_BACKOFF_SEC)
+                await wait_with_heartbeat(ERROR_BACKOFF_SEC, phase="retry_backoff")
                 try:
-                    await _run_once_inner(verbose=args.verbose)
+                    await run_with_heartbeat()
                 except Exception as exc2:
                     logger.exception("SignalTracker: retry also failed: %s", exc2)
     except KeyboardInterrupt:
-        _write_status({
-            "name": "signal_tracker",
-            "status": "stopped",
-            "pid": os.getpid(),
-            "stopped_at": datetime.now().isoformat(timespec="seconds"),
-        })
         print("\nSignalTracker daemon stopped")
+    finally:
+        publish(
+            "stopped", status="stopped",
+            stopped_at=datetime.now().astimezone().isoformat(timespec="seconds"),
+        )
 
 
 def main() -> int:
@@ -305,8 +353,16 @@ def main() -> int:
         action="store_true",
         help="enable verbose logging",
     )
+    parser.add_argument(
+        "--interval", type=int, default=0,
+        help="Daemon completion interval seconds; positive runs immediately, 0 keeps daily scheduling",
+    )
 
     args = parser.parse_args()
+    if args.interval < 0:
+        parser.error("--interval must be non-negative")
+    if args.once and args.interval:
+        parser.error("--interval is only available in daemon mode")
     _configure_stdio_utf8()
     _setup_logging(args.verbose)
     global BOOTSTRAP_REPORT

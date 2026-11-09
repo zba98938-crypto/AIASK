@@ -1,5 +1,12 @@
 # Data sources
 
+Latest measured state (2026-11-04): daily bars reach 2026-11-03 (5,574 codes;
+completeness still partial). Stored real-time quotes remain at 2026-10-18 and
+fund-flow completeness at 2026-10-16. See the
+[current capability review](reviews/项目能力与四工厂审查-当前结论-2026-11-04.md)
+and [read-only SQL evidence](strategy-factory-quality/continuous-20261104/evidence/current-capability-data.json).
+The 2026-10-29 section below is retained as a historical measurement.
+
 ## Runtime and paper-evidence state (measured 2026-10-29)
 
 The authoritative database is not currently a complete market-data baseline.

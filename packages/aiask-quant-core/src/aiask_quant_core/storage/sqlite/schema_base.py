@@ -424,6 +424,29 @@ class _SQLiteTransaction:
             self._connection._rollback()
 
 
+def _schema_sql_tokens(sql: str) -> tuple[str, ...]:
+    """Ignore formatting/optional IF NOT EXISTS, preserving quoted values."""
+    tokens = re.findall(r"'(?:''|[^'])*'|\"(?:\"\"|[^\"])*\"|`(?:``|[^`])*`|\[[^\]]*\]|--[^\n]*|/\*[\s\S]*?\*/|[A-Za-z_][A-Za-z_0-9]*|\d+(?:\.\d+)?|[^\s]", sql)
+    tokens = [token if token[0] in "'\"`[" else token.casefold() for token in tokens if not token.startswith(("--", "/*"))]
+    # SQLite removes this optional clause from sqlite_master.sql.
+    for index in (2, 3):
+        if tokens[index:index + 3] == ["if", "not", "exists"]:
+            del tokens[index:index + 3]
+            break
+    if tokens and tokens[-1] == ";":
+        tokens.pop()
+    return tuple(tokens)
+
+
+async def ensure_schema_object(conn, kind: str, name: str, create_sql: str) -> None:
+    """Replace changed views/indexes, without invalidating unchanged schemas."""
+    if isinstance(conn, SQLiteConnection):
+        await conn.ensure_schema_object(kind, name, create_sql)
+    else:
+        # Retain the previous bootstrap contract for other compatible drivers.
+        await conn.execute(f"DROP {kind} IF EXISTS {name};\n{create_sql}")
+
+
 class SQLiteConnection:
     """Small async wrapper around one sqlite3 connection."""
 
@@ -434,6 +457,34 @@ class SQLiteConnection:
 
     def transaction(self) -> _SQLiteTransaction:
         return _SQLiteTransaction(self)
+
+    async def ensure_schema_object(self, kind: str, name: str, create_sql: str) -> None:
+        kind = kind.upper()
+        if kind not in {"VIEW", "INDEX"} or not re.fullmatch(r"[A-Za-z_][A-Za-z_0-9]*", name):
+            raise ValueError("invalid_schema_object_identity")
+        with self._lock:
+            own_transaction = self._transaction_depth == 0
+            if own_transaction:
+                self._conn.execute("BEGIN IMMEDIATE")
+            else:
+                self._conn.execute("SAVEPOINT aiask_schema_object")
+            try:
+                row = self._conn.execute("SELECT sql FROM sqlite_master WHERE type=? AND name=?", (kind.lower(), name)).fetchone()
+                current = row[0] if row is not None else None
+                if current is None or _schema_sql_tokens(current) != _schema_sql_tokens(create_sql):
+                    self._conn.execute(f"DROP {kind} IF EXISTS {name}")
+                    self._conn.execute(create_sql)
+                if own_transaction:
+                    self._conn.commit()
+                else:
+                    self._conn.execute("RELEASE aiask_schema_object")
+            except BaseException:
+                if own_transaction:
+                    self._conn.rollback()
+                else:
+                    self._conn.execute("ROLLBACK TO aiask_schema_object")
+                    self._conn.execute("RELEASE aiask_schema_object")
+                raise
 
     def _begin(self) -> None:
         with self._lock:
@@ -591,8 +642,9 @@ class SQLiteConnection:
 class SchemaBase:
     """SQLite connection management and schema bootstrap."""
 
-    def __init__(self, path: str | Path | None = None):
+    def __init__(self, path: str | Path | None = None, *, read_only: bool = False):
         self.path = Path(path).expanduser() if path is not None else default_sqlite_path()
+        self.read_only = read_only
         self.connection: Optional[sqlite3.Connection] = None
         self._connection_wrapper: Optional[SQLiteConnection] = None
         self._initialized = False
@@ -620,6 +672,21 @@ class SchemaBase:
         lock = self._get_init_lock()
         async with lock:
             if self._initialized:
+                return
+            if self.read_only:
+                # A diagnostic connection must neither create the file nor run
+                # schema migrations, journal changes or maintenance writes.
+                conn = sqlite3.connect(
+                    self.path.resolve().as_uri() + "?mode=ro",
+                    uri=True,
+                    timeout=_busy_timeout_ms() / 1000,
+                    check_same_thread=False,
+                )
+                conn.row_factory = sqlite3.Row
+                conn.execute("PRAGMA query_only = ON")
+                self.connection = conn
+                self._connection_wrapper = SQLiteConnection(conn, self._lock)
+                self._initialized = True
                 return
             self.path.parent.mkdir(parents=True, exist_ok=True)
             conn = sqlite3.connect(str(self.path), timeout=_busy_timeout_ms() / 1000, check_same_thread=False)

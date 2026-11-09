@@ -205,15 +205,14 @@ async def load_active_pool_from_db(db: Any) -> list[dict[str, Any]]:
             return [_decode_factor_row(dict(row)) for row in rows or []]
         raw_conn = getattr(db, "conn", None) or getattr(db, "connection", None)
         if raw_conn is None:
-            return []
+            raise TypeError("factor pool storage exposes neither acquire nor a SQLite connection")
         cursor = raw_conn.execute(
             "SELECT * FROM factor_pool_active WHERE status = 'active' ORDER BY fitness DESC"
         )
         columns = [desc[0] for desc in cursor.description]
         return [_decode_factor_row(dict(zip(columns, row))) for row in cursor.fetchall()]
     except Exception as exc:
-        logger.debug("load_active_pool_from_db failed: %s", exc)
-        return []
+        raise RuntimeError("factor_pool_load_failed") from exc
 
 
 async def load_factor_pool_from_db(

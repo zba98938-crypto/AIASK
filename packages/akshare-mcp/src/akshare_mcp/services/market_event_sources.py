@@ -39,7 +39,7 @@ from .event_constants import (
     _unique_list,
 )
 EVENT_TAXONOMY: tuple[tuple[str, tuple[str, ...], str, str], ...] = (
-    ("earnings_forecast", ("业绩预告", "预增", "扭亏", "预减", "业绩快报", "年报", "季报", "earnings", "profit forecast"), "earnings", "up"),
+    ("earnings_forecast", ("业绩预告", "预增", "扭亏", "预减", "预亏", "业绩快报", "年报", "季报", "earnings", "profit forecast"), "earnings", "neutral"),
     ("order_contract", ("中标", "签约", "订单", "合同", "项目", "order", "contract", "signs", "signed"), "order_contract", "up"),
     ("ma_restructuring", ("重大资产重组", "并购", "收购", "重组", "资产购买", "merger", "acquisition", "restructuring"), "restructuring", "up"),
     ("buyback_holding", ("回购", "增持", "减持", "buyback", "repurchase", "holding increase", "holding reduction"), "capital_action", "neutral"),
@@ -421,13 +421,37 @@ def _classify_event(title: str, text: str, doc_type: str, item: dict[str, Any]) 
     source_text = " ".join([title, text, _clean(item.get("notice_type") or item.get("type"), 120)])
     for event_type, keywords, theme_code, default_direction in EVENT_TAXONOMY:
         if any(keyword in source_text for keyword in keywords):
-            direction = str(item.get("direction") or default_direction).strip().lower() or default_direction
+            direction = str(item.get("direction") or "").strip().lower()
+            if direction not in {"up", "down", "neutral"}:
+                direction = _event_direction(event_type, source_text, default_direction)
             return event_type, theme_code, direction
     if str(doc_type or "").lower() in {"notice", "announcement"}:
         return "announcement", "announcement", str(item.get("direction") or "neutral").strip().lower() or "neutral"
     if str(doc_type or "").lower() == "research":
         return "research_rating", "research", _research_direction(item)
     return "market_news", "market_news", str(item.get("direction") or "neutral").strip().lower() or "neutral"
+
+
+def _event_direction(event_type: str, text: str, default: str) -> str:
+    """Separate event classification from its financial direction.
+
+    Generic earnings announcements have no directional evidence. Conflicting
+    earnings cues remain neutral rather than being inferred as good news.
+    """
+    text = text.lower()
+    if event_type == "earnings_forecast":
+        negative = any(token in text for token in ("预减", "预亏", "首亏", "续亏", "增亏", "由盈转亏", "亏损扩大"))
+        negative = negative or bool(re.search(r"(?:净利润|利润|业绩|earnings|profit)[^，。;；]{0,24}(?:下降|下滑|减少|declin|decreas)", text, re.I))
+        positive = any(token in text for token in ("预增", "扭亏", "减亏", "亏损收窄"))
+        positive = positive or bool(re.search(r"(?:净利润|利润|业绩|earnings|profit)[^，。;；]{0,24}(?:增长|上升|增加|increas)", text, re.I))
+        if negative != positive:
+            return "down" if negative else "up"
+        return "neutral"
+    if event_type == "order_contract" and any(token in text for token in ("终止", "解除", "取消", "未中标", "terminate", "cancel")):
+        return "down"
+    if event_type == "ma_restructuring" and any(token in text for token in ("终止", "失败", "取消", "未通过", "terminate", "failed", "cancel")):
+        return "down"
+    return default
 
 
 def _research_direction(item: dict[str, Any]) -> str:

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import inspect
 import os
@@ -18,8 +19,14 @@ from .factory_execution import (
     build_artifact_refs,
     build_run_artifacts,
     build_run_header,
+    is_shadow_readonly,
 )
 from .compact_contracts import compact_backtest_report, compact_quality_gate_report
+from .candidate_archive import (
+    CANDIDATE_RECORDING_VERSION,
+    recording_artifact,
+    write_candidate_archive,
+)
 from .governance_plane_contract import build_governance_plane_artifact
 from .tradeability_gate import build_a_share_tradeability_profile, build_tradeability_certificate
 from .research.runner import ResearchPlaneRunner
@@ -222,6 +229,12 @@ class FactoryCycleRunner:
         summary.setdefault("execution_mode", run_header.get("execution_mode"))
         summary.setdefault("engine_version", run_header.get("engine_version"))
         summary.setdefault("read_only", run_header.get("read_only"))
+        recording = dict(results.get("candidate_recording") or {})
+        if recording:
+            summary["candidate_recording_complete"] = bool(recording.get("complete"))
+            summary["recorded_candidate_count"] = int(
+                (recording.get("generated") or {}).get("candidate_count") or 0
+            )
         results["run_header"] = run_header
         results["execution_mode"] = run_header.get("execution_mode")
         results["engine_version"] = run_header.get("engine_version")
@@ -231,6 +244,56 @@ class FactoryCycleRunner:
         results["artifact_refs"] = build_artifact_refs(artifacts)
         results.setdefault("parity_result", {})
         return results
+
+    async def _record_candidates(
+        self,
+        results: FactoryRunResult,
+        persistence_failures: list[dict[str, Any]],
+        *,
+        phase: str,
+        payload: dict[str, Any],
+    ) -> None:
+        if self._context.read_only or is_shadow_readonly(self._context.execution_mode):
+            return
+        recording = results.setdefault("candidate_recording", {
+            "contract_version": CANDIDATE_RECORDING_VERSION,
+            "storage_mode": "external_gzip_json",
+            "complete": False,
+        })
+        operation = "write_candidate_archive"
+        try:
+            if phase == "evaluated" and len(payload.get("candidates") or []) != int(
+                (recording.get("generated") or {}).get("candidate_count") or 0
+            ):
+                raise ValueError("candidate_recording_count_mismatch")
+            reference = await asyncio.to_thread(
+                write_candidate_archive, self._context.run_id, phase, payload,
+            )
+            recording[phase] = reference
+            # A generated checkpoint survives a later pipeline failure. Only
+            # the evaluated checkpoint claims all processing has completed.
+            recording["complete"] = phase == "evaluated"
+            method = getattr(self._context.db, "save_strategy_factory_run_artifact", None)
+            if callable(method):
+                operation = "save_strategy_factory_run_artifact:candidate_recording"
+                pending = method({
+                    **recording_artifact(recording),
+                    "run_id": self._context.run_id,
+                })
+                if inspect.isawaitable(pending):
+                    await pending
+        except Exception as exc:
+            recording["complete"] = False
+            recording["failed_phase"] = phase
+            recording["error"] = str(exc)
+            persistence_failures.append({
+                "operation": operation,
+                "stage": "candidate_recording",
+                "phase": phase,
+                "error_type": exc.__class__.__name__,
+                "error": str(exc),
+            })
+            raise
 
     @staticmethod
     def _build_governance_plane(
@@ -1030,6 +1093,15 @@ class FactoryCycleRunner:
 
             generation = await self._research_runner.run_generation(db, snapshot)
             candidates = list(generation.generated_candidates)
+            await self._record_candidates(
+                results, persistence_failures, phase="generated",
+                payload={
+                    "candidates": candidates,
+                    "snapshot_date": snapshot.get("date"),
+                    "execution_mode": self._context.execution_mode,
+                    "trace_id": trace_id,
+                },
+            )
             spawn_report = dict(generation.local_spawn_report or {})
             results["stages"]["spawn"] = scheduler._with_stage_meta(
                 "spawn",
@@ -1106,6 +1178,10 @@ class FactoryCycleRunner:
                 db,
                 read_only=bool(self._context.read_only),
                 execution_mode=self._context.execution_mode,
+            )
+            await self._record_candidates(
+                results, persistence_failures, phase="evaluated",
+                payload=pipeline_run.candidate_recording_payload,
             )
             passed = list(pipeline_run.passed or [])
             unique = list(pipeline_run.unique or [])

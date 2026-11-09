@@ -34,6 +34,30 @@ _DYNAMIC_TARGETING_KEYS = frozenset({
     "constraint_check",
 })
 _LOGIC_PARAM_SKIP_KEYS = frozenset({
+    # Intake and submission enrich params after the backtest. These fields
+    # describe provenance, admission, budgets, or measured evidence; they do
+    # not change the tested alpha. In particular, never hash the explanation's
+    # embedded backtest metrics back into that backtest's object identity.
+    # Keep prediction_as_of/snapshot_date: evaluation context is attached
+    # before testing, and this fix must not make different windows equivalent.
+    "alpha_source",
+    "candidate_family",
+    "candidate_family_id",
+    "candidate_registry_stage",
+    "candidate_validation_score",
+    "direction_bias",
+    "generator_mode",
+    "holding_period_bucket",
+    "incubation_budget",
+    "observe_first_intake",
+    "regime_fit",
+    "research_protocol_version",
+    "research_validation_contract_submission_adapter",
+    "risk_level",
+    "source_validation_artifact_id",
+    "strategy_explanation",
+    "target_symbol_count",
+    "validation_profile_name",
     "candidate_contract_hash",
     "candidate_contract_snapshot",
     "candidate_identity_signature",

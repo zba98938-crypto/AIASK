@@ -6,15 +6,19 @@ import argparse
 import asyncio
 import json
 import os
+import re
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from aiask_quant_core.storage import close_db, get_db
+from strategy_factory.api.runner_result import RESULT_CONTRACT_VERSION, RESULT_PATH_ENV
 import logging
 
 logger = logging.getLogger(__name__)
+WORKER_HEARTBEAT_SECONDS = 10.0
 
 
 RUNNER_FILES = {
@@ -68,39 +72,81 @@ def _runner_command(factory: str, params: dict[str, Any]) -> list[str]:
 
 
 def _last_json(stdout: str) -> dict[str, Any]:
+    """Read the last complete standalone object, never a nested log fragment.
+
+    This is a compatibility path for older runners. Current runners use the
+    atomic result channel. JSON must begin in column zero, as emitted by all
+    runner CLIs, and an incomplete object invalidates the trailing result.
+    """
     decoder = json.JSONDecoder()
     best: dict[str, Any] = {}
-    best_length = 0
-    for index, char in enumerate(stdout):
-        if char != "{":
+    consumed = 0
+    for match in re.finditer(r"(?m)^\{", stdout):
+        index = match.start()
+        if index < consumed:
             continue
         try:
-            value, end = decoder.raw_decode(stdout[index:])
-        except Exception as _swallowed:
-            logger.warning("packages/agent/src/aiask_agent/factory_worker.py:77: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
+            value, end = decoder.raw_decode(stdout, index)
+        except json.JSONDecodeError:
+            best = {}
             continue
-        if isinstance(value, dict) and end > best_length:
+        consumed = end
+        if isinstance(value, dict):
             best = value
-            best_length = end
     return best
+
+
+class InvalidRunnerResult(ValueError):
+    """The child exited without a valid result for this factory."""
+
+
+def _read_result(path: Path, factory: str, stdout: str) -> dict[str, Any]:
+    if not path.exists():
+        return _last_json(stdout)
+    try:
+        envelope = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise InvalidRunnerResult(f"invalid factory result file: {exc}") from exc
+    if (
+        not isinstance(envelope, dict)
+        or envelope.get("contract_version") != RESULT_CONTRACT_VERSION
+        or envelope.get("factory") != factory
+        or not isinstance(envelope.get("result"), dict)
+    ):
+        raise InvalidRunnerResult("factory result envelope contract/scope mismatch")
+    return envelope["result"]
 
 
 def _outcome(result: dict[str, Any], exit_code: int) -> tuple[str, str | None, list[str], str | None]:
     raw_status = str(result.get("status") or result.get("raw_status") or "").strip().lower() or None
     quality_flags = [str(item) for item in list(result.get("quality_flags") or [])]
     error = str(result.get("error") or "").strip() or None
-    if exit_code != 0 or result.get("success") is False:
+    non_success_statuses = {"partial", "partial_infra", "partial_llm", "degraded", "blocked", "skipped", "cancelled", "canceled"}
+    if exit_code != 0 or (result.get("success") is False and raw_status not in non_success_statuses):
         return "failed", raw_status, quality_flags, error or f"runner exited with code {exit_code}"
+    known_statuses = {
+        "failed", "error", "partial", "partial_infra", "partial_llm", "degraded",
+        "blocked", "skipped", "cancelled", "canceled", "success", "succeeded",
+        "completed", "success_observe_only", "success_no_submission", "success_no_strategy", "dry_run",
+    }
+    if raw_status not in known_statuses and not (raw_status is None and result.get("success") is True):
+        return "failed", raw_status, quality_flags, "invalid_runner_result: missing or unknown terminal status"
     # A runner that reports failure but exits 0 must not fall through to
     # "succeeded" (see _failure_kind's "runner_reported_failure" case, which the
     # original ordering could never reach).
-    if raw_status == "failed":
+    if raw_status in {"failed", "error"}:
         return "failed", raw_status, quality_flags, error or "runner reported failure"
     if raw_status in {"partial", "partial_infra", "partial_llm", "degraded"} or quality_flags:
         return "partial", raw_status, quality_flags, error
     if raw_status in {"blocked", "skipped"}:
         return "blocked", raw_status, quality_flags, error
-    return "succeeded", raw_status, quality_flags, error
+    if raw_status in {"cancelled", "canceled"}:
+        return "cancelled", raw_status, quality_flags, error
+    if raw_status in {"success", "succeeded", "completed", "success_observe_only", "success_no_submission", "success_no_strategy", "dry_run"}:
+        return "succeeded", raw_status, quality_flags, error
+    if raw_status is None and result.get("success") is True:
+        return "succeeded", raw_status, quality_flags, error
+    return "failed", raw_status, quality_flags, "invalid_runner_result: missing or unknown terminal status"
 
 
 def _failure_kind(target: str, exit_code: int) -> str | None:
@@ -115,6 +161,9 @@ def _failure_kind(target: str, exit_code: int) -> str | None:
 
 
 async def _execute(run_id: str) -> int:
+    from strategy_factory.api.runtime import register_factory_schema
+
+    register_factory_schema()
     db = get_db()
     await db.initialize()
     await db.recover_stale_factory_runs(
@@ -134,25 +183,39 @@ async def _execute(run_id: str) -> int:
             stderr = ""
         else:
             command = _runner_command(str(run["factory"]), params)
-            process = await asyncio.create_subprocess_exec(
-                *command,
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=os.environ.copy(),
-            )
-            while True:
+            with tempfile.TemporaryDirectory(prefix="aiask-factory-result-") as result_dir:
+                result_path = Path(result_dir) / "result.json"
+                child_env = os.environ.copy()
+                child_env[RESULT_PATH_ENV] = str(result_path)
+                process = await asyncio.create_subprocess_exec(
+                    *command,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                    env=child_env,
+                )
+                # Keep the same read task across heartbeats. Cancelling a new
+                # communicate() every ten seconds discards already-read bytes.
+                communication = asyncio.create_task(process.communicate())
                 try:
-                    stdout_bytes, stderr_bytes = await asyncio.wait_for(process.communicate(), timeout=10)
-                    break
-                except asyncio.TimeoutError:
-                    if not await db.heartbeat_factory_run(run_id, owner_id=owner_id, phase="runner_active"):
+                    while True:
+                        try:
+                            stdout_bytes, stderr_bytes = await asyncio.wait_for(asyncio.shield(communication), timeout=WORKER_HEARTBEAT_SECONDS)
+                            break
+                        except asyncio.TimeoutError:
+                            if not await db.heartbeat_factory_run(run_id, owner_id=owner_id, phase="runner_active"):
+                                raise RuntimeError("factory worker lease was lost")
+                finally:
+                    if process.returncode is None:
                         process.terminate()
-                        await process.wait()
-                        raise RuntimeError("factory worker lease was lost")
-            exit_code = int(process.returncode or 0)
-            stdout = stdout_bytes.decode("utf-8", errors="replace")[-65536:]
-            stderr = stderr_bytes.decode("utf-8", errors="replace")[-8192:]
-            result = _last_json(stdout)
+                        try:
+                            await asyncio.wait_for(asyncio.shield(communication), timeout=10)
+                        except asyncio.TimeoutError:
+                            process.kill()
+                    await communication
+                exit_code = int(process.returncode or 0)
+                stdout = stdout_bytes.decode("utf-8", errors="replace")
+                stderr = stderr_bytes.decode("utf-8", errors="replace")[-8192:]
+                result = _read_result(result_path, str(run["factory"]), stdout)
         target, raw_status, quality_flags, error = _outcome(result, exit_code)
         blockers = [str(item) for item in list(result.get("blockers") or [])]
         await db.transition_factory_run(
@@ -166,7 +229,7 @@ async def _execute(run_id: str) -> int:
             # parsable JSON, so a failing-but-chatty run discarded the one thing
             # needed to diagnose it. Always keep a bounded tail.
             stderr_tail=stderr or None,
-            failure_kind=_failure_kind(target, exit_code),
+            failure_kind="runner_invalid_result" if str(error or "").startswith("invalid_runner_result:") else _failure_kind(target, exit_code),
             quality_flags=quality_flags,
             blockers=blockers,
             raw_status=raw_status,
@@ -190,7 +253,8 @@ async def _execute(run_id: str) -> int:
             "failed",
             expected_status="running",
             phase="worker_failed",
-            failure_kind="lease_lost" if "lease was lost" in str(exc) else "worker_exception",
+            failure_kind=("runner_invalid_result" if isinstance(exc, InvalidRunnerResult) else
+                          "lease_lost" if "lease was lost" in str(exc) else "worker_exception"),
             stderr_tail=stderr or None,
             error=str(exc),
         )
@@ -200,6 +264,9 @@ async def _execute(run_id: str) -> int:
 
 
 async def _drain(limit: int) -> int:
+    from strategy_factory.api.runtime import register_factory_schema
+
+    register_factory_schema()
     db = get_db()
     await db.initialize()
     await db.recover_stale_factory_runs(

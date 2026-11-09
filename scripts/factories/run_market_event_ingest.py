@@ -243,6 +243,14 @@ async def _run_one_round(args: argparse.Namespace, round_no: int) -> dict[str, A
     elapsed_sec = int((datetime.now(timezone.utc) - started_at).total_seconds())
     summary = _compact_round_summary(result)
     summary["elapsed_sec"] = elapsed_sec
+    if args.once:
+        from strategy_factory.api.runner_result import write_runner_result
+
+        # The legacy ingest service has no status field. Preserve an explicit
+        # verdict when present and expose partial provider failures otherwise.
+        verdict = dict(result)
+        verdict.setdefault("status", "partial" if summary["error_count"] else "completed")
+        write_runner_result("market_event_ingest", verdict)
     logger.info("round=%s summary=%s", round_no, json.dumps(summary, ensure_ascii=False, default=str))
     return summary
 

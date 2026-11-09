@@ -196,6 +196,20 @@ class KlineMixin:
 
             rows = await conn.fetch(query, *params)
 
+            if rows:
+                days = [_format_trade_date(row['time']) if isinstance(row['time'], (datetime, date)) else str(row['time'] or '')[:10] for row in rows]
+                # Check the complete selected calendar range, including both
+                # raw timestamp forms even when LIMIT selected only one of them.
+                duplicates = await conn.fetch(
+                    "SELECT substr(time,1,10) AS trade_date FROM kline_1d "
+                    "WHERE code=$1 AND substr(time,1,10)>=$2 AND substr(time,1,10)<=$3 "
+                    "GROUP BY substr(time,1,10) HAVING COUNT(*)>1 ORDER BY trade_date",
+                    code, min(days), max(days),
+                )
+                if duplicates:
+                    labels = ','.join(str(row['trade_date']).replace('-', '') for row in duplicates)
+                    raise ValueError(f"duplicate_trade_dates:{code}:{labels}")
+
             return [
                 {
                     'date': _format_trade_date(row['time']) if isinstance(row['time'], (datetime, date)) else str(row['time'] or '')[:10],

@@ -316,6 +316,11 @@ class FactorMiningFactoryRunner:
                 codes=self.codes,
             )
 
+            if self.mode == "once":
+                from strategy_factory.api.runner_result import write_runner_result
+
+                write_runner_result("factor_mining", result)
+
             if result.get("success"):
                 admitted = result.get("admitted_count", 0)
                 self._admitted_total += admitted
@@ -336,6 +341,11 @@ class FactorMiningFactoryRunner:
 
         except Exception as exc:
             logger.error("第 %d 轮异常: %s", self._run_count, exc, exc_info=True)
+            if self.mode == "once":
+                from strategy_factory.api.runner_result import write_runner_result
+
+                write_runner_result("factor_mining", {"status": "failed", "success": False, "error": str(exc)})
+                raise
 
     async def _run_maintenance(self):
         """执行维护任务。"""

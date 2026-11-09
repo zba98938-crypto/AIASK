@@ -767,63 +767,10 @@ async def run_quality_gate(
 # ── Lifecycle scan ───────────────────────────────────────────────────────────
 
 async def lifecycle_scan(db) -> dict:
-    """Batch scan for strategy status transitions."""
-    from ....services.promotion_pipeline import get_strategy_promotion_pipeline_service
+    """Run a durable, bounded slice of the lifecycle review population."""
+    from ....services.lifecycle_scan import run_lifecycle_scan
 
-    transitions = []
-    blocked = []
-    reviews = []
-    promotion_service = get_strategy_promotion_pipeline_service()
-
-    incubating = await db.list_strategies("incubating", limit=100)
-    for s in incubating:
-        review_result = await promotion_service.review(db, s, source='lifecycle_scan', auto_apply=True)
-        review = review_result.get('review') or {}
-        overview = review_result.get('overview') or {}
-        reviews.append(review)
-        if review_result.get('applied_transition'):
-            transition = review_result['applied_transition']
-            reason = 'incubation_promoted' if transition.get('to') == 'listed' else 'incubation_failed'
-            transitions.append({
-                'id': s['id'],
-                **transition,
-                'reason': reason,
-            })
-        else:
-            blocked.append({'id': s['id'], 'status': 'incubating', 'blockers': overview.get('blockers') or []})
-
-    listed = await db.list_strategies("listed", limit=200)
-    for s in listed:
-        overview = await build_incubation_overview(db, s)
-        if overview["deprecation_risk"]:
-            # Fix #13: 要求连续多期触发降级风险才执行降级，避免单次波动误杀
-            deprecation_confirmed = False
-            if hasattr(db, 'list_strategy_incubation_metrics'):
-                recent_metrics = await db.list_strategy_incubation_metrics(s["id"], limit=3)
-                if len(recent_metrics) >= 2:
-                    # 最近 2 期以上连续 decision=halt 才确认降级
-                    halt_streak = sum(1 for m in recent_metrics if str(m.get('decision') or '') == 'halt')
-                    deprecation_confirmed = halt_streak >= 2
-                else:
-                    # 数据不足时不急于降级
-                    deprecation_confirmed = False
-            else:
-                deprecation_confirmed = True  # 无法查询历史时保持原行为
-
-            if deprecation_confirmed:
-                await update_status(
-                    db,
-                    s["id"],
-                    "deprecated",
-                    actor_id="lifecycle_scan",
-                    reason="listed_degraded",
-                    metadata=overview,
-                )
-                transitions.append({"id": s["id"], "from": "listed", "to": "deprecated", "reason": "listed_degraded"})
-            else:
-                blocked.append({"id": s["id"], "status": "listed", "blockers": ["deprecation_risk_unconfirmed"]})
-
-    return {"scanned": len(incubating) + len(listed), "transitions": transitions, "blocked": blocked, 'reviews': reviews}
+    return await run_lifecycle_scan(db)
 
 
 # Backward-compatible aliases

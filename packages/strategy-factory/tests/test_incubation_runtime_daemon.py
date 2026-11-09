@@ -265,3 +265,116 @@ def test_run_time_falls_back_to_the_support_object() -> None:
 
     wait = runtime._seconds_until_next_run(now=datetime(2026, 8, 28, 7, 0, 0))
     assert wait == pytest.approx(45 * 60)
+
+
+@pytest.mark.asyncio
+async def test_daemon_counts_nonexception_partial_result_and_backs_off(monkeypatch):
+    support = _DaemonSupport()
+    runtime = _build(support)
+    from unittest.mock import AsyncMock
+    monkeypatch.setattr(runtime, "run_once", AsyncMock(return_value={"status": "partial", "phase_failures": [{"phase": "strategy_processing"}]}))
+    sleep = AsyncMock()
+    monkeypatch.setattr(asyncio, "sleep", sleep)
+    result = await runtime.run_daemon(max_cycles=1)
+    assert result == {"success": False, "cycles": 1, "failures": 1}
+    assert any(call.args == (300,) for call in sleep.await_args_list)
+
+
+@pytest.mark.asyncio
+async def test_dry_daemon_never_starts_or_stops_matching_engines(monkeypatch):
+    support = _DaemonSupport()
+    runtime = _build(support, dry_run=True)
+    from unittest.mock import AsyncMock
+    monkeypatch.setattr(runtime, "run_once", AsyncMock(return_value={"status": "completed"}))
+    monkeypatch.setattr(asyncio, "sleep", AsyncMock())
+    assert (await runtime.run_daemon(max_cycles=1))["success"]
+    assert support.started == support.stopped == 0
+
+
+@pytest.mark.asyncio
+async def test_interval_daemon_starts_immediately_and_waits_after_serial_completion(monkeypatch):
+    support = _DaemonSupport()
+    runtime = _build(support)
+    first_started = asyncio.Event()
+    release_first = asyncio.Event()
+    events = []
+
+    async def run_once(*, trigger):
+        cycle = 1 + sum(event[0] == "start" for event in events)
+        events.append(("start", cycle))
+        if cycle == 1:
+            first_started.set()
+            await release_first.wait()
+        events.append(("complete", cycle))
+        return {"status": "completed"}
+
+    async def sleep(seconds):
+        assert events[-1][0] == "complete"
+        events.append(("sleep", seconds))
+
+    def daily_wait_must_not_run():
+        raise AssertionError("fixed interval mode must not consult the daily clock")
+
+    monkeypatch.setattr(runtime, "run_once", run_once)
+    monkeypatch.setattr(runtime, "_seconds_until_next_run", daily_wait_must_not_run)
+    monkeypatch.setattr(asyncio, "sleep", sleep)
+    task = asyncio.create_task(runtime.run_daemon(interval_sec=60, max_cycles=3))
+    await first_started.wait()
+    assert events == [("start", 1)]
+    release_first.set()
+    result = await task
+    assert result == {"success": True, "cycles": 3, "failures": 0}
+    assert events == [
+        ("start", 1), ("complete", 1), ("sleep", 60),
+        ("start", 2), ("complete", 2), ("sleep", 60),
+        ("start", 3), ("complete", 3),
+    ]
+    assert support.started == support.stopped == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("raises", [False, True])
+async def test_interval_failure_preserves_backoff_before_next_cycle(monkeypatch, raises):
+    from unittest.mock import AsyncMock
+
+    support = _DaemonSupport()
+    runtime = _build(support)
+    first_result = RuntimeError("write failed") if raises else {"status": "partial"}
+    cycle = AsyncMock(side_effect=[first_result, {"status": "completed"}])
+    sleep = AsyncMock()
+    monkeypatch.setattr(runtime, "run_once", cycle)
+    monkeypatch.setattr(asyncio, "sleep", sleep)
+    result = await runtime.run_daemon(interval_sec=60, max_cycles=2)
+    assert result == {"success": False, "cycles": 2, "failures": 1}
+    assert [call.args[0] for call in sleep.await_args_list] == [300, 60]
+    assert cycle.await_count == 2
+    assert support.started == support.stopped == 1
+
+
+@pytest.mark.asyncio
+async def test_interval_cancellation_stops_owned_engines(monkeypatch):
+    from unittest.mock import AsyncMock
+
+    support = _DaemonSupport()
+    runtime = _build(support)
+    cycle = AsyncMock(return_value={"status": "completed"})
+    monkeypatch.setattr(runtime, "run_once", cycle)
+
+    async def cancel_wait(seconds):
+        assert seconds == 60
+        raise asyncio.CancelledError
+
+    monkeypatch.setattr(asyncio, "sleep", cancel_wait)
+    with pytest.raises(asyncio.CancelledError):
+        await runtime.run_daemon(interval_sec=60)
+    assert cycle.await_count == 1
+    assert support.started == support.stopped == 1
+
+
+@pytest.mark.asyncio
+async def test_interval_rejects_negative_seconds_before_starting_engines():
+    support = _DaemonSupport()
+    runtime = _build(support)
+    with pytest.raises(ValueError, match="non-negative"):
+        await runtime.run_daemon(interval_sec=-1)
+    assert support.started == support.stopped == 0

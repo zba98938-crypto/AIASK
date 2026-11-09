@@ -1,8 +1,12 @@
 import importlib.util
 import json
 import sqlite3
+import subprocess
+import sys
 from datetime import date
 from pathlib import Path
+
+import pytest
 
 
 def _sync_module():
@@ -125,7 +129,8 @@ def test_completeness_excludes_delisted_symbols_with_history(tmp_path, monkeypat
     con.close()
 
     result = sync._record_completeness(sync_ok=True)
-    assert result["status"] == "ok"
+    # This minimal fixture has no amount column, so amount quality is unknown.
+    assert result["status"] == "partial"
     assert result["row_count"] == 1
     con = sqlite3.connect(db_path)
     detail = json.loads(con.execute(
@@ -134,3 +139,79 @@ def test_completeness_excludes_delisted_symbols_with_history(tmp_path, monkeypat
     con.close()
     assert detail["delisted_with_history_excluded"] == 1
     assert detail["missing_codes"] == []
+
+
+@pytest.mark.parametrize("exit_code", [0, 7])
+def test_real_child_logs_heartbeat_and_terminal_evidence(tmp_path, monkeypatch, exit_code):
+    sync = _sync_module()
+    monkeypatch.setattr(sync, "RUNTIME_HOME", tmp_path)
+    monkeypatch.setattr(sync, "STATUS", tmp_path / "status.json")
+    monkeypatch.setattr(sync, "_trading_day", lambda day: True)
+    monkeypatch.setattr(sync, "_record_completeness", lambda **kwargs: {"status": "partial", "sync_ok": kwargs["sync_ok"]})
+    real_popen = subprocess.Popen
+    def child(command, **kwargs):
+        assert kwargs["env"]["BROKER_ALLOW_WRITE"] == "0"
+        assert "--append-only" in command
+        assert "--skip-ic" in command
+        return real_popen([sys.executable, "-c", f"import sys; print('x'*10000); print('diagnostic',file=sys.stderr);sys.exit({exit_code})"], **kwargs)
+    monkeypatch.setattr(sync.subprocess, "Popen", child)
+    statuses = []
+    original_status = sync._write_status
+    def record(payload):
+        statuses.append(payload)
+        original_status(payload)
+    monkeypatch.setattr(sync, "_write_status", record)
+    result = sync.run_once(timeout_seconds=10)
+    assert result["status"] == ("completed" if exit_code == 0 else "failed")
+    assert result["returncode"] == exit_code
+    assert len(Path(result["stdout_log"]).read_text().strip()) == 10000
+    assert Path(result["stderr_log"]).read_text().strip() == "diagnostic"
+    assert any(item.get("child_pid") == result["child_pid"] and item["status"] == "syncing" for item in statuses)
+    assert list((Path(result["audit_dir"]) / "result").glob("*.json.gz"))
+    assert result["completeness"]["sync_ok"] is (exit_code == 0)
+
+
+def test_timeout_reaps_real_child_and_preserves_failure_evidence(tmp_path, monkeypatch):
+    import os
+    sync = _sync_module()
+    monkeypatch.setattr(sync, "RUNTIME_HOME", tmp_path)
+    monkeypatch.setattr(sync, "STATUS", tmp_path / "status.json")
+    monkeypatch.setattr(sync, "_trading_day", lambda day: True)
+    monkeypatch.setattr(sync, "_record_completeness", lambda **kwargs: {"status": "partial"})
+    real_popen = subprocess.Popen
+    monkeypatch.setattr(sync.subprocess, "Popen", lambda command, **kwargs: real_popen([sys.executable, "-c", "import time;time.sleep(30)"], **kwargs))
+    result = sync.run_once(timeout_seconds=0.1)
+    assert result["status"] == "failed"
+    assert result["reason"] == "sync_timeout"
+    with pytest.raises(ProcessLookupError):
+        os.kill(result["child_pid"], 0)
+    assert list((Path(result["audit_dir"]) / "result").glob("*.json.gz"))
+
+
+def test_once_refuses_existing_daemon_lock(tmp_path, monkeypatch):
+    import fcntl
+    sync = _sync_module()
+    monkeypatch.setattr(sync, "PID_PATH", tmp_path / "sync.pid")
+    monkeypatch.setattr(sys, "argv", ["run_daily_market_sync.py", "--once"])
+    with (tmp_path / "sync.lock").open("a") as owner:
+        fcntl.flock(owner, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        with pytest.raises(SystemExit, match="already_running"):
+            sync.main()
+
+
+def test_nonnull_legacy_amount_requires_provenance(tmp_path, monkeypatch):
+    sync = _sync_module()
+    database = tmp_path / "market.sqlite3"
+    monkeypatch.setenv("AIASK_SQLITE_PATH", str(database))
+    import _daily_kline_ingest
+    monkeypatch.setattr(_daily_kline_ingest, "closed_date", lambda: date(2026,11,5))
+    with sqlite3.connect(database) as connection:
+        connection.execute("CREATE TABLE kline_1d(time TEXT,code TEXT,amount REAL)")
+        connection.execute("CREATE TABLE stocks(stock_code TEXT,list_status TEXT)")
+        connection.execute("CREATE TABLE tdx_data_completeness(data_key TEXT PRIMARY KEY,status TEXT,as_of_date TEXT,row_count INTEGER,detail TEXT,updated_at TEXT)")
+        connection.execute("INSERT INTO stocks VALUES('000001','L')")
+        connection.execute("INSERT INTO kline_1d VALUES('2026-11-05','000001',12345)")
+    assert sync._record_completeness(sync_ok=True)["status"] == "partial"
+    assert sync._record_completeness(sync_ok=True, verified_amounts={"2026-11-05": {"000001"}})["status"] == "ok"
+    monkeypatch.setattr(_daily_kline_ingest, "closed_date", lambda: date(2026,11,6))
+    assert sync._record_completeness(sync_ok=True, verified_amounts={"2026-11-05": {"000001"}})["status"] == "partial"

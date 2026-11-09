@@ -4,9 +4,7 @@ Verifies:
 1. Missing vs weak vs pass classification (R5.1).
 2. Reason codes ``missing_<metric>`` and ``weak_<metric>`` are emitted
    (R5.2, R5.3).
-3. Placeholder 0.0 is treated as ``missing`` (audit P1-prep finding /
-   Property 4): a value of 0.0 from an empty walk-forward bootstrap run
-   should NOT be evaluated as "weak" against the threshold.
+3. Finite zero is measured; absent upstream measurements use None.
 4. Threshold semantics unchanged for the existing pass path (Property 3
    regression guard).
 5. ``derived=true`` is propagated when a metric was supplied via the
@@ -43,9 +41,9 @@ from strategy_factory.application.submission_gate.runner import (  # type: ignor
         (float("nan"), "missing"),
         (float("inf"), "missing"),
         (float("-inf"), "missing"),
-        (0.0, "missing"),
-        (1e-13, "missing"),  # zero up to noise floor
-        (-1e-13, "missing"),
+        (0.0, "present_real"),
+        (1e-13, "present_real"),
+        (-1e-13, "present_real"),
         (0.05, "present_real"),
         (-0.5, "present_real"),
         (1.0, "present_real"),
@@ -86,34 +84,19 @@ def test_evaluate_statistical_admission_missing_emits_per_metric_codes() -> None
 
 
 # ---------------------------------------------------------------------------
-# Placeholder 0.0 → missing (audit P1-prep finding)
+# Finite zero remains a measurement
 # ---------------------------------------------------------------------------
 
-def test_evaluate_statistical_admission_placeholder_zero_is_missing() -> None:
-    """Audit P1-prep observed that factor_validation_bootstrap writes 0.0
-    when an empty fold/bootstrap run happens. Gate-3 must NOT treat that
-    as 'weak below threshold' — it's an upstream pipeline failure."""
-    strategy = {"id": "s_zero"}
-    profile = {"profile": "factor_rank_validation"}
+def test_evaluate_statistical_admission_zero_is_measured():
     result = _evaluate_statistical_admission(
-        strategy, profile,
-        gate_payload={
-            "wf_ic_ir": 0.0,
-            "pkf_ic": 0.0,
-            "bootstrap_ci_lower": 0.0,
-            "param_sensitivity": 0.0,
-        },
+        {"id": "s_zero"}, {"profile": "factor_rank_validation"},
+        gate_payload={"wf_ic_ir": 0.0, "pkf_ic": 0.0, "bootstrap_ci_lower": 0.0, "param_sensitivity": 0.0},
     )
-    reasons = result.get("reasons") or []
-    # All four metrics should be classified as missing despite being 0.0.
-    for m in ("wf_ic_ir", "pkf_ic", "bootstrap_ci_lower", "param_sensitivity"):
-        assert f"missing_{m}" in reasons, f"missing_{m} not in {reasons}"
-        assert f"weak_{m}" not in reasons, (
-            f"weak_{m} should not appear when the value is the placeholder 0.0"
-        )
-    eval_rows = result.get("gate_3_evaluation") or []
-    for row in eval_rows:
-        assert row["status"] == "missing"
+    assert not result["missing_statistical_metrics"]
+    rows = {row["metric"]: row for row in result["gate_3_evaluation"]}
+    assert rows["wf_ic_ir"]["status"] == "weak"
+    assert rows["pkf_ic"]["status"] == "weak"
+    assert rows["param_sensitivity"]["status"] == "pass"
 
 
 # ---------------------------------------------------------------------------

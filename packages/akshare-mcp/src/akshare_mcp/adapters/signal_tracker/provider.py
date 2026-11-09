@@ -116,19 +116,22 @@ class AKShareSignalTrackerProvider:
         self,
         db: Any,
         *,
-        forward_days_list: list[int],
+        forward_days_list: list[int] | None = None,
         batch_limit: int = 2000,
         max_rounds: int = 100,
     ) -> dict[str, Any]:
         """Backfill forward returns."""
         backfill = getattr(self._tracker, "_backfill_forward_returns", None)
         if callable(backfill):
-            return await backfill(
+            result = await backfill(
                 db,
                 forward_days_list=forward_days_list,
                 batch_limit=batch_limit,
                 max_rounds=max_rounds,
             )
+            payload = dict(result or {})
+            payload.setdefault("computed_count", int(payload.get("computed") or 0))
+            return payload
         return {"computed_count": 0}
 
     async def sync_incubation_orders(

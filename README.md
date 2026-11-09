@@ -4,6 +4,12 @@ A-share quantitative research backend, delivered as **MCP servers + skills**.
 There is no frontend and no user-facing application in this tree: clients talk to
 the Agent HTTP API or connect to the MCP servers over stdio.
 
+Current capability and operational evidence (2026-11-04): see the
+[updated project/four-factory review](docs/reviews/项目能力与四工厂审查-当前结论-2026-11-04.md),
+[confirmed-fix acceptance](docs/reviews/四工厂确认问题修复验收-2026-11-04.md), and
+[continuous factory quality record](docs/strategy-factory-quality/continuous-20261104/CURRENT.md).
+Older dated measurements below remain historical snapshots.
+
 ## What is here
 
 | Package | What it is |

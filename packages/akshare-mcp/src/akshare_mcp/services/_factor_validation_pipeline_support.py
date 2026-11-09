@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from .cost_model import build_cost_model
+from ._factor_search_budget import search_checkpoint
 from .factor_analysis import FactorAnalyzer
 from .factor_candidate_compiler import compile_factor_candidate, evaluate_compiled_factor
 from .validation import (
@@ -124,63 +125,39 @@ def _cross_section_summary(cs_rows: dict[str, list[dict[str, Any]]]) -> dict[str
     analyzer = FactorAnalyzer()
     date_metrics = []
     diagnostic_counts: dict[str, int] = {}
+    unmeasurable_dates = []
     for date_key, rows in cs_rows.items():
-        factor_values = [_safe_float(item.get("factor_value"), np.nan) for item in rows]
-        future_returns = [_safe_float(item.get("future_return"), np.nan) for item in rows]
-        if len(rows) < 3:
-            continue
-        factor_arr = np.asarray(factor_values, dtype=float)
-        return_arr = np.asarray(future_returns, dtype=float)
-        finite_mask = np.isfinite(factor_arr) & np.isfinite(return_arr)
-        if int(finite_mask.sum()) < 3:
-            continue
-        if (
-            float(np.nanstd(factor_arr[finite_mask])) < 1e-12
-            or float(np.nanstd(return_arr[finite_mask])) < 1e-12
-        ):
-            diagnostic_counts["constant_input_warning"] = (
-                diagnostic_counts.get("constant_input_warning", 0) + 1
-            )
-            date_metrics.append(
-                {
-                    "date": date_key,
-                    "sample_size": int(finite_mask.sum()),
-                    "normal_ic": 0.0,
-                    "rank_ic": 0.0,
-                    "normal_p_value": 1.0,
-                    "rank_p_value": 1.0,
-                }
-            )
-            continue
+        search_checkpoint()
         dual = analyzer.calculate_ic_dual(
-            factor_values=factor_values,
-            forward_returns=future_returns,
+            factor_values=[_safe_float(item.get("factor_value"), np.nan) for item in rows],
+            forward_returns=[_safe_float(item.get("future_return"), np.nan) for item in rows],
             enable_neutralization=False,
         )
-        date_metrics.append(
-            {
-                "date": date_key,
-                "sample_size": len(rows),
-                "normal_ic": float(dual.get("normal_ic", 0.0)),
-                "rank_ic": float(dual.get("rank_ic", 0.0)),
-                "normal_p_value": float(dual.get("normal_p_value", 1.0)),
-                "rank_p_value": float(dual.get("rank_p_value", 1.0)),
-            }
-        )
+        if dual.get("measurable") is False or dual.get("rank_ic") is None:
+            reason = str(dual.get("reason") or "undefined_correlation")
+            diagnostic_counts[reason] = diagnostic_counts.get(reason, 0) + 1
+            if reason == "undefined_correlation":
+                diagnostic_counts["constant_input_warning"] = diagnostic_counts.get("constant_input_warning", 0) + 1
+            unmeasurable_dates.append({"date": date_key, **dual})
+            continue
+        date_metrics.append({"date": date_key, **dual})
 
     if not date_metrics:
         return {
             "dates": [],
             "summary": {
+                "available": False, "reason": "no_measurable_rank_ic",
                 "sample_dates": 0,
-                "rank_ic_mean": 0.0,
-                "rank_ic_std": 0.0,
-                "rank_ic_ir": 0.0,
-                "normal_ic_mean": 0.0,
-                "positive_ratio": 0.0,
-                "significant_ratio": 0.0,
+                "rank_ic_mean": None,
+                "rank_ic_std": None,
+                "rank_ic_ir": None,
+                "normal_ic_mean": None,
+                "positive_ratio": None,
+                "significant_ratio": None,
             },
             "diagnostic_counts": diagnostic_counts,
+            "unmeasurable_dates": unmeasurable_dates,
+            "attempted_dates": len(cs_rows),
         }
 
     rank_ics = np.array([item["rank_ic"] for item in date_metrics], dtype=float)
@@ -191,6 +168,7 @@ def _cross_section_summary(cs_rows: dict[str, list[dict[str, Any]]]) -> dict[str
     return {
         "dates": date_metrics,
         "summary": {
+            "available": True, "reason": None,
             "sample_dates": len(date_metrics),
             "rank_ic_mean": round(float(np.mean(rank_ics)), 6),
             "rank_ic_std": round(rank_std, 6),
@@ -200,6 +178,8 @@ def _cross_section_summary(cs_rows: dict[str, list[dict[str, Any]]]) -> dict[str
             "significant_ratio": round(significant_ratio, 6),
         },
         "diagnostic_counts": diagnostic_counts,
+        "unmeasurable_dates": unmeasurable_dates,
+        "attempted_dates": len(cs_rows),
     }
 
 def _extract_latest_snapshot(cross_section_rows: dict[str, list[dict[str, Any]]], cross_section: dict[str, Any]) -> dict[str, Any]:
@@ -439,6 +419,7 @@ def _build_long_short_return_series(
 
     series: list[float] = []
     for date_key in common_index:
+        search_checkpoint()
         if date_key not in factor_df.index or date_key not in return_df.index:
             series.append(np.nan)
             continue
@@ -511,8 +492,10 @@ def _build_multiple_testing_report(
     family_series = [candidate_returns]
 
     for basis_name, basis_compiled in _get_similarity_basis().items():
+        search_checkpoint()
         basis_series_map: dict[str, pd.Series] = {}
         for code, frame in frame_map.items():
+            search_checkpoint()
             try:
                 basis_series = evaluate_compiled_factor(basis_compiled, frame)
                 basis_series_map[code] = pd.Series(basis_series.values, index=frame["date"].astype(str), dtype=float)
@@ -630,12 +613,12 @@ def _build_multiple_testing_report(
 def _aggregate_rank_ic(factor_df: pd.DataFrame, return_df: pd.DataFrame) -> dict[str, Any]:
     analyzer = FactorAnalyzer()
     rows = []
+    diagnostic_counts: dict[str, int] = defaultdict(int)
     common_index = factor_df.index.intersection(return_df.index)
     common_columns = factor_df.columns.intersection(return_df.columns)
-    if len(common_index) == 0 or len(common_columns) < 3:
-        return {"sample_dates": 0, "rank_ic_mean": 0.0, "positive_ratio": 0.0, "significant_ratio": 0.0}
 
     for date_key in common_index:
+        search_checkpoint()
         factor_values = factor_df.loc[date_key, common_columns].to_numpy(dtype=float)
         future_returns = return_df.loc[date_key, common_columns].to_numpy(dtype=float)
         dual = analyzer.calculate_ic_dual(
@@ -643,20 +626,39 @@ def _aggregate_rank_ic(factor_df: pd.DataFrame, return_df: pd.DataFrame) -> dict
             forward_returns=future_returns.tolist(),
             enable_neutralization=False,
         )
-        if int(dual.get("sample_size", 0)) < 3:
+        rank_ic = dual.get("rank_ic")
+        p_value = dual.get("rank_p_value")
+        if (
+            int(dual.get("sample_size", 0)) < 3
+            or dual.get("measurable") is False
+            or rank_ic is None or not np.isfinite(rank_ic)
+            or p_value is None or not np.isfinite(p_value)
+        ):
+            diagnostic_counts[str(dual.get("reason") or "undefined_correlation")] += 1
             continue
         rows.append(
             {
-                "rank_ic": float(dual.get("rank_ic", 0.0)),
-                "rank_p_value": float(dual.get("rank_p_value", 1.0)),
+                "rank_ic": float(rank_ic),
+                "rank_p_value": float(p_value),
             }
         )
     if not rows:
-        return {"sample_dates": 0, "rank_ic_mean": 0.0, "positive_ratio": 0.0, "significant_ratio": 0.0}
+        return {
+            "available": False, "reason": "no_measurable_rank_ic",
+            "sample_dates": 0, "attempted_dates": len(common_index),
+            "unmeasurable_dates": len(common_index),
+            "diagnostic_counts": dict(diagnostic_counts),
+            "rank_ic_mean": None, "rank_ic_std": None,
+            "positive_ratio": None, "significant_ratio": None,
+        }
 
     rank_ics = np.array([item["rank_ic"] for item in rows], dtype=float)
     return {
+        "available": True, "reason": None,
         "sample_dates": len(rows),
+        "attempted_dates": len(common_index),
+        "unmeasurable_dates": len(common_index) - len(rows),
+        "diagnostic_counts": dict(diagnostic_counts),
         "rank_ic_mean": _round_float(np.mean(rank_ics)),
         "rank_ic_std": _round_float(np.std(rank_ics)),
         "positive_ratio": _round_float(np.mean(rank_ics > 0)),
@@ -685,14 +687,15 @@ def _build_robustness_report(
     horizons = sorted({max(1, base_horizon // 2), max(1, int(base_horizon)), min(20, max(2, base_horizon * 2))})
     horizon_results = {}
     for horizon in horizons:
+        search_checkpoint()
         one_return_df = _build_horizon_return_panel(close_df.loc[common_index, common_columns], horizon)
         horizon_results[str(horizon)] = _aggregate_rank_ic(
             factor_df.loc[common_index, common_columns],
             one_return_df,
         )
 
-    eligible = [value["rank_ic_mean"] for value in horizon_results.values() if int(value.get("sample_dates", 0)) >= 5]
-    horizon_stability = 0.0
+    eligible = [value["rank_ic_mean"] for value in horizon_results.values() if value.get("available") and int(value.get("sample_dates", 0)) >= 5]
+    horizon_stability = None
     if len(eligible) >= 2:
         mean_val = float(np.mean(eligible))
         std_val = float(np.std(eligible))
@@ -701,7 +704,7 @@ def _build_robustness_report(
     base_return_df = _build_horizon_return_panel(close_df.loc[common_index, common_columns], base_horizon)
     base_dates = list(factor_df.loc[common_index, common_columns].index.intersection(base_return_df.index))
     split_detail: dict[str, Any]
-    split_consistency = 0.0
+    split_consistency = None
     if len(base_dates) >= 10:
         half = len(base_dates) // 2
         first_dates = base_dates[:half]
@@ -714,29 +717,36 @@ def _build_robustness_report(
             factor_df.loc[second_dates, common_columns],
             base_return_df.loc[second_dates, common_columns],
         )
-        same_sign = float(first_res.get("rank_ic_mean", 0.0)) * float(second_res.get("rank_ic_mean", 0.0)) >= 0
-        diff = abs(float(first_res.get("rank_ic_mean", 0.0)) - float(second_res.get("rank_ic_mean", 0.0)))
-        split_consistency = 1.0 if same_sign and diff < 0.05 else (0.5 if same_sign else 0.0)
+        measurable = first_res["available"] and second_res["available"]
+        same_sign = first_res["rank_ic_mean"] * second_res["rank_ic_mean"] >= 0 if measurable else None
+        diff = abs(first_res["rank_ic_mean"] - second_res["rank_ic_mean"]) if measurable else None
+        if measurable:
+            split_consistency = 1.0 if same_sign and diff < 0.05 else (0.5 if same_sign else 0.0)
         split_detail = {
+            "available": measurable,
+            "reason": None if measurable else "unmeasurable_time_split",
             "first_half": first_res,
             "second_half": second_res,
-            "same_sign": bool(same_sign),
-            "rank_ic_diff": _round_float(diff, 4),
+            "same_sign": same_sign,
+            "rank_ic_diff": _round_float(diff, 4) if diff is not None else None,
         }
     else:
-        split_detail = {"note": "insufficient_dates_for_time_split"}
+        split_detail = {"available": False, "reason": "insufficient_dates_for_time_split"}
 
     base_stats = horizon_results.get(str(base_horizon), {})
+    available = bool(base_stats.get("available") and horizon_stability is not None and split_consistency is not None)
     robustness_score = round(
         horizon_stability * 0.45
         + float(base_stats.get("positive_ratio", 0.0)) * 0.20
         + float(base_stats.get("significant_ratio", 0.0)) * 0.15
         + split_consistency * 0.20,
         4,
-    )
-    grade = "strong" if robustness_score >= 0.7 else ("moderate" if robustness_score >= 0.4 else "weak")
+    ) if available else None
+    grade = ("strong" if robustness_score >= 0.7 else ("moderate" if robustness_score >= 0.4 else "weak")) if available else "unavailable"
     return {
-        "available": True,
+        "available": available,
+        "reason": None if available else ("no_measurable_rank_ic" if not base_stats.get("available") else "insufficient_robustness_evidence"),
+        "horizon_stability": horizon_stability,
         "base_horizon": int(base_horizon),
         "horizon_grid": horizons,
         "horizon_results": horizon_results,
@@ -792,8 +802,10 @@ def _build_similarity_report(
 
     basis_rows = []
     for basis_name, basis_compiled in _get_similarity_basis().items():
+        search_checkpoint()
         basis_series_map: dict[str, pd.Series] = {}
         for code, frame in frame_map.items():
+            search_checkpoint()
             try:
                 basis_series = evaluate_compiled_factor(basis_compiled, frame)
                 basis_series_map[code] = pd.Series(basis_series.values, index=frame["date"].astype(str), dtype=float)
@@ -829,6 +841,7 @@ def _build_similarity_report(
     token_overlap = []
     candidate_fields = set(compiled.get("referenced_fields") or [])
     for basis_name, basis_compiled in _get_similarity_basis().items():
+        search_checkpoint()
         basis_fields = set(basis_compiled.get("referenced_fields") or [])
         union = candidate_fields | basis_fields
         jaccard = (len(candidate_fields & basis_fields) / len(union)) if union else 0.0
@@ -879,6 +892,7 @@ def _build_cost_capacity_report(
     top_n = max(1, min(len(common_columns), max(3, len(common_columns) // 3)))
     basket_amounts = []
     for date_key in common_index:
+        search_checkpoint()
         factor_row = factor_df.loc[date_key, common_columns]
         amount_row = amount_df.loc[date_key, common_columns]
         ranked_codes = factor_row.dropna().sort_values(ascending=False).head(top_n).index

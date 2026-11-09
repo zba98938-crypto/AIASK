@@ -58,6 +58,9 @@ async def test_incubation_runtime_uses_configured_support_factory() -> None:
         async def _get_db(self):
             return object()
 
+        async def _get_read_only_db(self):
+            return object()
+
         async def _close_db(self, _db):
             return None
 

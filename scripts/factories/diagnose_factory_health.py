@@ -5,9 +5,9 @@
 自动执行 docs/factory-architecture/06-运行与诊断手册.md 中的诊断流程。
 
 Usage:
-    uv run python scripts/factories/diagnose_factory_health.py
-    uv run python scripts/factories/diagnose_factory_health.py --verbose
-    uv run python scripts/factories/diagnose_factory_health.py --output report.json
+    python scripts/factories/diagnose_factory_health.py
+    python scripts/factories/diagnose_factory_health.py --verbose
+    python scripts/factories/diagnose_factory_health.py --output report.json
 """
 
 import argparse
@@ -35,11 +35,9 @@ import logging
 logger = logging.getLogger(__name__)
 
 try:
-    from aiask_quant_core.storage.sqlite import get_db
     from aiask_quant_core.strategy_lifecycle_ledger import StrategyLifecycleLedger, BusinessLifecycleStage
     from aiask_quant_core.config import get_settings
 except ImportError:
-    get_db = None
     StrategyLifecycleLedger = None
     BusinessLifecycleStage = None
     get_settings = None
@@ -100,23 +98,19 @@ class FactoryHealthDiagnostics:
         }
 
     def _connect_db(self) -> bool:
-        """连接数据库"""
+        """Open the selected store without creating, migrating or mutating it."""
         try:
-            if get_db:
-                import asyncio
-                db = get_db()
-                asyncio.run(db.initialize())
-                self.conn = db.connection
-                # 初始化 StrategyLifecycleLedger
-                if StrategyLifecycleLedger:
-                    self.ledger = StrategyLifecycleLedger(self.conn)
-            else:
-                self.conn = sqlite3.connect(self.db_path)
-                self.conn.row_factory = sqlite3.Row
-                if StrategyLifecycleLedger:
-                    self.ledger = StrategyLifecycleLedger(self.conn)
+            path = Path(self.db_path).expanduser().resolve()
+            self.conn = sqlite3.connect(path.as_uri() + "?mode=ro", uri=True)
+            self.conn.execute("PRAGMA query_only=ON")
+            self.conn.row_factory = sqlite3.Row
+            if StrategyLifecycleLedger:
+                self.ledger = StrategyLifecycleLedger(self.conn)
             return True
         except Exception as e:
+            if self.conn is not None:
+                self.conn.close()
+                self.conn = None
             self._add_check(
                 "database_connection",
                 "blocked",

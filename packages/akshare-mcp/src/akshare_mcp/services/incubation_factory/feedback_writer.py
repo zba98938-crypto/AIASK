@@ -54,14 +54,24 @@ class FeedbackWriter:
 
         written_events = 0
         written_controls = 0
+        write_failures: list[dict[str, str]] = []
+
+        async def write_step(name, operation) -> bool:
+            try:
+                return bool(await operation())
+            except Exception as exc:
+                write_failures.append({"operation": name, "error": str(exc)})
+                logger.warning("FeedbackWriter: %s failed: %s", name, exc)
+                return False
 
         # 1. 写入反馈领域事件（策略工厂可查询）
-        await self._write_feedback_event(db, report)
-        written_events += 1
+        written_events += int(await write_step("feedback_event", lambda: self._write_feedback_event(db, report)))
         prediction_feedback = dict(feedback_actions.get("prediction_feedback") or {})
         if prediction_feedback:
-            await self._write_prediction_feedback_event(db, report, prediction_feedback)
-            written_events += 1
+            written_events += int(await write_step(
+                "prediction_feedback_event",
+                lambda: self._write_prediction_feedback_event(db, report, prediction_feedback),
+            ))
 
         # 2. 对需要冷却/冻结的 family，更新相关策略的 runtime_control
         families_to_cooldown = list(feedback_actions.get("families_to_cooldown") or [])
@@ -74,13 +84,24 @@ class FeedbackWriter:
                 families_to_freeze=families_to_freeze,
             )
             written_controls = int(control_result.get("applied") or 0)
+            write_failures.extend(control_result.get("errors") or [])
 
         # 3. 写入汇总快照（供 desktop 前端展示）
-        await self._write_summary_snapshot(db, report)
+        written_snapshots = int(await write_step("summary_snapshot", lambda: self._write_summary_snapshot(db, report)))
 
         result = {
+            "status": "completed" if not write_failures else (
+                "partial" if written_events + written_controls + written_snapshots else "failed"
+            ),
+            "error": "; ".join(f"{item['operation']}: {item['error']}" for item in write_failures) or None,
+            "write_failures": write_failures,
             "written_events": written_events,
             "written_controls": written_controls,
+            "written_snapshots": written_snapshots,
+            "snapshot_status": "written" if written_snapshots else (
+                "failed" if any(item["operation"] == "summary_snapshot" for item in write_failures)
+                else "unsupported"
+            ),
             "prediction_budget_feedback_enabled": _prediction_budget_feedback_enabled(),
             "prediction_feedback_suggestions": list(prediction_feedback.get("suggestions") or []),
             "feedback_families_boosted": list(
@@ -103,10 +124,10 @@ class FeedbackWriter:
 
     async def _write_feedback_event(
         self, db: Any, report: dict[str, Any]
-    ) -> None:
+    ) -> bool:
         """写入反馈领域事件。"""
         if not hasattr(db, "save_strategy_domain_event"):
-            return
+            raise RuntimeError("incubation_feedback_store_unavailable")
         try:
             await db.save_strategy_domain_event({
                 "strategy_id": None,
@@ -127,19 +148,20 @@ class FeedbackWriter:
                     ).get("avg_skill_lcb"),
                 },
             })
+            return True
         except Exception as exc:
-            logger.debug("FeedbackWriter: event write failed: %s", exc)
+            raise RuntimeError(f"incubation_feedback_event_write_failed: {exc}") from exc
 
     async def _write_prediction_feedback_event(
         self,
         db: Any,
         report: dict[str, Any],
         prediction_feedback: dict[str, Any],
-    ) -> None:
+    ) -> bool:
         """Write prediction feedback diagnostics; budget impact is opt-in."""
 
         if not hasattr(db, "save_strategy_domain_event"):
-            return
+            raise RuntimeError("incubation_feedback_store_unavailable")
         enabled = _prediction_budget_feedback_enabled()
         suggestions = list(prediction_feedback.get("suggestions") or [])
         budget_suggestions: list[dict[str, Any]] = []
@@ -170,8 +192,9 @@ class FeedbackWriter:
                     "trade_prediction_dashboard": report.get("trade_prediction_dashboard"),
                 },
             })
+            return True
         except Exception as exc:
-            logger.debug("FeedbackWriter: prediction feedback event write failed: %s", exc)
+            raise RuntimeError(f"incubation_prediction_feedback_write_failed: {exc}") from exc
 
     async def _apply_control_actions(
         self,
@@ -182,15 +205,16 @@ class FeedbackWriter:
     ) -> dict[str, Any]:
         """对表现差的 family 应用控制动作。"""
         if not hasattr(db, "list_strategies"):
-            return {"applied": 0}
+            return {"applied": 0, "errors": [{"operation": "control_actions", "error": "strategy_listing_unavailable"}]}
 
         applied = 0
+        errors: list[dict[str, str]] = []
 
         # 获取所有 incubating 策略
         try:
             incubating = await db.list_strategies("incubating", limit=500)
-        except Exception:
-            return {"applied": 0}
+        except Exception as exc:
+            return {"applied": 0, "errors": [{"operation": "control_actions", "error": str(exc)}]}
 
         for strategy in incubating:
             sid = str(strategy.get("id") or "").strip()
@@ -207,8 +231,10 @@ class FeedbackWriter:
             elif family in families_to_cooldown:
                 control_mode = "throttled"
 
-            if control_mode and hasattr(db, "save_strategy_runtime_control"):
+            if control_mode:
                 try:
+                    if not hasattr(db, "save_strategy_runtime_control"):
+                        raise RuntimeError("runtime_control_store_unavailable")
                     account = None
                     if hasattr(db, "get_strategy_incubation_account"):
                         account = await db.get_strategy_incubation_account(sid)
@@ -237,20 +263,21 @@ class FeedbackWriter:
                     })
                     applied += 1
                 except Exception as exc:
+                    errors.append({"operation": f"control_action:{sid}", "error": str(exc)})
                     logger.debug(
                         "FeedbackWriter: control action failed for %s: %s",
                         sid,
                         exc,
                     )
 
-        return {"applied": applied}
+        return {"applied": applied, "errors": errors}
 
     async def _write_summary_snapshot(
         self, db: Any, report: dict[str, Any]
-    ) -> None:
+    ) -> bool:
         """写入汇总快照供前端展示。"""
         if not hasattr(db, "save_strategy_closure_snapshot"):
-            return
+            return False
         try:
             await db.save_strategy_closure_snapshot({
                 "strategy_id": "__incubation_factory__",
@@ -266,5 +293,6 @@ class FeedbackWriter:
                     "feedback_actions": report.get("feedback_actions"),
                 },
             })
+            return True
         except Exception as exc:
-            logger.debug("FeedbackWriter: summary snapshot write failed: %s", exc)
+            raise RuntimeError(f"incubation_feedback_snapshot_write_failed: {exc}") from exc

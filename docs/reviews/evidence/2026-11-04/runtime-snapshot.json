@@ -1,0 +1,663 @@
+{
+  "bar_dates": [
+    {
+      "date": "2026-11-03",
+      "rows": 5574,
+      "codes": 5574
+    },
+    {
+      "date": "2026-11-02",
+      "rows": 5575,
+      "codes": 5575
+    },
+    {
+      "date": "2026-10-30",
+      "rows": 5575,
+      "codes": 5575
+    },
+    {
+      "date": "2026-10-29",
+      "rows": 5574,
+      "codes": 5574
+    },
+    {
+      "date": "2026-10-28",
+      "rows": 5574,
+      "codes": 5574
+    },
+    {
+      "date": "2026-10-27",
+      "rows": 5574,
+      "codes": 5574
+    },
+    {
+      "date": "2026-10-26",
+      "rows": 5574,
+      "codes": 5574
+    },
+    {
+      "date": "2026-10-23",
+      "rows": 5576,
+      "codes": 5576
+    },
+    {
+      "date": "2026-10-22",
+      "rows": 5574,
+      "codes": 5574
+    },
+    {
+      "date": "2026-10-21",
+      "rows": 5572,
+      "codes": 5572
+    },
+    {
+      "date": "2026-10-20",
+      "rows": 5572,
+      "codes": 5572
+    },
+    {
+      "date": "2026-10-19",
+      "rows": 5568,
+      "codes": 5568
+    }
+  ],
+  "stocks": [
+    {
+      "n": 5582,
+      "codes": 5582
+    }
+  ],
+  "quotes": [
+    {
+      "n": 171,
+      "latest_time": "2026-10-18T18:42:26.238788",
+      "latest_write": "2026-10-18 10:42:26"
+    }
+  ],
+  "completeness": [
+    {
+      "data_key": "index_klines",
+      "status": "ok",
+      "as_of_date": "2026-10-30",
+      "row_count": 2260,
+      "updated_at": "2026-11-01 22:40:11"
+    },
+    {
+      "data_key": "kline_1d",
+      "status": "partial",
+      "as_of_date": "2026-11-03",
+      "row_count": 5563,
+      "updated_at": "2026-11-03 08:17:16"
+    },
+    {
+      "data_key": "margin_detail",
+      "status": "stale",
+      "as_of_date": "2026-10-16",
+      "row_count": 38985,
+      "updated_at": "2026-11-01 22:40:11"
+    },
+    {
+      "data_key": "margin_market_flow",
+      "status": "stale",
+      "as_of_date": "2026-10-16",
+      "row_count": 39,
+      "updated_at": "2026-11-01 22:40:11"
+    },
+    {
+      "data_key": "north_fund_flow",
+      "status": "stale",
+      "as_of_date": "2026-10-16",
+      "row_count": 183,
+      "updated_at": "2026-11-01 22:40:11"
+    },
+    {
+      "data_key": "stock_fund_flow",
+      "status": "stale",
+      "as_of_date": "2026-10-16",
+      "row_count": 10400,
+      "updated_at": "2026-11-01 22:40:11"
+    },
+    {
+      "data_key": "stock_quotes",
+      "status": "source_unavailable",
+      "as_of_date": "2026-10-18",
+      "row_count": 171,
+      "updated_at": "2026-11-01 22:40:11"
+    },
+    {
+      "data_key": "strategy_factory_market_internals",
+      "status": "ok",
+      "as_of_date": "2026-11-02",
+      "row_count": 12,
+      "updated_at": "2026-11-01 22:40:11"
+    },
+    {
+      "data_key": "sync_relation",
+      "status": "source_unavailable",
+      "as_of_date": null,
+      "row_count": 0,
+      "updated_at": "2026-11-01 22:40:11"
+    },
+    {
+      "data_key": "sync_sector_basic",
+      "status": "ok",
+      "as_of_date": "2026-10-18",
+      "row_count": 5783,
+      "updated_at": "2026-11-01 22:40:11"
+    }
+  ],
+  "strategy_status": [
+    {
+      "status": "archived_draft",
+      "n": 17,
+      "first": "2026-07-16T01:20:21.875464+00:00",
+      "latest": "2026-07-16T03:27:30.830930+00:00",
+      "latest_update": "2026-07-16T04:24:01.332900+00:00"
+    },
+    {
+      "status": "deprecated",
+      "n": 263,
+      "first": "2026-10-20T01:44:06.891769+00:00",
+      "latest": "2026-11-01T22:39:33.931753+00:00",
+      "latest_update": "2026-11-03T10:30:30.101184+00:00"
+    },
+    {
+      "status": "draft",
+      "n": 1001,
+      "first": "2026-07-23T01:51:54.396711+00:00",
+      "latest": "2026-11-01T22:39:42.549020+00:00",
+      "latest_update": "2026-11-01T22:39:42.549020+00:00"
+    },
+    {
+      "status": "incubating",
+      "n": 258,
+      "first": "2026-10-20T01:29:51.994566+00:00",
+      "latest": "2026-11-01T21:25:57.817757+00:00",
+      "latest_update": "2026-11-01T21:25:57.825465+00:00"
+    },
+    {
+      "status": "rejected",
+      "n": 6175,
+      "first": "2024-03-01T00:00:00Z",
+      "latest": "2026-10-20T01:22:39.359517+00:00",
+      "latest_update": "2026-10-20T01:22:39.389801+00:00"
+    },
+    {
+      "status": "submitted",
+      "n": 8333,
+      "first": "2026-07-16T03:51:03.180599+00:00",
+      "latest": "2026-11-01T22:37:18.119699+00:00",
+      "latest_update": "2026-11-01T22:37:18.130104+00:00"
+    }
+  ],
+  "factory_recent": [
+    {
+      "run_id": "factory_run_1793592309_4d38af76",
+      "status": "skipped",
+      "started_at": "2026-11-02T12:05:09.390050+08:00",
+      "completed_at": "2026-11-02T12:05:14.609110+08:00",
+      "execution_mode": "stock_first_observe_primary",
+      "summary": "{\"storage_mode\": \"compact_json\", \"field_name\": \"strategy_factory_runs.summary\", \"truncated\": true, \"original_size_bytes\": 13768, \"payload_hash\": \"69c17e6e2e9b3f1ab20638d650981fb1cbdd6b585af863acab5a7999a4cc7be1\", \"top_level_keys\": [\"active_candidate_count\", \"architecture_review\", \"candidate_local_attempt_count\", \"cohort_effective_trials\", \"cycle_pipeline_contract_version\", \"cycle_pipeline_stage_aliases\", \"cycle_pipeline_stage_order\", \"deferred_submission_count\", \"degraded_stage_count\", \"economic_semantics_missing_count\", \"elapsed_seconds\", \"engine_version\", \"event_runtime_mode\", \"execution_mode\", \"factor_llm_provider_enabled\", \"factor_llm_provider_health_status\", \"factor_llm_provider_ready\", \"factor_llm_provider_rebuild_count\", \"factor_research_degraded\", \"factor_research_refresh_attempted\", \"factor_research_refresh_status\", \"factor_research_stale\", \"factor_source_mode\", \"factory_readiness_authority_version\", \"factory_readiness_blocker_count\", \"factory_readiness_blocking_reason_codes\", \"factory_readiness_blocking_reason_codes_source\", \"factory_readiness_blocking_stage\", \"factory_readiness_can_proceed\", \"factory_readiness_contract_version\", \"factory_readiness_critical_blocking_reason_codes\", \"factory_readiness_decision\", \"factory_readiness_effective_blocking_reason_codes\", \"factory_readiness_hard_gate\", \"factory_readiness_raw_blocking_reason_codes\", \"factory_readiness_score\", \"factory_readiness_warning_count\", \"failed_stage_count\", \"failed_stages\", \"family_gate_feedback_control_counts\", \"family_gate_feedback_created_audit_only\", \"family_gate_feedback_gate_3_failed\", \"family_gate_feedback_gate_3_input\", \"family_gate_feedback_gate_3_passed\", \"family_gate_feedback_gate_3_recorded\", \"family_gate_feedback_submitted\", \"family_gate_feedback_tracked_family_count\", \"family_gate_feedback_update\", \"family_gate_feedback_updated_family_count\", \"feedback_summary\", \"governance_after_dedup\", \"governance_dedup_artifact_available\", \"governance_dedup_artifact_contract_version\", \"governance_evidence_artifact_available\", \"governance_evidence_artifact_contract_version\", \"governance_gate_2_passed\", \"governance_gate_3_passed\", \"governance_gate_artifact_available\", \"governance_gate_artifact_contract_version\", \"governance_multiple_testing_registry_count\", \"governance_plane_available\", \"governance_plane_contract_version\", \"governance_refresh_existing_count\", \"governance_submission_artifact_available\", \"governance_submission_artifact_contract_version\", \"governance_vector_profile_count",
+      "error": null
+    },
+    {
+      "run_id": "factory_run_1793592009_543657cb",
+      "status": "skipped",
+      "started_at": "2026-11-02T12:00:09.384715+08:00",
+      "completed_at": "2026-11-02T12:00:14.632454+08:00",
+      "execution_mode": "stock_first_observe_primary",
+      "summary": "{\"storage_mode\": \"compact_json\", \"field_name\": \"strategy_factory_runs.summary\", \"truncated\": true, \"original_size_bytes\": 13768, \"payload_hash\": \"49efe47b2995f0690f228f37e30300f4a9a532bb271a3e7338267a875f1215ea\", \"top_level_keys\": [\"active_candidate_count\", \"architecture_review\", \"candidate_local_attempt_count\", \"cohort_effective_trials\", \"cycle_pipeline_contract_version\", \"cycle_pipeline_stage_aliases\", \"cycle_pipeline_stage_order\", \"deferred_submission_count\", \"degraded_stage_count\", \"economic_semantics_missing_count\", \"elapsed_seconds\", \"engine_version\", \"event_runtime_mode\", \"execution_mode\", \"factor_llm_provider_enabled\", \"factor_llm_provider_health_status\", \"factor_llm_provider_ready\", \"factor_llm_provider_rebuild_count\", \"factor_research_degraded\", \"factor_research_refresh_attempted\", \"factor_research_refresh_status\", \"factor_research_stale\", \"factor_source_mode\", \"factory_readiness_authority_version\", \"factory_readiness_blocker_count\", \"factory_readiness_blocking_reason_codes\", \"factory_readiness_blocking_reason_codes_source\", \"factory_readiness_blocking_stage\", \"factory_readiness_can_proceed\", \"factory_readiness_contract_version\", \"factory_readiness_critical_blocking_reason_codes\", \"factory_readiness_decision\", \"factory_readiness_effective_blocking_reason_codes\", \"factory_readiness_hard_gate\", \"factory_readiness_raw_blocking_reason_codes\", \"factory_readiness_score\", \"factory_readiness_warning_count\", \"failed_stage_count\", \"failed_stages\", \"family_gate_feedback_control_counts\", \"family_gate_feedback_created_audit_only\", \"family_gate_feedback_gate_3_failed\", \"family_gate_feedback_gate_3_input\", \"family_gate_feedback_gate_3_passed\", \"family_gate_feedback_gate_3_recorded\", \"family_gate_feedback_submitted\", \"family_gate_feedback_tracked_family_count\", \"family_gate_feedback_update\", \"family_gate_feedback_updated_family_count\", \"feedback_summary\", \"governance_after_dedup\", \"governance_dedup_artifact_available\", \"governance_dedup_artifact_contract_version\", \"governance_evidence_artifact_available\", \"governance_evidence_artifact_contract_version\", \"governance_gate_2_passed\", \"governance_gate_3_passed\", \"governance_gate_artifact_available\", \"governance_gate_artifact_contract_version\", \"governance_multiple_testing_registry_count\", \"governance_plane_available\", \"governance_plane_contract_version\", \"governance_refresh_existing_count\", \"governance_submission_artifact_available\", \"governance_submission_artifact_contract_version\", \"governance_vector_profile_count",
+      "error": null
+    },
+    {
+      "run_id": "factory_run_1793591709_8419aba0",
+      "status": "skipped",
+      "started_at": "2026-11-02T11:55:09.381016+08:00",
+      "completed_at": "2026-11-02T11:55:17.022102+08:00",
+      "execution_mode": "stock_first_observe_primary",
+      "summary": "{\"storage_mode\": \"compact_json\", \"field_name\": \"strategy_factory_runs.summary\", \"truncated\": true, \"original_size_bytes\": 13768, \"payload_hash\": \"bc993efeca16acfc21f252f662df1c2c3049b1213ed7e7bf5f367f996a7e184f\", \"top_level_keys\": [\"active_candidate_count\", \"architecture_review\", \"candidate_local_attempt_count\", \"cohort_effective_trials\", \"cycle_pipeline_contract_version\", \"cycle_pipeline_stage_aliases\", \"cycle_pipeline_stage_order\", \"deferred_submission_count\", \"degraded_stage_count\", \"economic_semantics_missing_count\", \"elapsed_seconds\", \"engine_version\", \"event_runtime_mode\", \"execution_mode\", \"factor_llm_provider_enabled\", \"factor_llm_provider_health_status\", \"factor_llm_provider_ready\", \"factor_llm_provider_rebuild_count\", \"factor_research_degraded\", \"factor_research_refresh_attempted\", \"factor_research_refresh_status\", \"factor_research_stale\", \"factor_source_mode\", \"factory_readiness_authority_version\", \"factory_readiness_blocker_count\", \"factory_readiness_blocking_reason_codes\", \"factory_readiness_blocking_reason_codes_source\", \"factory_readiness_blocking_stage\", \"factory_readiness_can_proceed\", \"factory_readiness_contract_version\", \"factory_readiness_critical_blocking_reason_codes\", \"factory_readiness_decision\", \"factory_readiness_effective_blocking_reason_codes\", \"factory_readiness_hard_gate\", \"factory_readiness_raw_blocking_reason_codes\", \"factory_readiness_score\", \"factory_readiness_warning_count\", \"failed_stage_count\", \"failed_stages\", \"family_gate_feedback_control_counts\", \"family_gate_feedback_created_audit_only\", \"family_gate_feedback_gate_3_failed\", \"family_gate_feedback_gate_3_input\", \"family_gate_feedback_gate_3_passed\", \"family_gate_feedback_gate_3_recorded\", \"family_gate_feedback_submitted\", \"family_gate_feedback_tracked_family_count\", \"family_gate_feedback_update\", \"family_gate_feedback_updated_family_count\", \"feedback_summary\", \"governance_after_dedup\", \"governance_dedup_artifact_available\", \"governance_dedup_artifact_contract_version\", \"governance_evidence_artifact_available\", \"governance_evidence_artifact_contract_version\", \"governance_gate_2_passed\", \"governance_gate_3_passed\", \"governance_gate_artifact_available\", \"governance_gate_artifact_contract_version\", \"governance_multiple_testing_registry_count\", \"governance_plane_available\", \"governance_plane_contract_version\", \"governance_refresh_existing_count\", \"governance_submission_artifact_available\", \"governance_submission_artifact_contract_version\", \"governance_vector_profile_count",
+      "error": null
+    },
+    {
+      "run_id": "factory_run_1793591409_0748e2e5",
+      "status": "skipped",
+      "started_at": "2026-11-02T11:50:09.316754+08:00",
+      "completed_at": "2026-11-02T11:50:11.927746+08:00",
+      "execution_mode": "stock_first_observe_primary",
+      "summary": "{\"storage_mode\": \"compact_json\", \"field_name\": \"strategy_factory_runs.summary\", \"truncated\": true, \"original_size_bytes\": 13768, \"payload_hash\": \"87dd52e83ccf5b2e5552215203d9e6f675d32c23a5bc2e1f74427dc68ee45324\", \"top_level_keys\": [\"active_candidate_count\", \"architecture_review\", \"candidate_local_attempt_count\", \"cohort_effective_trials\", \"cycle_pipeline_contract_version\", \"cycle_pipeline_stage_aliases\", \"cycle_pipeline_stage_order\", \"deferred_submission_count\", \"degraded_stage_count\", \"economic_semantics_missing_count\", \"elapsed_seconds\", \"engine_version\", \"event_runtime_mode\", \"execution_mode\", \"factor_llm_provider_enabled\", \"factor_llm_provider_health_status\", \"factor_llm_provider_ready\", \"factor_llm_provider_rebuild_count\", \"factor_research_degraded\", \"factor_research_refresh_attempted\", \"factor_research_refresh_status\", \"factor_research_stale\", \"factor_source_mode\", \"factory_readiness_authority_version\", \"factory_readiness_blocker_count\", \"factory_readiness_blocking_reason_codes\", \"factory_readiness_blocking_reason_codes_source\", \"factory_readiness_blocking_stage\", \"factory_readiness_can_proceed\", \"factory_readiness_contract_version\", \"factory_readiness_critical_blocking_reason_codes\", \"factory_readiness_decision\", \"factory_readiness_effective_blocking_reason_codes\", \"factory_readiness_hard_gate\", \"factory_readiness_raw_blocking_reason_codes\", \"factory_readiness_score\", \"factory_readiness_warning_count\", \"failed_stage_count\", \"failed_stages\", \"family_gate_feedback_control_counts\", \"family_gate_feedback_created_audit_only\", \"family_gate_feedback_gate_3_failed\", \"family_gate_feedback_gate_3_input\", \"family_gate_feedback_gate_3_passed\", \"family_gate_feedback_gate_3_recorded\", \"family_gate_feedback_submitted\", \"family_gate_feedback_tracked_family_count\", \"family_gate_feedback_update\", \"family_gate_feedback_updated_family_count\", \"feedback_summary\", \"governance_after_dedup\", \"governance_dedup_artifact_available\", \"governance_dedup_artifact_contract_version\", \"governance_evidence_artifact_available\", \"governance_evidence_artifact_contract_version\", \"governance_gate_2_passed\", \"governance_gate_3_passed\", \"governance_gate_artifact_available\", \"governance_gate_artifact_contract_version\", \"governance_multiple_testing_registry_count\", \"governance_plane_available\", \"governance_plane_contract_version\", \"governance_refresh_existing_count\", \"governance_submission_artifact_available\", \"governance_submission_artifact_contract_version\", \"governance_vector_profile_count",
+      "error": null
+    },
+    {
+      "run_id": "factory_run_1793591109_e52afa0b",
+      "status": "skipped",
+      "started_at": "2026-11-02T11:45:09.315167+08:00",
+      "completed_at": "2026-11-02T11:45:11.837734+08:00",
+      "execution_mode": "stock_first_observe_primary",
+      "summary": "{\"storage_mode\": \"compact_json\", \"field_name\": \"strategy_factory_runs.summary\", \"truncated\": true, \"original_size_bytes\": 13768, \"payload_hash\": \"6f668d26aa353cc541dabcd6d3a4d4a9031b39ef06904e4e1738c612996d7909\", \"top_level_keys\": [\"active_candidate_count\", \"architecture_review\", \"candidate_local_attempt_count\", \"cohort_effective_trials\", \"cycle_pipeline_contract_version\", \"cycle_pipeline_stage_aliases\", \"cycle_pipeline_stage_order\", \"deferred_submission_count\", \"degraded_stage_count\", \"economic_semantics_missing_count\", \"elapsed_seconds\", \"engine_version\", \"event_runtime_mode\", \"execution_mode\", \"factor_llm_provider_enabled\", \"factor_llm_provider_health_status\", \"factor_llm_provider_ready\", \"factor_llm_provider_rebuild_count\", \"factor_research_degraded\", \"factor_research_refresh_attempted\", \"factor_research_refresh_status\", \"factor_research_stale\", \"factor_source_mode\", \"factory_readiness_authority_version\", \"factory_readiness_blocker_count\", \"factory_readiness_blocking_reason_codes\", \"factory_readiness_blocking_reason_codes_source\", \"factory_readiness_blocking_stage\", \"factory_readiness_can_proceed\", \"factory_readiness_contract_version\", \"factory_readiness_critical_blocking_reason_codes\", \"factory_readiness_decision\", \"factory_readiness_effective_blocking_reason_codes\", \"factory_readiness_hard_gate\", \"factory_readiness_raw_blocking_reason_codes\", \"factory_readiness_score\", \"factory_readiness_warning_count\", \"failed_stage_count\", \"failed_stages\", \"family_gate_feedback_control_counts\", \"family_gate_feedback_created_audit_only\", \"family_gate_feedback_gate_3_failed\", \"family_gate_feedback_gate_3_input\", \"family_gate_feedback_gate_3_passed\", \"family_gate_feedback_gate_3_recorded\", \"family_gate_feedback_submitted\", \"family_gate_feedback_tracked_family_count\", \"family_gate_feedback_update\", \"family_gate_feedback_updated_family_count\", \"feedback_summary\", \"governance_after_dedup\", \"governance_dedup_artifact_available\", \"governance_dedup_artifact_contract_version\", \"governance_evidence_artifact_available\", \"governance_evidence_artifact_contract_version\", \"governance_gate_2_passed\", \"governance_gate_3_passed\", \"governance_gate_artifact_available\", \"governance_gate_artifact_contract_version\", \"governance_multiple_testing_registry_count\", \"governance_plane_available\", \"governance_plane_contract_version\", \"governance_refresh_existing_count\", \"governance_submission_artifact_available\", \"governance_submission_artifact_contract_version\", \"governance_vector_profile_count",
+      "error": null
+    }
+  ],
+  "factor_recent": [
+    {
+      "run_id": "mining_1793543547_3d374f6c",
+      "status": "completed",
+      "started_at": "2026-11-01T14:32:27.261809+00:00",
+      "completed_at": "2026-11-01T14:33:50.814307+00:00",
+      "raw_candidate_count": 4,
+      "validated_count": 1,
+      "admitted_count": 0,
+      "pool_size_after": 12
+    },
+    {
+      "run_id": "mining_1793529000_0bccbaa7",
+      "status": "completed",
+      "started_at": "2026-11-01T10:30:00.013859+00:00",
+      "completed_at": "2026-11-01T10:34:18.597889+00:00",
+      "raw_candidate_count": 4,
+      "validated_count": 1,
+      "admitted_count": 0,
+      "pool_size_after": 12
+    },
+    {
+      "run_id": "mining_1793469600_32e83555",
+      "status": "completed",
+      "started_at": "2026-10-31T18:00:00.160398+00:00",
+      "completed_at": "2026-10-31T18:02:02.231048+00:00",
+      "raw_candidate_count": 0,
+      "validated_count": 0,
+      "admitted_count": 0,
+      "pool_size_after": 12
+    },
+    {
+      "run_id": "mining_1793442602_406732dd",
+      "status": "completed",
+      "started_at": "2026-10-31T10:30:02.509949+00:00",
+      "completed_at": "2026-10-31T10:34:31.693534+00:00",
+      "raw_candidate_count": 10,
+      "validated_count": 1,
+      "admitted_count": 0,
+      "pool_size_after": 12
+    },
+    {
+      "run_id": "mining_1792492202_3d905180",
+      "status": "completed",
+      "started_at": "2026-10-20T10:30:02.788443+00:00",
+      "completed_at": "2026-10-20T10:34:07.093873+00:00",
+      "raw_candidate_count": 10,
+      "validated_count": 0,
+      "admitted_count": 0,
+      "pool_size_after": 11
+    },
+    {
+      "run_id": "mining_1792405800_ea5e3224",
+      "status": "completed",
+      "started_at": "2026-10-19T10:30:00.165265+00:00",
+      "completed_at": "2026-10-19T10:34:36.750265+00:00",
+      "raw_candidate_count": 10,
+      "validated_count": 0,
+      "admitted_count": 0,
+      "pool_size_after": 11
+    }
+  ],
+  "factor_pool": [
+    {
+      "status": "active",
+      "admission_grade": "B",
+      "n": 16,
+      "min_ic": -0.298549,
+      "max_ic": 0.350437,
+      "latest_eval": "2026-11-03T08:17:11.454887+00:00"
+    },
+    {
+      "status": "active",
+      "admission_grade": "C",
+      "n": 1,
+      "min_ic": 0.095956,
+      "max_ic": 0.095956,
+      "latest_eval": "2026-07-16T03:36:37.876735+00:00"
+    },
+    {
+      "status": "active",
+      "admission_grade": "D",
+      "n": 3,
+      "min_ic": -0.043357,
+      "max_ic": 0.086954,
+      "latest_eval": "2026-07-16T03:38:54.853974+00:00"
+    },
+    {
+      "status": "retired",
+      "admission_grade": "B",
+      "n": 2,
+      "min_ic": 0.03,
+      "max_ic": 0.04,
+      "latest_eval": "2026-07-16T01:54:16.598137+00:00"
+    },
+    {
+      "status": "retired",
+      "admission_grade": "C",
+      "n": 7,
+      "min_ic": -0.04428,
+      "max_ic": 0.01,
+      "latest_eval": "2026-07-16T03:31:28.500531+00:00"
+    }
+  ],
+  "events": [
+    {
+      "status": "provisional",
+      "source_tier": "tier_c",
+      "n": 1068,
+      "latest_event": "2026-11-02T00:00:00",
+      "latest_write": "2026-11-02 03:17:18"
+    },
+    {
+      "status": "rejected",
+      "source_tier": "tier_c",
+      "n": 56,
+      "latest_event": "2026-10-18T17:55:21",
+      "latest_write": "2026-10-18 10:52:00"
+    },
+    {
+      "status": "verified",
+      "source_tier": "tier_a",
+      "n": 507,
+      "latest_event": "2026-11-02T00:00:00",
+      "latest_write": "2026-11-02 03:17:14"
+    }
+  ],
+  "event_lineage": [
+    {
+      "n": 0,
+      "latest": null,
+      "strategies_submitted": null
+    }
+  ],
+  "event_signals": [
+    {
+      "n": 1925,
+      "latest": "2026-11-02T04:05:11.053608+00:00"
+    }
+  ],
+  "incubation_decisions": [
+    {
+      "metric_date": "2026-10-30",
+      "decision": "observe",
+      "n": 1862
+    },
+    {
+      "metric_date": "2026-10-20",
+      "decision": "halt",
+      "n": 1
+    },
+    {
+      "metric_date": "2026-10-20",
+      "decision": "observe",
+      "n": 1585
+    },
+    {
+      "metric_date": "2026-10-19",
+      "decision": "halt",
+      "n": 1
+    },
+    {
+      "metric_date": "2026-10-19",
+      "decision": "observe",
+      "n": 1084
+    },
+    {
+      "metric_date": "2026-10-19",
+      "decision": "promote",
+      "n": 3
+    },
+    {
+      "metric_date": "2026-10-15",
+      "decision": "halt",
+      "n": 1
+    },
+    {
+      "metric_date": "2026-10-15",
+      "decision": "observe",
+      "n": 30
+    },
+    {
+      "metric_date": "2026-10-15",
+      "decision": "promote",
+      "n": 3
+    },
+    {
+      "metric_date": "2026-07-16",
+      "decision": "halt",
+      "n": 15
+    },
+    {
+      "metric_date": "2026-07-16",
+      "decision": "promote",
+      "n": 3
+    },
+    {
+      "metric_date": "2026-07-15",
+      "decision": "observe",
+      "n": 6
+    },
+    {
+      "metric_date": "2026-07-14",
+      "decision": "halt",
+      "n": 5
+    },
+    {
+      "metric_date": "2026-07-14",
+      "decision": "observe",
+      "n": 6
+    },
+    {
+      "metric_date": "2026-07-13",
+      "decision": "halt",
+      "n": 5
+    },
+    {
+      "metric_date": "2026-07-13",
+      "decision": "observe",
+      "n": 6
+    }
+  ],
+  "quality": [
+    {
+      "report_type": "submission",
+      "passed": 0,
+      "n": 12908,
+      "latest": "2026-11-01T22:37:18.293794+00:00"
+    },
+    {
+      "report_type": "submission",
+      "passed": 1,
+      "n": 2104,
+      "latest": "2026-11-01T22:39:41.587473+00:00"
+    }
+  ],
+  "promotion": [
+    {
+      "status": "rejected",
+      "n": 263,
+      "latest": "2026-11-03 10:30:30"
+    },
+    {
+      "status": "watch",
+      "n": 213,
+      "latest": "2026-11-03 10:30:36"
+    }
+  ],
+  "orders": [
+    {
+      "status": "expired",
+      "n": 24
+    },
+    {
+      "status": "filled",
+      "n": 545
+    },
+    {
+      "status": "pending",
+      "n": 1411
+    }
+  ],
+  "positions": [
+    {
+      "status": "closed",
+      "audit_eligible": 1,
+      "n": 77,
+      "latest": "2026-10-21T01:30:01"
+    },
+    {
+      "status": "open",
+      "audit_eligible": 0,
+      "n": 176,
+      "latest": "2026-10-21T01:30:01.415124+00:00"
+    },
+    {
+      "status": "orphaned_exit",
+      "audit_eligible": 0,
+      "n": 118,
+      "latest": "2026-10-24T00:00:00+00:00"
+    },
+    {
+      "status": "pending_entry",
+      "audit_eligible": null,
+      "n": 1104,
+      "latest": null
+    },
+    {
+      "status": "pending_exit",
+      "audit_eligible": null,
+      "n": 150,
+      "latest": "2026-10-21T01:30:01.579384+00:00"
+    }
+  ],
+  "paper_trades": [
+    {
+      "date": "2026-10-24",
+      "n": 24
+    },
+    {
+      "date": "2026-10-21",
+      "n": 95
+    },
+    {
+      "date": "2026-10-20",
+      "n": 347
+    },
+    {
+      "date": "2026-10-19",
+      "n": 36
+    },
+    {
+      "date": "2026-10-18",
+      "n": 23
+    },
+    {
+      "date": "2026-07-16",
+      "n": 39
+    },
+    {
+      "date": "2026-07-15",
+      "n": 1
+    },
+    {
+      "date": "2026-07-07",
+      "n": 10
+    },
+    {
+      "date": "2026-06-18",
+      "n": 3
+    },
+    {
+      "date": "2026-06-04",
+      "n": 1
+    }
+  ],
+  "prediction": [
+    {
+      "n": 579
+    }
+  ],
+  "execution_audit": [
+    {
+      "verdict_status": "bootstrap_pending",
+      "execution_hard_gate_passed": 0,
+      "n": 636,
+      "latest": "2026-11-03 10:30:36"
+    },
+    {
+      "verdict_status": "failed_metrics",
+      "execution_hard_gate_passed": 0,
+      "n": 3,
+      "latest": "2026-10-20 01:33:41"
+    },
+    {
+      "verdict_status": "insufficient_samples",
+      "execution_hard_gate_passed": 0,
+      "n": 8,
+      "latest": "2026-10-24 01:27:51"
+    },
+    {
+      "verdict_status": "missing",
+      "execution_hard_gate_passed": 0,
+      "n": 14368,
+      "latest": "2026-11-01 22:37:18"
+    }
+  ],
+  "recent_task_runs": [
+    {
+      "task_name": "strategy_ai_cycle",
+      "status": "completed",
+      "n": 13899,
+      "latest": "2026-11-01 22:35:11"
+    },
+    {
+      "task_name": "strategy_incubation_pipeline",
+      "status": "completed",
+      "n": 521,
+      "latest": "2026-11-01 22:39:33"
+    },
+    {
+      "task_name": "strategy_lifecycle_transition",
+      "status": "running",
+      "n": 1,
+      "latest": "2026-10-31 01:03:52"
+    },
+    {
+      "task_name": "strategy_lifecycle_transition",
+      "status": "success",
+      "n": 15012,
+      "latest": "2026-11-01 22:39:33"
+    },
+    {
+      "task_name": "strategy_research_task",
+      "status": "completed",
+      "n": 13899,
+      "latest": "2026-11-01 22:35:11"
+    },
+    {
+      "task_name": "strategy_runtime_cycle",
+      "status": "completed",
+      "n": 8,
+      "latest": "2026-11-03 10:30:05"
+    },
+    {
+      "task_name": "strategy_runtime_cycle",
+      "status": "timed_out",
+      "n": 16,
+      "latest": "2026-10-20 10:30:02"
+    },
+    {
+      "task_name": "unknown",
+      "status": "completed",
+      "n": 14,
+      "latest": "2026-07-16 03:26:36"
+    },
+    {
+      "task_name": "unknown",
+      "status": "partial",
+      "n": 1,
+      "latest": "2026-07-16 01:55:59"
+    }
+  ]
+}

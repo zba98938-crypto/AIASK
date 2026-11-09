@@ -13,7 +13,7 @@ class SignalTrackerResult:
 
     signals_generated: int
     signal_event_snapshots: int
-    forward_returns_computed: int
+    forward_returns_computed: int | None
     incubation_orders: int
     incubation_orders_filled: int
     incubation_nav_snapshots: int
@@ -23,13 +23,15 @@ class SignalTrackerResult:
     submitted_runtime_pipeline_snapshots: int
     risk_events: int
     risk_actions: int
-    transitions: int
+    transitions: int | None
     vector_registry_updates: int
     projection_snapshots: int
     skipped_runtime_controls: int
     task_run_id: int | None
     errors: list[str]
     phase_results: dict[str, Any]
+    forward_returns_computed_reason: str | None = None
+    transitions_reason: str | None = None
     phase_timeout_count: int = 0
     phase_timeouts: list[str] = None
     phase_error_count: int = 0

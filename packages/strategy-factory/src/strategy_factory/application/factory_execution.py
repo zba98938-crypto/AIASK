@@ -28,6 +28,7 @@ class FactoryArtifactType(str, Enum):
     GOVERNANCE_PLANE = "governance_plane"
     TASK_ARTIFACT = "task_artifact"
     CANDIDATE_ARTIFACT = "candidate_artifact"
+    CANDIDATE_RECORDING = "candidate_recording"
     EVIDENCE_ARTIFACT = "evidence_artifact"
     QUALITY_GATE = "quality_gate"
     BACKTEST_REPORT = "backtest_report"
@@ -42,6 +43,7 @@ _ARTIFACT_TYPE_ORDER = (
     FactoryArtifactType.GOVERNANCE_PLANE,
     FactoryArtifactType.TASK_ARTIFACT,
     FactoryArtifactType.CANDIDATE_ARTIFACT,
+    FactoryArtifactType.CANDIDATE_RECORDING,
     FactoryArtifactType.EVIDENCE_ARTIFACT,
     FactoryArtifactType.QUALITY_GATE,
     FactoryArtifactType.BACKTEST_REPORT,
@@ -186,6 +188,7 @@ def build_run_artifacts(result: Mapping[str, Any] | None) -> list[dict[str, Any]
         FactoryArtifactType.CANDIDATE_ARTIFACT,
         dict(research_plane.get("candidate_artifact") or {}),
     )
+    _append(FactoryArtifactType.CANDIDATE_RECORDING, raw.get("candidate_recording"))
     _append(
         FactoryArtifactType.EVIDENCE_ARTIFACT,
         dict(research_plane.get("evidence_artifact") or {}),

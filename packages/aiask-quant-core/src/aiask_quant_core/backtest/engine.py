@@ -12,6 +12,7 @@ from .utils import (
     _compute_slippage_rate,
     _resolve_slippage_model,
     normalize_trade_date,
+    duplicate_trade_dates,
     align_klines_by_trade_date,
 )
 from .strategies import (
@@ -219,7 +220,10 @@ class BacktestEngine:
             return {'success': False, 'error': 'Portfolio backtest requires at least two instruments'}
 
         # Align instruments by trading calendar (intersection of dates).
-        common_dates, date_aligned = align_klines_by_trade_date(normalized_data)
+        try:
+            common_dates, date_aligned = align_klines_by_trade_date(normalized_data)
+        except ValueError as exc:
+            return {"success": False, "error": str(exc)}
         common_len = len(common_dates)
         if len(date_aligned) <= 1:
             return {'success': False, 'error': 'Insufficient dated kline data for portfolio backtest'}
@@ -829,6 +833,9 @@ class BacktestEngine:
             return {'success': False, 'error': 'No kline data'}
 
         klines = _ensure_dict_list(klines)
+        duplicates = duplicate_trade_dates(klines)
+        if duplicates:
+            return {"success": False, "error": "duplicate_trade_dates", "code": code, "duplicate_dates": duplicates}
         params = params or {}
         initial_capital = float(params.get("initial_capital", 100000) or 100000)
         commission = float(params.get("commission", 0.0003) or 0.0)
@@ -880,7 +887,7 @@ class BacktestEngine:
         from .strategy_registry import StrategyRegistry as _Reg
 
         runtime_inst, execution_semantic_mode = _Reg.create_runtime_strategy(strategy, params)
-        if runtime_inst is not None and execution_semantic_mode == "compiled_dsl":
+        if runtime_inst is not None and (execution_semantic_mode == "compiled_dsl" or params.get("use_daily_execution_replay")):
             if hasattr(runtime_inst, 'generate_entry_exit_masks_from_klines'):
                 _entry, _exit = runtime_inst.generate_entry_exit_masks_from_klines(klines)
             else:

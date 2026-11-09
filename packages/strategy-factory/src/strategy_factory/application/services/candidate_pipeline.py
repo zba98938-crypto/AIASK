@@ -11,6 +11,7 @@ key lookups.
 from __future__ import annotations
 
 import logging
+from copy import deepcopy
 from typing import Any
 
 from ..compact_contracts import compact_backtest_report, compact_quality_gate_report
@@ -54,6 +55,9 @@ class CandidatePipeline:
         pkg = self._pkg
         scheduler = self._scheduler
         backtest_filter = pkg.BacktestFilter()
+        enable_recording = getattr(backtest_filter, "enable_candidate_recording", None)
+        if callable(enable_recording) and not read_only:
+            enable_recording()
         deduplicator = scheduler._build_deduplicator(pkg)
         submitter = scheduler._build_submitter(pkg)
         resolved_execution_mode = (
@@ -101,6 +105,7 @@ class CandidatePipeline:
             except Exception as exc:
                 logger.debug("candidate pipeline task board create/claim failed: %s", exc)
 
+        observe_candidates: list[dict[str, Any]] = []
         try:
             # A-class strategy promotion gates were removed. This evidence
             # scoring path is now the only path: `backtest_filter.filter()` still
@@ -148,8 +153,6 @@ class CandidatePipeline:
                     "evidence_scoring_mode": "observe_first_backtest_evidence_screen",
                     "execution_mode": str(resolved_execution_mode or ""),
                 }
-                quality_gate_report = compact_quality_gate_report(quality_gate_report)
-                backtest_report = compact_backtest_report(backtest_report)
             else:
                 # Empty candidate list: nothing to score, dedup or submit. The
                 # report shape stays identical to the non-empty path so callers
@@ -187,9 +190,37 @@ class CandidatePipeline:
                     db,
                     read_only=read_only,
                 )
-                quality_gate_report = compact_quality_gate_report(quality_gate_report)
                 backtest_report = self._build_observe_first_backtest_report(candidates)
 
+            # Keep the full records on the in-memory service result only. The
+            # cycle writes this payload to an external archive, while its normal
+            # results and database summaries continue to use compact reports.
+            candidate_recording_payload = {
+                "candidates": observe_candidates or candidates,
+                "backtest_passed_candidates": passed,
+                "unique_candidates": unique,
+                "quality_gate_report": quality_gate_report,
+                "backtest_report": backtest_report,
+                "submit_result": submit_result,
+            }
+            full_outcomes = getattr(backtest_filter, "get_candidate_recording_results", None)
+            if callable(full_outcomes):
+                raw_results = full_outcomes()
+                candidate_recording_payload["backtest_candidate_results"] = raw_results
+                if not read_only:
+                    if [item.get("candidate_index") for item in raw_results] != list(range(len(candidates))):
+                        raise ValueError("candidate_recording_result_identity_mismatch")
+                    # The runtime candidates deliberately contain previews. Join
+                    # their unabridged measurements before the lossless archive
+                    # is written; never change submitted candidates or seals.
+                    recorded_candidates = deepcopy(observe_candidates or candidates)
+                    for candidate, raw in zip(recorded_candidates, raw_results):
+                        candidate["backtest_outcome"] = deepcopy(raw["backtest_outcome"])
+                        candidate["backtest_metrics"] = deepcopy(raw["backtest_metrics"])
+                    candidate_recording_payload["candidates"] = recorded_candidates
+            quality_gate_report = compact_quality_gate_report(quality_gate_report)
+            if candidates:
+                backtest_report = compact_backtest_report(backtest_report)
             report = self._build_report(
                 candidates, passed, unique, submit_result, quality_gate_report, backtest_report
             )
@@ -198,6 +229,7 @@ class CandidatePipeline:
                 if hasattr(deduplicator, "get_last_report")
                 else {}
             )
+            candidate_recording_payload["dedup_report"] = dedup_report
             governance_plane = build_governance_plane_artifact(
                 candidates=candidates,
                 quality_gate_report=quality_gate_report,
@@ -217,6 +249,7 @@ class CandidatePipeline:
                 report=report,
                 governance_plane=governance_plane,
                 read_only=read_only,
+                candidate_recording_payload=candidate_recording_payload,
             )
             if task_board is not None and board_task is not None:
                 try:
@@ -483,6 +516,7 @@ class PipelineRunResult:
         report: CandidatePipelineReport,
         governance_plane: dict[str, Any],
         read_only: bool,
+        candidate_recording_payload: dict[str, Any] | None = None,
     ) -> None:
         self.passed = passed
         self.unique = unique
@@ -494,6 +528,7 @@ class PipelineRunResult:
         self.report = report
         self.governance_plane = governance_plane
         self.read_only = bool(read_only)
+        self.candidate_recording_payload = candidate_recording_payload or {}
         self.gate_artifact = dict(governance_plane.get("gate_artifact") or {})
         self.dedup_artifact = dict(governance_plane.get("dedup_artifact") or {})
         self.submission_artifact = dict(governance_plane.get("submission_artifact") or {})

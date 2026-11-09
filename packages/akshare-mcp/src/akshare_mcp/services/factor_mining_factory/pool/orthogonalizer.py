@@ -20,18 +20,22 @@ logger = logging.getLogger(__name__)
 class OrthogonalResult:
     """正交化结果。"""
     is_orthogonal: bool
-    max_correlation: float
+    max_correlation: float | None
     most_correlated_factor: str | None = None
     residual_ic: float | None = None
-    independent_ratio: float = 1.0
+    independent_ratio: float | None = None
+    measurable: bool = True
+    reason: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "is_orthogonal": self.is_orthogonal,
-            "max_correlation": round(self.max_correlation, 6),
+            "max_correlation": round(self.max_correlation, 6) if self.max_correlation is not None else None,
             "most_correlated_factor": self.most_correlated_factor,
             "residual_ic": round(self.residual_ic, 6) if self.residual_ic is not None else None,
-            "independent_ratio": round(self.independent_ratio, 6),
+            "independent_ratio": round(self.independent_ratio, 6) if self.independent_ratio is not None else None,
+            "measurable": self.measurable,
+            "reason": self.reason,
         }
 
 
@@ -72,14 +76,18 @@ class FactorOrthogonalizer:
             aligned = pd.concat(
                 [new_factor_values.rename("new"), existing_values.rename("existing")],
                 axis=1,
-            ).dropna()
+            ).replace([np.inf, -np.inf], np.nan).dropna()
 
             if len(aligned) < 30:
-                continue
+                return OrthogonalResult(False, None, measurable=False, reason="insufficient_common_observations")
 
             # Spearman 相关性
+            if aligned["new"].nunique() < 2 or aligned["existing"].nunique() < 2:
+                return OrthogonalResult(False, None, measurable=False, reason="constant_factor_values")
             corr = abs(float(aligned["new"].corr(aligned["existing"], method="spearman")))
-            if corr > max_corr:
+            if not np.isfinite(corr):
+                return OrthogonalResult(False, None, measurable=False, reason="nonfinite_correlation")
+            if most_correlated is None or corr > max_corr:
                 max_corr = corr
                 most_correlated = factor_id
 
@@ -87,8 +95,8 @@ class FactorOrthogonalizer:
 
         # 计算残差 IC（如果提供了前瞻收益）
         residual_ic = None
-        independent_ratio = 1.0
-        if forward_returns is not None and pool_factor_values and is_orthogonal:
+        independent_ratio = None
+        if forward_returns is not None and pool_factor_values:
             residual_ic, independent_ratio = self._compute_residual_ic(
                 new_factor_values, pool_factor_values, forward_returns
             )
@@ -106,7 +114,7 @@ class FactorOrthogonalizer:
         new_factor: pd.Series,
         pool_factors: dict[str, pd.Series],
         forward_returns: pd.Series,
-    ) -> tuple[float, float]:
+    ) -> tuple[float | None, float | None]:
         """Gram-Schmidt 正交化后计算残差 IC。"""
         try:
             # 构建池因子矩阵
@@ -114,11 +122,11 @@ class FactorOrthogonalizer:
             aligned = pd.concat([new_factor.rename("new"), pool_df, forward_returns.rename("ret")], axis=1).dropna()
 
             if len(aligned) < 30:
-                return None, 1.0
+                return None, None
 
             # 对池因子做回归，取残差
             y = aligned["new"].values
-            X = aligned[pool_df.columns].values
+            X = np.column_stack([np.ones(len(aligned)), aligned[pool_df.columns].values])
 
             # 最小二乘回归
             if X.shape[1] > 0 and X.shape[0] > X.shape[1]:
@@ -126,13 +134,19 @@ class FactorOrthogonalizer:
                     beta = np.linalg.lstsq(X, y, rcond=None)[0]
                     residual = y - X @ beta
                 except np.linalg.LinAlgError:
-                    residual = y
+                    return None, None
             else:
-                residual = y
+                return None, None
 
             # 残差的 Spearman IC
             residual_series = pd.Series(residual, index=aligned.index)
-            residual_ic = float(residual_series.corr(aligned["ret"], method="spearman"))
+            residual_ic = (
+                float(residual_series.corr(aligned["ret"], method="spearman"))
+                if float(np.std(residual)) > 1e-10 and aligned["ret"].nunique() > 1
+                else None
+            )
+            if residual_ic is not None and not np.isfinite(residual_ic):
+                residual_ic = None
 
             # 独立比率
             original_std = float(np.std(y))
@@ -143,4 +157,4 @@ class FactorOrthogonalizer:
 
         except Exception as exc:
             logger.debug("Orthogonalizer: residual IC computation failed: %s", exc)
-            return None, 1.0
+            return None, None

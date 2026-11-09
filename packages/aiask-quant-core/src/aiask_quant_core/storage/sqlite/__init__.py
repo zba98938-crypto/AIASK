@@ -18,6 +18,7 @@ from .artifacts import ArtifactMixin
 from .factor_storage import FactorStorageMixin
 from .financials import FinancialsMixin
 from .kline import KlineMixin
+from .lifecycle_scan import LifecycleScanMixin
 from .market_context import MarketContextMixin
 from .market_temperature import MarketTemperatureStorageMixin
 from .quotes import QuotesMixin
@@ -33,6 +34,7 @@ T = TypeVar("T")
 
 
 class SQLiteAdapter(
+    LifecycleScanMixin,
     KlineMixin,
     StockInfoMixin,
     FinancialsMixin,

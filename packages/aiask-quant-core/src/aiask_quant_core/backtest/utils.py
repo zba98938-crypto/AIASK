@@ -44,6 +44,18 @@ def normalize_trade_date(value: Any) -> str:
     return ""
 
 
+def duplicate_trade_dates(klines: List[Dict[str, Any]]) -> list[str]:
+    """Return ambiguous calendar days without choosing or changing any row."""
+    seen, duplicates = set(), set()
+    for row in klines:
+        day = normalize_trade_date(row.get("date") or row.get("trade_date") or row.get("time") or row.get("datetime"))
+        if day:
+            if day in seen:
+                duplicates.add(day)
+            seen.add(day)
+    return sorted(duplicates)
+
+
 def align_klines_by_trade_date(
     series_map: Dict[str, List[Union[Dict, Any]]],
 ) -> tuple[list[str], Dict[str, List[Dict[str, Any]]]]:
@@ -58,6 +70,9 @@ def align_klines_by_trade_date(
         code = str(raw_code or "").strip()
         if not code or not raw_rows:
             continue
+        duplicates = duplicate_trade_dates(_ensure_dict_list(list(raw_rows)))
+        if duplicates:
+            raise ValueError(f"duplicate_trade_dates:{code}:{','.join(duplicates)}")
         by_date: Dict[str, Dict[str, Any]] = {}
         for row in _ensure_dict_list(list(raw_rows)):
             if not isinstance(row, dict):

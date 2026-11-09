@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+
+from factor_identity_fixtures import bind_record_fixture, identity_outputs
 import sqlite3
 from datetime import date
 
@@ -477,10 +479,13 @@ def test_active_pool_redundancy_uses_replacement_decision_metadata():
         "coverage": {"avg_cross_section_n": 100},
         "lookahead_audit": {"risk_level": "low"},
         "rating": {"grade": "A"},
-        "persisted_outputs": {"enabled": True, "ic_history_rows": 60},
+        "persisted_outputs": {"enabled": True, "ic_history_rows": 60, **identity_outputs("ts_mean(close, 20)")},
     }
 
     pool = ActiveFactorPool()
+    async def measured_correlation(candidate, records):
+        return {"measurable": True, "max_correlation": 1.0, "factor_id": "existing-1", "existing_quality_score": records[0]["fitness"]}
+    pool.correlation_evaluator = measured_correlation
     pool.hydrate(
         [
             {
@@ -539,10 +544,13 @@ def test_active_pool_replacement_returns_retired_record_for_persistence():
         "coverage": {"avg_cross_section_n": 120},
         "lookahead_audit": {"risk_level": "low"},
         "rating": {"grade": "A"},
-        "persisted_outputs": {"enabled": True, "ic_history_rows": 80},
+        "persisted_outputs": {"enabled": True, "ic_history_rows": 80, **identity_outputs("ts_mean(close, 20)")},
     }
 
     pool = ActiveFactorPool()
+    async def measured_correlation(candidate, records):
+        return {"measurable": True, "max_correlation": 1.0, "factor_id": "existing-1", "existing_quality_score": records[0]["fitness"]}
+    pool.correlation_evaluator = measured_correlation
     pool.hydrate(
         [
             {
@@ -1174,7 +1182,7 @@ def test_reappraise_promotes_active_quarantine_stale_records(monkeypatch):
             self.conn = sqlite3.connect(":memory:")
             self.conn.row_factory = sqlite3.Row
 
-    async def _load_factor_ic_rows(_db, factor_name: str):
+    async def _load_factor_ic_rows(_db, factor_name: str, period: str):
         values = [0.05, 0.055, 0.06, 0.065, 0.07] * 12
         return [
             {"rank_ic": value, "ic_value": value, "stock_count": 120 + (idx % 5)}
@@ -1189,31 +1197,38 @@ def test_reappraise_promotes_active_quarantine_stale_records(monkeypatch):
         await ensure_factor_pool_tables(db)
         await save_factor_to_pool(
             db,
-            {
+            bind_record_fixture({
                 "factor_id": "factor_active_quarantine",
                 "name": "active_quarantine_alpha",
                 "family": "momentum",
-                "expression_dsl": "close / ma(close, 20) - 1",
+                "expression_dsl": "close / ts_mean(close, 20) - 1",
                 "status": "active",
                 "validation_summary": {"quality_status": "quarantine"},
                 "admission_grade": "B",
                 "fitness": 1.0,
-            },
+                "inputs": ["close"],
+            }),
         )
         await save_factor_to_pool(
             db,
-            {
+            bind_record_fixture({
                 "factor_id": "factor_quarantine",
                 "name": "quarantine_alpha",
                 "family": "momentum",
-                "expression_dsl": "close / ma(close, 10) - 1",
+                "expression_dsl": "close / ts_mean(close, 10) - 1",
                 "status": "quarantine",
                 "validation_summary": {"quality_status": "quarantine"},
                 "admission_grade": "B",
                 "fitness": 1.0,
-            },
+                "inputs": ["close"],
+            }),
         )
-        result = await reappraise_mod.reappraise_quarantine_factors(db, limit=20)
+        async def _measured_correlation(_candidate, _peers):
+            return {"measurable": True, "max_correlation": 0.1, "basis": "factor_values_pooled_spearman"}
+
+        result = await reappraise_mod.reappraise_quarantine_factors(
+            db, limit=20, correlation_evaluator=_measured_correlation,
+        )
         rows = db.conn.execute(
             "SELECT factor_id, status, validation_summary FROM factor_pool_active ORDER BY factor_id"
         ).fetchall()

@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>AIASK_RUNTIME_HOME</key>
+		<string>/Users/mac/.aiask</string>
+		<key>AIASK_SQLITE_PATH</key>
+		<string>/Users/mac/.aiask/data/db/akshare_mcp.sqlite3</string>
+		<key>BROKER_ALLOW_WRITE</key>
+		<string>0</string>
+		<key>BROKER_READ_ONLY</key>
+		<string>1</string>
+		<key>LIVE_TRADING_ALLOW_WRITE</key>
+		<string>0</string>
+		<key>LIVE_TRADING_ENABLED</key>
+		<string>0</string>
+		<key>LIVE_TRADING_READ_ONLY</key>
+		<string>1</string>
+		<key>MARKET_EVENT_INGEST_ENABLED</key>
+		<string>1</string>
+		<key>MARKET_EVENT_INGEST_INTERVAL_SEC</key>
+		<string>1800</string>
+		<key>PATH</key>
+		<string>/opt/miniconda3/envs/aiask/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+		<key>PYTHONUNBUFFERED</key>
+		<string>1</string>
+	</dict>
+	<key>ExitTimeOut</key>
+	<integer>45</integer>
+	<key>KeepAlive</key>
+	<true/>
+	<key>Label</key>
+	<string>com.aiask.keep-awake.continuous-quality</string>
+	<key>ProcessType</key>
+	<string>Background</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/caffeinate</string>
+		<string>-i</string>
+		<string>-s</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+	<key>StandardErrorPath</key>
+	<string>/Users/mac/.aiask/logs/four_runtime_supervisor/com.aiask.keep-awake.continuous-quality.stderr.log</string>
+	<key>StandardOutPath</key>
+	<string>/Users/mac/.aiask/logs/four_runtime_supervisor/com.aiask.keep-awake.continuous-quality.stdout.log</string>
+	<key>ThrottleInterval</key>
+	<integer>30</integer>
+	<key>WorkingDirectory</key>
+	<string>/Users/mac/Desktop/张勇/AIASK</string>
+</dict>
+</plist>

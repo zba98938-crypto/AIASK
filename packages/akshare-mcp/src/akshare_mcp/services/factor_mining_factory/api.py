@@ -8,6 +8,8 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from .quality import unmeasured_seed_reason
+
 logger = logging.getLogger(__name__)
 
 
@@ -77,6 +79,11 @@ class FactorPoolGateway:
     @staticmethod
     def _is_research_consumable_factor(row: dict[str, Any]) -> bool:
         payload = dict(row or {})
+        if unmeasured_seed_reason(payload):
+            return False
+        from ..factor_evidence_identity import requires_bound_evidence, resolve_factor_evidence_identity
+        if requires_bound_evidence(payload) and resolve_factor_evidence_identity(payload).get("status") != "bound":
+            return False
         if str(payload.get("status") or "").strip().lower() != "active":
             return False
         if not str(payload.get("expression_dsl") or "").strip():
@@ -116,6 +123,12 @@ class FactorPoolGateway:
                         row for row in rows
                         if row.get("family") in set(families)
                     ]
+                # This path is also used by research as a fallback. Historical
+                # seed labels must not bypass evidence checks via that route.
+                excluded = [row for row in rows if unmeasured_seed_reason(row)]
+                if excluded:
+                    logger.warning("FactorPoolGateway: excluded unmeasured seeds: %s", [row.get("factor_id") for row in excluded])
+                rows = [row for row in rows if not unmeasured_seed_reason(row)]
                 return rows[:limit]
             rows = await factory._active_pool.get_active_factors(
                 families=families,
@@ -129,18 +142,9 @@ class FactorPoolGateway:
             ]
             return filtered_rows[:limit]
         except Exception as exc:
-            logger.debug("FactorPoolGateway: persistent pool load failed: %s", exc)
-        factors = await factory._active_pool.get_active_factors(
-            families=families,
-            min_grade=min_grade,
-            limit=max(int(limit or 50) * 4, int(limit or 50)),
-        )
-        filtered = [
-            dict(row or {})
-            for row in list(factors or [])
-            if self._is_research_consumable_factor(dict(row or {}))
-        ]
-        return filtered[:limit]
+            # A cached factor may have been retired. Do not silently resurrect
+            # it when the authoritative store cannot be refreshed.
+            raise RuntimeError("factor_pool_refresh_failed") from exc
 
     async def get_factor_weights(
         self,
@@ -225,14 +229,18 @@ class FactorPoolGateway:
             if status == "active":
                 active_status_count += 1
                 expression_ready = bool(str(row.get("expression_dsl") or "").strip())
+                seed_reason = unmeasured_seed_reason(row)
                 if (
                     quality_status == "promoted"
                     and expression_ready
                     and not qc_blocks_research
+                    and not seed_reason
                 ):
                     research_consumable_count += 1
                 else:
-                    if not expression_ready:
+                    if seed_reason:
+                        reason = seed_reason
+                    elif not expression_ready:
                         reason = "missing_expression_dsl"
                     elif qc_blocks_research:
                         reason = f"qc_{shelf_decision}"

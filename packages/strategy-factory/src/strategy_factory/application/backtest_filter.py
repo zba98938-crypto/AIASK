@@ -32,6 +32,7 @@ from ..domain.constants import (
 from ..domain.targets import _build_target_alignment_contract
 from ..domain.targets import _extract_target_codes_from_payload
 from ..domain.targets import _normalize_target_codes
+from ..domain.targets import _non_tradable_index_target_codes
 from ..domain.targets import _normalize_research_task_contract
 from ..infrastructure.mcp_services import get_backtest_engine_class
 from .candidate_contract import (
@@ -42,6 +43,7 @@ from .candidate_contract import (
     build_tested_object_hash,
 )
 from .param_perturbation_study import run_parameter_perturbation_study
+from .oos_replay import replay_frozen_holdout
 from .runtime import get_strategy_factory_package as _runtime_get_strategy_factory_package
 
 
@@ -60,6 +62,15 @@ def _safe_float(value: Any, default: float = 0.0) -> float:
         return float(value)
     except (TypeError, ValueError):
         return float(default)
+
+
+def _optional_finite_float(value: Any) -> float | None:
+    """Keep unavailable ratios missing instead of manufacturing measured zero."""
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if math.isfinite(number) else None
 
 
 def _unique_reasons(reasons: list[str]) -> list[str]:
@@ -262,6 +273,15 @@ def _compact_backtest_metric_payload(metric: Optional[dict[str, Any]]) -> dict[s
             "positions",
             "orders",
         }:
+            continue
+        if key == "target_layer_oos_return" and value is None:
+            compact[key] = None
+            continue
+        if key == "backtest_assumptions" and isinstance(value, dict):
+            # This is the engine's bounded execution contract, consumed by risk
+            # replay and admission. A display preview must not drop its rules
+            # or explicitly missing inputs.
+            compact[key] = deepcopy(value)
             continue
         if value in (None, "", [], {}):
             continue
@@ -528,6 +548,7 @@ class BacktestFilter:
         }
         self.type_thresholds = dict(BACKTEST_TYPE_THRESHOLDS)
         self._kline_cache: dict[str, list] = {}
+        self._kline_cache_errors: dict[str, str] = {}
 
     async def preload_klines(self, db, codes: list[str] | None = None) -> None:
         """批量预取 K 线至缓存，后续 _test_one 复用。
@@ -549,6 +570,7 @@ class BacktestFilter:
                 try:
                     klines = await db.get_klines(code, limit=500)
                     self._kline_cache[code] = klines or []
+                    self._kline_cache_errors.pop(code, None)
                     return
                 except Exception as exc:
                     last_exc = exc
@@ -558,6 +580,7 @@ class BacktestFilter:
                     )
             # 3 次仍失败：缓存空列表，标记 last_exc 方便诊断
             self._kline_cache[code] = []
+            self._kline_cache_errors[code] = str(last_exc)
             logger.warning(
                 "BacktestFilter: kline fetch failed after retries for %s: %s",
                 code, last_exc,
@@ -571,6 +594,13 @@ class BacktestFilter:
 
     def get_last_report(self) -> dict:
         return self.last_report
+
+    def enable_candidate_recording(self) -> None:
+        """Opt in to full outcomes for the cycle's external candidate archive."""
+        self._candidate_recording_results: list[dict] = []
+
+    def get_candidate_recording_results(self) -> list[dict]:
+        return list(getattr(self, "_candidate_recording_results", []))
 
     @staticmethod
     def _count_by_strategy_type(items: List[dict]) -> Dict[str, int]:
@@ -796,12 +826,16 @@ class BacktestFilter:
             "implementation_shortfall_components",
             "backtest_assumptions",
             "economic_semantics",
+            "oos_validation",
             "failed_metric",
             "backtest_metrics_contract",
         ):
             value = payload.get(key)
             if value not in (None, "", [], {}):
-                compact[key] = cls._compact_json_for_report(value)
+                compact[key] = (
+                    deepcopy(value) if key == "backtest_assumptions"
+                    else cls._compact_json_for_report(value)
+                )
         metrics = _compact_backtest_metric_payload(payload.get("metrics") or {})
         if metrics:
             compact["metrics"] = metrics
@@ -962,6 +996,7 @@ class BacktestFilter:
         ):
             sanitized_params.pop(key, None)
         signature_payload = {
+            "oos_validation_contract": dict(candidate.get("oos_validation_contract") or {}),
             "candidate_contract_hash": contract_hash,
             "strategy_type": strategy_type,
             "params": sanitized_params,
@@ -1033,15 +1068,33 @@ class BacktestFilter:
         result: dict,
         passed: List[dict],
         failed: List[dict],
-    ) -> None:
+    ) -> dict[str, Any] | None:
         compact_result = self._compact_backtest_result_payload(result)
         candidate["backtest_outcome"] = compact_result
         candidate.pop("backtest_result", None)
+        if result.get("reason_code") == "non_tradable_index_target":
+            contract = {
+                "contract_version": "strategy_factory.backtest_metrics_contract.v1",
+                "available": False, "status": "blocked",
+                "reason": "non_tradable_index_target",
+                "target_codes": list(result.get("target_codes") or []),
+            }
+            candidate["backtest_metrics_contract"] = contract
+            candidate["backtest_metrics"] = {
+                "post_cost_sharpe": None, "total_return": None, "max_drawdown": None,
+                "trade_count": None, "target_layer_oos_return": None,
+                "measurement_unavailable_reason": "non_tradable_index_target",
+                "backtest_metrics_contract": contract,
+                "backtest_metrics_contract_status": "blocked",
+            }
+            failed.append(candidate)
+            return deepcopy(candidate["backtest_metrics"]) if hasattr(self, "_candidate_recording_results") else None
         derived_trade_metrics = self._derive_trade_validation_metrics(candidate, result)
         metrics_contract = self._build_backtest_metrics_contract(candidate, result)
         for key, value in derived_trade_metrics.items():
             if value not in (None, "", [], {}):
                 metrics_contract[key] = value
+        metrics_contract["target_layer_oos_return"] = derived_trade_metrics.get("target_layer_oos_return")
         # Keep explicit stability field even when upstream study is absent so
         # downstream contracts can distinguish "missing study" (None) from
         # "field omitted by compaction".
@@ -1081,13 +1134,21 @@ class BacktestFilter:
                 ((result.get("layers") or {}).get("combined") or {}).get("metrics") or {}
             ),
             "event_window_metrics": compact_event_metrics,
-            "target_layer_oos_return": float((((result.get("layers") or {}).get("target") or {}).get("metrics") or {}).get("total_return") or 0.0),
+            "target_layer_oos_return": derived_trade_metrics.get("target_layer_oos_return"),
             "post_cost_sharpe": float((result.get("metrics") or {}).get("sharpe_ratio") or 0.0),
             "backtest_assumptions": dict(result.get("backtest_assumptions") or {}),
             "backtest_metrics_contract": metrics_contract,
             "backtest_metrics_contract_status": metrics_contract.get("status"),
             **derived_trade_metrics,
         }
+        recording_metrics = None
+        if hasattr(self, "_candidate_recording_results"):
+            recording_metrics = deepcopy(candidate["backtest_metrics"])
+            for layer in ("target", "representative", "combined"):
+                recording_metrics[f"{layer}_layer_metrics"] = deepcopy(
+                    ((result.get("layers") or {}).get(layer) or {}).get("metrics") or {}
+                )
+            recording_metrics["event_window_metrics"] = deepcopy(result.get("event_window_metrics") or {})
         candidate["backtest_metrics"] = _compact_backtest_metric_payload(candidate.get("backtest_metrics") or {})
         if compact_event_metrics:
             candidate["backtest_metrics"]["event_window_metrics"] = compact_event_metrics
@@ -1104,6 +1165,7 @@ class BacktestFilter:
             passed.append(candidate)
         else:
             failed.append(candidate)
+        return recording_metrics
 
     def _build_last_report(self, candidates: List[dict], passed: List[dict], failed: List[dict]) -> dict:
         failed_reason_counts: Dict[str, int] = {}
@@ -1162,6 +1224,8 @@ class BacktestFilter:
         }
 
     async def filter(self, candidates: List[dict], db) -> List[dict]:
+        if hasattr(self, "_candidate_recording_results"):
+            self._candidate_recording_results = []
         for candidate in candidates:
             resolved_candidate = apply_resolved_candidate_envelope(candidate)
             candidate.clear()
@@ -1219,7 +1283,7 @@ class BacktestFilter:
                 reused=False,
                 reuse_count=reuse_count,
             )
-        for candidate in candidates:
+        for candidate_index, candidate in enumerate(candidates):
             shared_key = shared_key_by_candidate[id(candidate)]
             leader = (shared_groups.get(shared_key) or [candidate])[0]
             result = shared_results.get(shared_key)
@@ -1239,7 +1303,13 @@ class BacktestFilter:
                     reused=True,
                     reuse_count=max(len(shared_groups.get(shared_key) or []) - 1, 0),
                 )
-            self._apply_result_to_candidate(candidate, result, passed, failed)
+            recording_metrics = self._apply_result_to_candidate(candidate, result, passed, failed)
+            if hasattr(self, "_candidate_recording_results"):
+                self._candidate_recording_results.append({
+                    "candidate_index": candidate_index,
+                    "backtest_outcome": result,
+                    "backtest_metrics": recording_metrics,
+                })
         self.last_report = self._build_last_report(candidates, passed, failed)
         return passed
 
@@ -1366,6 +1436,45 @@ class BacktestFilter:
         payload.setdefault("component_codes", list(market_data.keys()))
         return payload
 
+    @staticmethod
+    def _per_code_baseline_metrics(primary_results: List[dict]) -> dict[str, dict]:
+        """Index successful per-code backtest payloads by code.
+
+        Each entry of ``primary_results`` is already the engine's ``data``
+        payload (see ``_test_one``), so it is used as-is. Reading a nested
+        ``data`` key here once yielded ``{}`` for every code, which made every
+        perturbation study end with ``baseline_trades_unavailable``.
+        """
+        out: dict[str, dict] = {}
+        for item in primary_results or []:
+            if not isinstance(item, dict):
+                continue
+            code = item.get("code")
+            if code:
+                out.setdefault(str(code), dict(item))
+        return out
+
+    @staticmethod
+    def _strategy_tunable_keys(strategy_type: str) -> frozenset[str]:
+        """Numeric tunables the spawner defines for ``strategy_type``.
+
+        Empty when the type has no spawner defaults; the study then reports
+        ``no_numeric_params`` instead of perturbing metadata.
+        """
+        try:
+            from ..domain.spawner import StrategySpawner
+
+            spawner = StrategySpawner.__new__(StrategySpawner)
+            defaults = spawner._legacy_varied_defaults(str(strategy_type or ""), 0, snapshot=None)
+        except Exception:
+            logger.debug("BacktestFilter: no spawner defaults for %s", strategy_type, exc_info=True)
+            return frozenset()
+        return frozenset(
+            str(k)
+            for k, v in dict(defaults or {}).items()
+            if isinstance(v, (int, float)) and not isinstance(v, bool)
+        )
+
     async def _run_parameter_perturbation_study(
         self,
         candidate: dict,
@@ -1385,20 +1494,70 @@ class BacktestFilter:
         failed produce None-valued stats with a stable reason, never 0.
         """
         klines = list(self._kline_cache.get(primary_code) or [])
-        params = dict(candidate.get("params") or {})
-        params.update(assumptions_kwargs)
+        # Perturb the same resolved params the baseline backtest ran with
+        # (``_test_one`` fills spawner defaults via ``_ensure_strategy_params``);
+        # perturbing raw candidate params would test a different object.
+        resolved = dict((baseline_metrics or {}).get("_resolved_strategy_params") or {})
+        if not resolved:
+            resolved = _ensure_strategy_params(
+                strategy_type,
+                dict(candidate.get("params") or {}),
+                research_task=candidate.get("research_task"),
+            )
+        # The engine may use constructor defaults for omitted canonical keys
+        # even when metadata or obsolete aliases make params non-empty. Resolve
+        # those exact deterministic runtime values, not fresh spawner jitter.
+        if not (isinstance(resolved.get("dsl"), dict) and resolved.get("dsl")):
+            try:
+                from aiask_quant_core.backtest import StrategyRegistry
+
+                instance, _mode = StrategyRegistry.create_runtime_strategy(strategy_type, resolved)
+                if instance is not None:
+                    resolved = {**resolved, **instance.get_parameters()}
+            except (KeyError, ValueError, TypeError):
+                logger.warning("Unable to resolve perturbation runtime params for %s", strategy_type, exc_info=True)
+        # Only strategy params are perturbed. Execution assumptions
+        # (commission, adv_ratio_limit, ...) are passed through unchanged:
+        # mixed into base_params they sort ahead of strategy params and would
+        # consume the whole variant cap.
+        params = {k: v for k, v in resolved.items() if k not in _TASK_META_KEYS}
+        # Only the strategy type's own tunables are perturbed. ``params`` also
+        # carries numeric metadata (commission, confidence, target_symbol_count,
+        # ...) that the engine never reads; sorted first, they used to fill the
+        # whole variant cap, so every study reported "perfectly stable" while
+        # lookback/threshold were never touched.
+        tunable_keys = self._strategy_tunable_keys(strategy_type)
+        perturbable = {k: v for k, v in params.items() if k in tunable_keys}
+        fixed = {k: v for k, v in params.items() if k not in tunable_keys}
         baseline_result = {
             "success": True,
             "data": dict(baseline_metrics or {}),
         }
+
+        async def _run_variant(engine_, code_, klines_, strategy_type_, variant_params):
+            # Same normalisation as the baseline (_test_one merges the trade
+            # profile, which rewrites trades_count to the closed round-trip
+            # count). Comparing raw fills against round trips reported
+            # stability 0.0 for unchanged trade counts.
+            result = await asyncio.wait_for(
+                asyncio.to_thread(
+                    engine_.run_backtest, code_, klines_, strategy_type_, variant_params, True,
+                ),
+                timeout=BACKTEST_CODE_TIMEOUT_SEC,
+            )
+            if isinstance(result, dict) and result.get("success"):
+                result = {**result, "data": self._merge_trade_profile_metrics(result.get("data"))}
+            return result
+
         study = await run_parameter_perturbation_study(
             engine=engine,
             code=primary_code,
             klines=klines,
             strategy_type=strategy_type,
-            base_params=params,
-            assumptions_kwargs={},
+            base_params=perturbable,
+            assumptions_kwargs={**fixed, **dict(assumptions_kwargs or {})},
             baseline_result=baseline_result,
+            run_backtest_async=_run_variant,
             variant_cap=PARAM_PERTURB_VARIANT_CAP,
             budget_sec=PARAM_PERTURB_BUDGET_SEC,
             code_timeout_sec=BACKTEST_CODE_TIMEOUT_SEC,
@@ -2464,7 +2623,13 @@ class BacktestFilter:
         if turnover_proxy <= 0 and trade_count > 0:
             turnover_proxy = round(trade_count / max(avg_holding_days, 5.0), 4) if avg_holding_days > 0 else float(trade_count)
 
-        target_layer_oos_return = float(target_metrics.get("total_return") or metrics.get("total_return") or 0.0)
+        holdout = dict(result.get("oos_validation") or {})
+        target_layer_oos_return = (
+            float(holdout["total_return"])
+            if holdout.get("status") == "measured" and holdout.get("total_return") is not None
+            else None
+        )
+        target_backtest_return = float(target_metrics.get("total_return") or metrics.get("total_return") or 0.0)
         representative_return = float(representative_metrics.get("total_return") or 0.0)
         combined_return = float(combined_metrics.get("total_return") or metrics.get("total_return") or 0.0)
         event_window_return = float(
@@ -2478,7 +2643,7 @@ class BacktestFilter:
         target_layer_abnormal_return = round(
             float(event_window_metrics.get("abnormal_return"))
             if event_window_metrics.get("abnormal_return") is not None
-            else target_layer_oos_return - representative_return,
+            else target_backtest_return - representative_return,
             4,
         )
 
@@ -2575,7 +2740,9 @@ class BacktestFilter:
         return {
             "avg_holding_days": round(avg_holding_days, 4),
             "turnover_proxy": round(turnover_proxy, 4),
-            "target_layer_oos_return": round(target_layer_oos_return, 4),
+            "target_layer_oos_return": round(target_layer_oos_return, 4) if target_layer_oos_return is not None else None,
+            "target_backtest_return": round(target_backtest_return, 4),
+            "oos_validation": holdout or {"status": "unavailable", "reason": "missing_oos_validation_contract"},
             "target_layer_abnormal_return": round(target_layer_abnormal_return, 4),
             "event_window_hit_ratio": (
                 None if event_window_hit_ratio is None else round(event_window_hit_ratio, 4)
@@ -2657,7 +2824,13 @@ class BacktestFilter:
             "trades_count": trades_count,
             "max_drawdown": round(max_drawdown, 6),
             "win_rate": round(win_rate, 6),
-            "profit_factor": _safe_float(primary_metrics.get("profit_factor"), _safe_float(metrics.get("profit_factor"))),
+            # An explicit None means the primary sample has no estimable loss
+            # denominator. It must reach admission as missing_profit_factor.
+            "profit_factor": _optional_finite_float(
+                primary_metrics["profit_factor"]
+                if "profit_factor" in primary_metrics
+                else metrics.get("profit_factor")
+            ),
             "expectancy": _safe_float(primary_metrics.get("expectancy"), _safe_float(metrics.get("expectancy"))),
             "expectancy_return": _safe_float(primary_metrics.get("expectancy_return"), _safe_float(metrics.get("expectancy_return"))),
             "payoff_ratio": _safe_float(primary_metrics.get("payoff_ratio"), _safe_float(metrics.get("payoff_ratio"))),
@@ -2723,6 +2896,23 @@ class BacktestFilter:
 
     async def _test_one(self, candidate: dict, db, engine) -> dict:
         candidate = apply_resolved_candidate_envelope(candidate)
+        index_targets = _non_tradable_index_target_codes(candidate)
+        if index_targets:
+            # Reject this contract as written; removing members and renormalizing
+            # weights here would silently backtest a different candidate.
+            return {
+                "passed": False, "reason_code": "non_tradable_index_target",
+                "reason": "指数不能作为可交易目标: " + ",".join(index_targets),
+                "strategy_type": candidate.get("strategy_type") or "unknown",
+                "target_codes": _extract_target_codes_from_payload(candidate, limit=40),
+                "evaluated_codes": [], "successful_codes": [], "representative_codes": [],
+                "evaluated_code_count": 0, "successful_code_count": 0,
+                "sample_count": 0, "required_sample_count": 0,
+                "code_source": "structural_target_rejection", "primary_layer": "none",
+                "code_run_count": 0, "metrics": {}, "skipped_codes": [],
+                "failed_codes": [{"code": code, "reason": "non_tradable_index_target"}
+                                 for code in index_targets],
+            }
         factory_pkg = _get_strategy_factory_package()
         strategy_type = str(candidate.get("strategy_type") or "unknown")
         thresholds = self._get_thresholds(strategy_type, candidate)
@@ -2764,11 +2954,12 @@ class BacktestFilter:
                     klines = await db.get_klines(code, limit=500)
                     self._kline_cache[code] = klines or []
                 if not klines or len(klines) < 100:
+                    error = self._kline_cache_errors.get(code)
                     return {
                         "code": code,
                         "layer": layer,
                         "status": "skipped",
-                        "reason": "insufficient_klines",
+                        "reason": error if error else "insufficient_klines",
                         "available": len(klines or []),
                         "cache_hit": cache_hit,
                         "run_ms": round((time.perf_counter() - started_at) * 1000, 2),
@@ -2782,6 +2973,10 @@ class BacktestFilter:
                         )
                         or BACKTEST_CODE_TIMEOUT_SEC
                     )
+                    resolved_strategy_params = _ensure_strategy_params(
+                        candidate["strategy_type"], candidate["params"],
+                        research_task=candidate.get("research_task"),
+                    )
                     result = await asyncio.wait_for(
                         factory_pkg.asyncio.to_thread(
                             engine.run_backtest,
@@ -2789,11 +2984,7 @@ class BacktestFilter:
                             klines,
                             candidate["strategy_type"],
                             {
-                                **_ensure_strategy_params(
-                                    candidate["strategy_type"],
-                                    candidate["params"],
-                                    research_task=candidate.get("research_task"),
-                                ),
+                                **resolved_strategy_params,
                                 **assumptions_kwargs,
                             },
                             True,
@@ -2821,7 +3012,7 @@ class BacktestFilter:
                         "code": code,
                         "layer": layer,
                         "status": "success",
-                        "data": result["data"],
+                        "data": {**result["data"], "_resolved_strategy_params": resolved_strategy_params},
                         "cache_hit": cache_hit,
                         "run_ms": round((time.perf_counter() - started_at) * 1000, 2),
                     }
@@ -2829,7 +3020,7 @@ class BacktestFilter:
                     "code": code,
                     "layer": layer,
                     "status": "failed",
-                    "reason": "backtest_failed",
+                    "reason": str(result.get("error") or "backtest_failed"),
                     "cache_hit": cache_hit,
                     "run_ms": round((time.perf_counter() - started_at) * 1000, 2),
                 }
@@ -2845,7 +3036,7 @@ class BacktestFilter:
                     "code": code,
                     "layer": layer,
                     "status": "failed",
-                    "reason": f"exception:{type(exc).__name__}",
+                    "reason": str(exc) if str(exc).startswith("duplicate_trade_dates:") else f"exception:{type(exc).__name__}",
                     "cache_hit": cache_hit,
                     "run_ms": round((time.perf_counter() - started_at) * 1000, 2),
                 }
@@ -2987,7 +3178,13 @@ class BacktestFilter:
             ).strip().lower() or "missing"
             return payload
 
+        oos_validation = await replay_frozen_holdout(
+            candidate, self._kline_cache, engine,
+            {**_ensure_strategy_params(strategy_type, candidate.get("params") or {}, research_task=candidate.get("research_task")), **assumptions_kwargs},
+            codes=list(target_codes), timeout=float(BACKTEST_CODE_TIMEOUT_SEC),
+        )
         base_result = {
+            "oos_validation": oos_validation,
             "passed": False,
             "reason_code": "unknown",
             "reason": "初筛回测未完成",
@@ -3181,11 +3378,7 @@ class BacktestFilter:
         # primary code x up to 4 numeric params x 4 factors = 16 backtests,
         # capped at 8 variants. Fail-closed: unavailable klines / no numeric
         # params / all runs failed -> stability=None with a reason, never 0.
-        per_code_results: dict[str, dict] = {}
-        for _r in primary_results:
-            _rc = _r.get("code")
-            if _rc and isinstance(_r, dict):
-                per_code_results.setdefault(_rc, dict(_r.get("data") or {}))
+        per_code_results = self._per_code_baseline_metrics(primary_results)
         if avg and primary_successful_codes:
             study = await self._run_parameter_perturbation_study(
                 candidate,
@@ -3218,18 +3411,24 @@ class BacktestFilter:
         # 基准收益估算（从回测结果中提取）
         benchmark_returns_g2 = []
         for pr in primary_results:
-            pr_data = pr.get("data") or {}
-            bh = pr_data.get("buy_hold_return") or pr_data.get("benchmark_return")
-            if bh is not None:
-                benchmark_returns_g2.append(float(bh))
+            pr_data = pr
+            bh = pr_data.get("buy_hold_return")
+            if bh is None:
+                bh = pr_data.get("benchmark_return")
+            benchmark_value = self._finite_float(bh, default=float("nan"))
+            if math.isfinite(benchmark_value):
+                benchmark_returns_g2.append(benchmark_value)
         avg_benchmark_return_g2 = (
             sum(benchmark_returns_g2) / len(benchmark_returns_g2)
             if benchmark_returns_g2
-            else 0.0
+            else None
         )
 
-        # 市场状态
-        if avg_benchmark_return_g2 > 0.10:
+        # Missing benchmark data must not silently imply a neutral market.
+        if avg_benchmark_return_g2 is None:
+            regime_g2 = "unknown"
+            regime_sharpe_min_g2 = thresholds["sharpe_min"]
+        elif avg_benchmark_return_g2 > 0.10:
             regime_g2 = "bull"
             regime_sharpe_min_g2 = thresholds["sharpe_min"]
         elif avg_benchmark_return_g2 < -0.05:
@@ -3240,17 +3439,17 @@ class BacktestFilter:
             regime_sharpe_min_g2 = 0.05
 
         # 超额 Sharpe
-        benchmark_sharpe_g2 = avg_benchmark_return_g2 * 4.0  # 简化年化
-        excess_sharpe_g2 = strategy_sharpe - benchmark_sharpe_g2
+        benchmark_sharpe_g2 = avg_benchmark_return_g2 * 4.0 if avg_benchmark_return_g2 is not None else None
+        excess_sharpe_g2 = strategy_sharpe - benchmark_sharpe_g2 if benchmark_sharpe_g2 is not None else None
 
         # 多维度评分
         multi_score_g2 = 0.0
-        excess_return_g2 = strategy_return - avg_benchmark_return_g2
-        if excess_return_g2 > 0.05:
+        excess_return_g2 = strategy_return - avg_benchmark_return_g2 if avg_benchmark_return_g2 is not None else None
+        if excess_return_g2 is not None and excess_return_g2 > 0.05:
             multi_score_g2 += 30
-        elif excess_return_g2 > 0.0:
+        elif excess_return_g2 is not None and excess_return_g2 > 0.0:
             multi_score_g2 += 20
-        elif excess_return_g2 > -0.03:
+        elif excess_return_g2 is not None and excess_return_g2 > -0.03:
             multi_score_g2 += 10
         if strategy_trades >= thresholds["trades_min"] and strategy_sharpe > -1.0:
             multi_score_g2 += 25
@@ -3260,9 +3459,9 @@ class BacktestFilter:
             multi_score_g2 += 20
         elif strategy_mdd < thresholds["mdd_max"]:
             multi_score_g2 += 12
-        if excess_sharpe_g2 >= 0.20:
+        if excess_sharpe_g2 is not None and excess_sharpe_g2 >= 0.20:
             multi_score_g2 += 15
-        elif excess_sharpe_g2 >= 0.0:
+        elif excess_sharpe_g2 is not None and excess_sharpe_g2 >= 0.0:
             multi_score_g2 += 8
         if thresholds["trades_min"] <= strategy_trades <= 80:
             multi_score_g2 += 10
@@ -3271,7 +3470,7 @@ class BacktestFilter:
         # 让交易质量双低的候选评分自然被压低、更难达 50 分线)。
         # 仅在指标真实可得(present_real)时计分;缺数据(0/无交易)不加不减,避免误伤缺数据候选。
         strategy_win_rate = float(avg.get("win_rate", 0) or 0)
-        strategy_profit_factor = float(avg.get("profit_factor", 0) or 0)
+        strategy_profit_factor = _optional_finite_float(avg.get("profit_factor"))
         quality_score_g2 = 0.0
         if strategy_win_rate > 0:
             if strategy_win_rate >= 0.45:
@@ -3280,7 +3479,7 @@ class BacktestFilter:
                 quality_score_g2 += 6
             elif strategy_win_rate >= 0.30:
                 quality_score_g2 += 2
-        if strategy_profit_factor > 0:
+        if strategy_profit_factor is not None and strategy_profit_factor > 0:
             if strategy_profit_factor >= 1.8:
                 quality_score_g2 += 8
             elif strategy_profit_factor >= 1.3:
@@ -3291,8 +3490,8 @@ class BacktestFilter:
 
         # 综合判定（任一通过即可）
         passed_absolute_g2 = strategy_sharpe >= thresholds["sharpe_min"]
-        passed_relative_g2 = excess_sharpe_g2 >= 0.15
-        passed_regime_g2 = strategy_sharpe >= regime_sharpe_min_g2
+        passed_relative_g2 = excess_sharpe_g2 is not None and excess_sharpe_g2 >= 0.15
+        passed_regime_g2 = avg_benchmark_return_g2 is not None and strategy_sharpe >= regime_sharpe_min_g2
         passed_multi_g2 = multi_score_g2 >= 50
         gate_2_passed = passed_absolute_g2 or passed_relative_g2 or passed_regime_g2 or passed_multi_g2
 
@@ -3304,10 +3503,13 @@ class BacktestFilter:
 
         avg["adaptive_gate_2"] = {
             "regime": regime_g2,
+            "benchmark_return": avg_benchmark_return_g2,
+            "benchmark_available": avg_benchmark_return_g2 is not None,
+            "benchmark_unavailable_reason": "missing_benchmark_return" if avg_benchmark_return_g2 is None else None,
             "multi_score": round(multi_score_g2, 1),
             "quality_score": round(quality_score_g2, 1),
             "win_rate": round(strategy_win_rate, 4),
-            "profit_factor": round(strategy_profit_factor, 4),
+            "profit_factor": None if strategy_profit_factor is None else round(strategy_profit_factor, 4),
             "passed_absolute": passed_absolute_g2,
             "passed_relative": passed_relative_g2,
             "passed_regime": passed_regime_g2,

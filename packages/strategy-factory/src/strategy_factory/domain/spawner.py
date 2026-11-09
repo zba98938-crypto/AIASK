@@ -31,7 +31,7 @@ from .spawn_policy_registry import (
     get_event_ready_source_weights,
     get_spawn_policy_version,
 )
-from .targets import _normalize_target_codes
+from .targets import _normalize_target_codes, _is_index_reference_code
 import logging
 
 logger = logging.getLogger(__name__)
@@ -948,6 +948,8 @@ class StrategySpawner:
         - B 股（200xxx、900xxx）—— 外币计价
         """
         c = str(code or "").strip()
+        if _is_index_reference_code(c):
+            return False
         if not c or len(c) < 6:
             return False
         if c.startswith("920") or c.startswith("8"):

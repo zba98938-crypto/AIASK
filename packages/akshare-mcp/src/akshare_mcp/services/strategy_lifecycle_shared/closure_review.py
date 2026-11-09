@@ -186,6 +186,29 @@ async def build_closure_review(
     except TypeError:
         overview = await build_incubation_overview(db, strategy)
     execution_audit_snapshot = dict(overview.get("execution_audit_snapshot") or {})
+    if not execution_audit_snapshot:
+        # Persisted overviews carry a compact reference instead of the full
+        # audit. Resolve it through the normal date/exclusion-aware reader;
+        # the reference's verdict is never accepted as audit evidence.
+        audit_ref = dict(overview.get("execution_audit_snapshot_ref") or {})
+        referenced_id = _string(audit_ref.get("snapshot_id"))
+        referenced_date = _coerce_as_of(audit_ref.get("as_of"))
+        overview_date = _coerce_as_of(overview.get("as_of"))
+        current_audit = dict(dict(overview.get("execution_quality") or {}).get("audit") or {})
+        if referenced_id and referenced_date and referenced_date == overview_date:
+            candidate = dict(await _maybe_call(
+                getattr(db, "get_latest_execution_audit_snapshot", None),
+                strategy_id,
+                default=None,
+            ) or {})
+            if (
+                _string(candidate.get("strategy_id")) == strategy_id
+                and _string(candidate.get("snapshot_id")) == referenced_id
+                and _coerce_as_of(candidate.get("as_of")) == referenced_date
+                and current_audit
+                and dict(candidate.get("audit_summary") or {}) == current_audit
+            ):
+                execution_audit_snapshot = candidate
     if not execution_audit_snapshot and hasattr(db, "get_execution_audit_verification"):
         try:
             await db.get_execution_audit_verification(strategy_id)

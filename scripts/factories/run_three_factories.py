@@ -31,12 +31,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import codecs
 import io
 import json
 import os
 import signal
 import subprocess
 import sys
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -53,6 +55,44 @@ from _integration_paths import ensure_runtime_dirs, runtime_home
 import logging
 
 logger = logging.getLogger(__name__)
+_SUPERVISOR_LOCK_FD: int | None = None
+
+
+class SupervisorAlreadyRunning(RuntimeError):
+    pass
+
+
+@contextmanager
+def _supervisor_instance_lock():
+    """Own one runtime, including children left alive after a parent crash."""
+    import fcntl
+
+    path = runtime_home() / "run" / "four_runtime_supervisor.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    # Never unlink the file: replacing its inode would let another process
+    # acquire a different lock while an earlier owner is still running.
+    with path.open("a+", encoding="utf-8") as lock:
+        try:
+            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise SupervisorAlreadyRunning(f"supervisor_already_running: {path}") from exc
+        lock.seek(0)
+        lock.truncate()
+        json.dump({"pid": os.getpid(), "started_at": _timestamp(), "script": str(Path(__file__).resolve())}, lock)
+        lock.write("\n")
+        lock.flush()
+        global _SUPERVISOR_LOCK_FD
+        _SUPERVISOR_LOCK_FD = lock.fileno()
+        try:
+            yield
+        finally:
+            _SUPERVISOR_LOCK_FD = None
+            # Closing our copy releases ownership only after all inherited
+            # child copies close too. Explicit LOCK_UN would defeat that.
+
+
+def _supervisor_child_lock_options() -> dict:
+    return {"pass_fds": (_SUPERVISOR_LOCK_FD,)} if _SUPERVISOR_LOCK_FD is not None else {}
 
 _LEGACY_LOG_DIR = runtime_home() / "logs" / "three_factories"
 _LOG_DIR = runtime_home() / "logs" / "four_runtime_supervisor"
@@ -366,6 +406,9 @@ def _build_specs(args: argparse.Namespace, env: dict[str, str]) -> list[FactoryS
             "--run-time",
             args.incubation_run_time,
         ]
+        incubation_interval = int(getattr(args, "incubation_interval", 0) or 0)
+        if incubation_interval > 0:
+            command.extend(["--interval", str(incubation_interval)])
         if args.incubation_dry_run:
             command.append("--dry-run")
         if args.incubation_verbose:
@@ -395,6 +438,7 @@ def _should_run_incubation_catchup(args: argparse.Namespace) -> bool:
         args.no_incubation
         or args.incubation_dry_run
         or args.no_incubation_catchup
+        or int(getattr(args, "incubation_interval", 0) or 0) > 0
     )
 
 
@@ -520,6 +564,21 @@ def _write_header(log_file: TextIO, spec: FactorySpec) -> None:
     log_file.flush()
 
 
+async def _copy_child_output(stream, log_file: TextIO, *, name: str, quiet: bool) -> None:
+    """Drain bounded chunks, including long JSON lines and split UTF-8 chars."""
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    while True:
+        chunk = await stream.read(65536)
+        text = decoder.decode(chunk, final=not chunk)
+        if text:
+            log_file.write(text)
+            log_file.flush()
+            if not quiet:
+                print(f"{_timestamp()} [{name}] {text}", end="", flush=True)
+        if not chunk:
+            return
+
+
 async def _run_incubation_catchup(
     args: argparse.Namespace,
     *,
@@ -552,16 +611,14 @@ async def _run_incubation_catchup(
             env=env,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
+            **_supervisor_child_lock_options(),
         )
         assert process.stdout is not None
-        while True:
-            chunk = await process.stdout.readline()
-            if not chunk:
-                break
-            text = chunk.decode("utf-8", errors="replace").rstrip()
-            log_file.write(text + "\n")
-            if not quiet:
-                print(f"{_timestamp()} [incubation_factory_catchup] {text}", flush=True)
+        try:
+            await _copy_child_output(process.stdout, log_file, name="incubation_factory_catchup", quiet=quiet)
+        except BaseException:
+            await _terminate_process(process)
+            raise
         exit_code = await process.wait()
         log_file.write(f"{_timestamp()} catch-up exited code={exit_code}\n")
     _write_execution_record(
@@ -652,6 +709,7 @@ async def _run_factory(
                 env=env,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.STDOUT,
+                **_supervisor_child_lock_options(),
             )
             state.pid = process.pid
             state.started_at = datetime.now(timezone.utc)
@@ -673,15 +731,8 @@ async def _run_factory(
 
             assert process.stdout is not None
             try:
-                while True:
-                    chunk = await process.stdout.readline()
-                    if not chunk:
-                        break
-                    text = chunk.decode("utf-8", errors="replace").rstrip()
-                    log_file.write(text + "\n")
-                    if not quiet:
-                        print(f"{_timestamp()} [{spec.name}] {text}", flush=True)
-            except asyncio.CancelledError:
+                await _copy_child_output(process.stdout, log_file, name=spec.name, quiet=quiet)
+            except BaseException:
                 await _terminate_process(process)
                 raise
             finally:
@@ -727,8 +778,8 @@ async def _sleep_or_stop(stop_event: asyncio.Event, seconds: int) -> None:
         return
     try:
         await asyncio.wait_for(stop_event.wait(), timeout=seconds)
-    except asyncio.TimeoutError as _swallowed:
-        logger.warning("scripts/factories/run_three_factories.py:712: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
+    except asyncio.TimeoutError:
+        # Expiry is the normal completion of a heartbeat/restart interval.
         return
 
 
@@ -831,6 +882,17 @@ async def _run(args: argparse.Namespace) -> int:
     if args.dry_run:
         return 0
 
+    try:
+        with _supervisor_instance_lock():
+            return await _run_supervised(args, env=env, specs=specs, log_dir=log_dir)
+    except SupervisorAlreadyRunning as exc:
+        print(str(exc), file=sys.stderr, flush=True)
+        return 2
+
+
+async def _run_supervised(
+    args: argparse.Namespace, *, env: dict[str, str], specs: list[FactorySpec], log_dir: Path,
+) -> int:
     _write_startup_manifest(log_dir=log_dir, specs=specs, args=args, env=env)
     _write_planned_execution_records(log_dir=log_dir, specs=specs, args=args, env=env)
 
@@ -904,6 +966,28 @@ async def _run(args: argparse.Namespace) -> int:
         )
     )
 
+    task_failures: list[str] = []
+
+    def task_finished(task: asyncio.Task) -> None:
+        if task.cancelled():
+            return
+        error = task.exception()
+        if error is None:
+            return
+        task_failures.append(task.get_name())
+        logger.error("supervisor task %s failed: %s", task.get_name(), error)
+        # Do not keep advertising a healthy supervisor after a child manager
+        # crashed. Stop the remaining children and let the service manager retry.
+        try:
+            _write_execution_record(
+                log_dir, "supervisor_task_failed", task=task.get_name(), error=str(error),
+            )
+        finally:
+            stop_event.set()
+
+    for task in tasks:
+        task.add_done_callback(task_finished)
+
     try:
         await stop_event.wait()
     finally:
@@ -925,7 +1009,7 @@ async def _run(args: argparse.Namespace) -> int:
             ],
             mcp_service_expected=False,
         )
-    return 0
+    return 1 if task_failures else 0
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -991,6 +1075,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
     parser.add_argument("--no-incubation", action="store_true", help="Do not start Incubation Factory.")
     parser.add_argument("--incubation-run-time", default="18:30", help="Daily incubation run time, HH:MM.")
+    parser.add_argument("--incubation-interval", type=int, default=0, help="Incubation completion interval seconds; positive runs immediately and disables separate catch-up; 0 keeps daily scheduling.")
     parser.add_argument("--incubation-dry-run", action="store_true", help="Run Incubation daemon in dry-run mode.")
     parser.add_argument("--incubation-verbose", action="store_true", help="Enable verbose incubation logs.")
     parser.add_argument(
@@ -1003,7 +1088,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Do not start the real market-event ingest runner.",
     )
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.incubation_interval < 0:
+        parser.error("--incubation-interval must be non-negative")
+    return args
 
 
 def main(argv: list[str] | None = None) -> int:

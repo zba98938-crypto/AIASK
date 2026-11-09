@@ -70,10 +70,10 @@ class FactorMiningFactory:
         from .pool.storage import ensure_factor_pool_tables, load_active_pool_from_db
 
         await ensure_factor_pool_tables(db)
-        if self._pool_loaded_from_db:
-            return
         records = await load_active_pool_from_db(db)
-        hydrate = getattr(self._active_pool, "hydrate", None)
+        hydrate = getattr(self._active_pool, "replace_from_records", None)
+        if not callable(hydrate):
+            hydrate = getattr(self._active_pool, "hydrate", None)
         if callable(hydrate):
             hydrate(records)
         self._pool_loaded_from_db = True
@@ -215,10 +215,18 @@ class FactorMiningFactory:
         from .engines.context import MiningContext
 
         context = await MiningContext.build(db=db, codes=codes, active_pool=self._active_pool)
+        from .pool.numeric_orthogonality import FactorPoolCorrelationEvaluator
+
+        self._active_pool.correlation_evaluator = FactorPoolCorrelationEvaluator(
+            db, list(context.validation_codes)
+        ).evaluate
         memory = {}
         if self._meta_learner is not None and hasattr(self._meta_learner, "get_pattern_memory"):
             memory = self._meta_learner.get_pattern_memory()
         persistent_memory = await self._load_persistent_pattern_memory(db)
+        restore_feedback = getattr(self._engine_scheduler, "restore_quality_feedback", None)
+        if callable(restore_feedback):
+            restore_feedback(persistent_memory.get("engine_quality_feedback") or [])
         context.failed_pattern_memory = self._merge_pattern_memory(
             list(memory.get("failed_pattern_memory") or []),
             list(persistent_memory.get("failed_pattern_memory") or []),
@@ -278,6 +286,7 @@ class FactorMiningFactory:
 
         success_counts: dict[str, int] = {}
         failure_counts: dict[str, int] = {}
+        feedback = []
         for row in rows:
             try:
                 report = json.loads(str(row.get("report") or "{}"))
@@ -285,6 +294,8 @@ class FactorMiningFactory:
                 logger.warning("packages/akshare-mcp/src/akshare_mcp/services/factor_mining_factory/factory.py:284: swallowed %s and continued: %s", type(_swallowed).__name__, _swallowed)
                 continue
             quality_summary = dict(report.get("quality_summary") or {})
+            if isinstance(quality_summary.get("by_engine"), dict):
+                feedback.append(quality_summary["by_engine"])
             for item in list(quality_summary.get("strict_candidate_results") or []):
                 if not isinstance(item, dict):
                     continue
@@ -306,6 +317,7 @@ class FactorMiningFactory:
         return {
             "successful_pattern_memory": self._counter_rows(success_counts),
             "failed_pattern_memory": self._counter_rows(failure_counts),
+            "engine_quality_feedback": list(reversed(feedback)),
         }
 
     @staticmethod
@@ -503,7 +515,7 @@ class FactorMiningFactory:
                     horizon_days=10,
                     min_cross_section=30,
                     persist_outputs=True,
-                    factor_key=candidate.name,
+                    bind_evidence_identity=True,
                     persist_ic_history=True,
                     recorded_trial_count=recorded_trial_count,
                 )
@@ -763,6 +775,13 @@ class FactorMiningFactory:
             if validation_summary.get("quality_status") == "promoted":
                 active_promoted_count += 1
 
+        pool_reject_reasons: dict[str, int] = {}
+        for item in strict_candidate_results:
+            decision = dict((item.get("admission_decision") or {}).get("pool_admission") or {})
+            if not decision.get("admitted") and decision.get("reason"):
+                reason = str(decision["reason"])
+                pool_reject_reasons[reason] = pool_reject_reasons.get(reason, 0) + 1
+                reject_reasons[reason] = reject_reasons.get(reason, 0) + 1
         return {
             "raw_candidate_count": len(raw or []),
             "evolved_count": len(evolved or []),
@@ -772,6 +791,7 @@ class FactorMiningFactory:
             "quarantine_count": quarantine_count,
             "active_promoted_count": active_promoted_count,
             "reject_reasons": reject_reasons,
+            "pool_reject_reasons": pool_reject_reasons,
             "diagnostic_counts": diagnostic_counts,
             "quality_funnel": {
                 "generated": len(raw or []),
@@ -879,6 +899,11 @@ class FactorMiningFactory:
                 str(item)
                 for item in list(governance.get("admission_block_reasons") or [])
             )
+        from strategy_factory.application.factor_mining.quality_summary import pool_admission_decision
+
+        pool_decision = pool_admission_decision(candidate, strict_passed=strict_gate_passed)
+        if not pool_decision.get("admitted") and pool_decision.get("reason"):
+            blockers.append(str(pool_decision["reason"]))
         blockers = list(dict.fromkeys(item for item in blockers if item))
         return {
             "name": str(getattr(candidate, "name", "") or ""),
@@ -894,7 +919,8 @@ class FactorMiningFactory:
             "quick_evidence": dict(getattr(candidate, "quick_evidence", None) or {}),
             "admission_decision": {
                 "strict_gate_passed": bool(strict_gate_passed),
-                "admitted": bool(admitted),
+                "admitted": bool(pool_decision.get("admitted")),
+                "pool_admission": pool_decision,
                 "evidence_passed": bool(evidence.get("passed")),
                 "evidence_reasons": list(evidence.get("reasons") or []),
                 "evidence_summary": dict(evidence.get("summary") or {}),
@@ -950,7 +976,9 @@ class FactorMiningFactory:
                 await save_factor_to_pool(db, record)
 
     async def _promote_quarantine_factors(self, db) -> dict[str, Any]:
-        from .pool.storage import load_factor_pool_from_db, save_factor_to_pool
+        from .pool.storage import load_active_pool_from_db, load_factor_pool_from_db, save_factor_to_pool
+        from .pool.numeric_orthogonality import QuarantinePromotionGate
+        from .pool.active_pool import ActiveFactorPool
 
         rows = await load_factor_pool_from_db(
             db,
@@ -959,9 +987,30 @@ class FactorMiningFactory:
         )
         promoted: list[str] = []
         rejected: dict[str, int] = {}
+        active_records = [
+            row for row in await load_active_pool_from_db(db)
+            if (row.get("validation_summary") or {}).get("quality_status") != "quarantine"
+        ] if rows else []
+        promotion_gate = QuarantinePromotionGate(db, threshold=ActiveFactorPool.ORTHOGONALITY_THRESHOLD)
         for record in rows:
+            from ..factor_evidence_identity import resolve_factor_evidence_identity
+
+            identity = resolve_factor_evidence_identity(record)
+            if identity.get("status") != "bound":
+                reason = identity["reason"]
+                rejected[reason] = rejected.get(reason, 0) + 1
+                # Preserve legacy evidence as stored; do not certify or rewrite it.
+                continue
             evidence_result = await self._build_quarantine_evidence_result(db, record)
             evidence = evaluate_validation_evidence(evidence_result)
+            orthogonality = None
+            if evidence.get("passed"):
+                orthogonality = await promotion_gate.check(record, active_records)
+                if not orthogonality["passed"]:
+                    evidence = {
+                        **evidence, "passed": False,
+                        "reasons": [orthogonality["promotion_block_reason"]],
+                    }
             if not evidence.get("passed"):
                 for reason in list(evidence.get("reasons") or []):
                     rejected[reason] = rejected.get(reason, 0) + 1
@@ -969,6 +1018,8 @@ class FactorMiningFactory:
                 validation_summary["quality_status"] = "quarantine"
                 validation_summary["evidence_summary"] = dict(evidence.get("summary") or {})
                 validation_summary["promotion_block_reasons"] = list(evidence.get("reasons") or [])
+                if orthogonality is not None:
+                    validation_summary["orthogonality"] = orthogonality
                 record["validation_summary"] = validation_summary
                 await save_factor_to_pool(db, record)
                 continue
@@ -977,12 +1028,17 @@ class FactorMiningFactory:
             validation_summary["quality_status"] = "promoted"
             validation_summary["evidence_summary"] = dict(evidence.get("summary") or {})
             validation_summary["promotion_block_reasons"] = []
+            validation_summary["orthogonality"] = orthogonality
             record["validation_summary"] = validation_summary
             record["status"] = "active"
             record["current_ic"] = (evidence.get("summary") or {}).get("rank_ic_mean")
             record["fitness"] = compute_quality_score(evidence_result)
             record["last_evaluated_at"] = datetime.now(timezone.utc).isoformat()
-            await save_factor_to_pool(db, record)
+            saved = await save_factor_to_pool(db, record)
+            if not saved.get("saved"):
+                rejected["factor_pool_save_failed"] = rejected.get("factor_pool_save_failed", 0) + 1
+                continue
+            active_records.append(record)
             hydrate = getattr(self._active_pool, "hydrate", None)
             if callable(hydrate):
                 hydrate([record])
@@ -998,26 +1054,31 @@ class FactorMiningFactory:
     async def _reappraise_quarantine_factors(self, db, *, limit: int = 200) -> dict[str, Any]:
         from .reappraise import reappraise_quarantine_factors
 
-        return await reappraise_quarantine_factors(db, limit=limit)
+        evaluator = getattr(self._active_pool, "correlation_evaluator", None)
+        kwargs = {"correlation_evaluator": evaluator} if callable(evaluator) else {}
+        return await reappraise_quarantine_factors(db, limit=limit, **kwargs)
 
     async def _build_quarantine_evidence_result(self, db, record: dict[str, Any]) -> dict[str, Any]:
-        name = str(record.get("name") or "").strip()
-        if not name:
-            return {}
+        from ..factor_evidence_identity import resolve_factor_evidence_identity
+
+        identity = resolve_factor_evidence_identity(record)
+        if identity.get("status") != "bound":
+            return {"evidence_identity": identity, "reason": identity["reason"]}
+        name, period = identity["factor_key"], identity["period"]
         rows = []
         try:
             if hasattr(db, "get_factor_ic_history"):
-                rows = await db.get_factor_ic_history(name, "10", 60)
+                rows = await db.get_factor_ic_history(name, period, 60)
             elif hasattr(db, "acquire"):
                 async with db.acquire() as conn:
                     rows = await conn.fetch(
                         """
                         SELECT * FROM factor_ic_history
-                        WHERE factor_name = $1
+                        WHERE factor_name = $1 AND period = $2
                         ORDER BY ic_date DESC
                         LIMIT 60
                         """,
-                        name,
+                        name, period,
                     )
             else:
                 raw_conn = getattr(db, "conn", None) or getattr(db, "connection", None)
@@ -1025,11 +1086,11 @@ class FactorMiningFactory:
                     cursor = raw_conn.execute(
                         """
                         SELECT * FROM factor_ic_history
-                        WHERE factor_name = ?
+                        WHERE factor_name = ? AND period = ?
                         ORDER BY ic_date DESC
                         LIMIT 60
                         """,
-                        (name,),
+                        (name, period),
                     )
                     columns = [desc[0] for desc in cursor.description]
                     rows = [dict(zip(columns, row)) for row in cursor.fetchall()]
@@ -1037,7 +1098,7 @@ class FactorMiningFactory:
             rows = []
         rows = [dict(row) for row in rows or []]
         values = [float(row.get("rank_ic") or 0.0) for row in rows]
-        sample_sizes = [int(row.get("sample_size") or 0) for row in rows]
+        sample_sizes = [int(row.get("stock_count") or 0) for row in rows]
         if not values:
             return {
                 "metrics": {"sample_dates": 0},
@@ -1059,11 +1120,13 @@ class FactorMiningFactory:
             "coverage": {
                 "avg_cross_section_n": float(np.mean(sample_sizes)) if sample_sizes else 0.0,
             },
-            "persisted_outputs": {"enabled": True, "ic_history_rows": len(values)},
-            "lookahead_audit": {"risk_level": "low"},
+            "persisted_outputs": {"enabled": True, "ic_history_rows": len(values),
+                                  "factor_key": name, "evidence_identity": identity},
+            "lookahead_audit": {"risk_level": dict((record.get("validation_summary") or {}).get("evidence_summary") or {}).get("lookahead_risk", "unknown")},
         }
 
     async def _record_feedback(self, run_id, raw, evolved, validated, admitted):
+        self._engine_scheduler.record_quality_feedback(raw, validated, admitted)
         await self._meta_learner.record_cycle(
             run_id=run_id,
             raw_count=len(raw),

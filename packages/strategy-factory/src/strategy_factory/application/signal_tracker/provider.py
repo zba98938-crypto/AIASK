@@ -83,7 +83,7 @@ class SignalTrackerProvider(Protocol):
         self,
         db: Any,
         *,
-        forward_days_list: list[int],
+        forward_days_list: list[int] | None = None,
         batch_limit: int = 2000,
         max_rounds: int = 100,
     ) -> dict[str, Any]:

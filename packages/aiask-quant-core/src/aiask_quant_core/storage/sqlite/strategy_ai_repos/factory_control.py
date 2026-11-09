@@ -14,7 +14,8 @@ _FACTORIES = frozenset(
 )
 _TERMINAL_STATES = frozenset({"succeeded", "partial", "blocked", "failed", "cancelled"})
 _TRANSITIONS = {
-    "queued": frozenset({"running", "blocked", "cancelled"}),
+    # A worker can fail to spawn/import before it claims the queued run.
+    "queued": frozenset({"running", "blocked", "failed", "cancelled"}),
     "running": frozenset({"queued", *_TERMINAL_STATES}),
     **{state: frozenset() for state in _TERMINAL_STATES},
 }
